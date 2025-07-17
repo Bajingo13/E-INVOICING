@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Service Invoice</title>
+  <link rel="stylesheet" href="EINVOICING.css">
+</head>
+<body> 
+  <div class="invoice-container">
+
+    <div class="buttons">
+      <button onclick="exportToJSON()">📁 Export to JSON</button>
+      <button type="button" onclick="saveToLocalStorage()">💾 Save & Preview</button>
+
+    </div>
+
+    <div class="header">
+      <div class="logo-title">
+        <div class="logo">
+          <strong>BSU & COMPLIANCE</strong><br>
+          <span class="small">Business Set Up & Compliance Inc.</span>
+        </div>
+        <div class="company-info">
+          <strong>BUSINESS SET UP & COMPLIANCE INC.</strong><br>
+          Unit 1011, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San Antonio,<br>
+          1203 City of Makati, NCR, Fourth District, Philippines<br>
+          Tel. No.: 8403-4877<br>
+          VAT Reg. TIN: 008-640-850-00000
+        </div>
+      </div>
+      <div class="invoice-no">
+        No <input type="text" name="invoiceNo" class="input-small">
+      </div>
+    </div>
+
+    <table class="info-table">
+      <tr>
+        <td><strong>BILL TO:</strong> <input type="text" name="billTo" class="input-long"></td>
+        <td><strong>DATE:</strong> <input type="date" name="date"></td>
+      </tr>
+      <tr>
+        <td><strong>ADDRESS:</strong> <input type="text" name="address" class="input-long"></td>
+        <td><strong>TIN:</strong> <input type="text" name="tin"></td>
+      </tr>
+      <tr>
+        <td></td>
+        <td><strong>TIME:</strong> <input type="time" name="time"></td>
+      </tr>
+    </table>
+
+    <div class="invoice-title">SERVICE INVOICE</div>
+
+    <button onclick="addRow()">➕ Add Row</button>
+
+    <table class="bordered" id="items-table">
+      <thead>
+        <tr>
+          <th class="desc-col">DESCRIPTION</th>
+          <th class="qty-col">QUANTITY</th>
+          <th class="unit-col">UNIT COST/<br>RATE</th>
+          <th class="amt-col">AMOUNT</th>
+        </tr>
+      </thead>
+      <tbody id="items-body">
+        <tr>
+  <td><input type="text" class="input-full" name="desc[]"></td>
+  <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)"></td>
+  <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)"></td>
+  <td><input type="number" class="input-short" name="amt[]" readonly></td>
+  <td><button type="button" onclick="deleteRow(this)">🗑️</button></td>
+</tr>
+
+      </tbody>  
+    </table>
+
+    <table class="form-payment">
+      <tr>
+        <td colspan="2">FORM OF PAYMENT</td>
+        <td>VATable Sales</td>
+        <td><input type="text" name="vatableSales"></td>
+        <td>Total Sales (VAT Inclusive)</td>
+        <td><input type="text" name="totalSales"></td>
+      </tr>
+      <tr>
+        <td>Cash</td><td><input type="checkbox" name="cash"></td>
+        <td>VAT-Exempt Sales</td><td><input type="text" name="vatExempt"></td>
+        <td>Less: VAT</td><td><input type="text" name="lessVat"></td>
+      </tr>
+      <tr>
+        <td>Check</td><td><input type="checkbox" name="check"></td>
+        <td>Zero-Rated Sales</td><td><input type="text" name="zeroRated"></td>
+        <td>Amount Net of VAT</td><td><input type="text" name="netVat"></td>
+      </tr>
+      <tr>
+        <td>Check No.</td><td><input type="text" name="checkNo"></td>
+        <td>VAT Amount</td><td><input type="text" name="vatAmount"></td>
+        <td>Less: Withholding Tax</td><td><input type="text" name="withholding"></td>
+      </tr>
+      <tr>
+        <td>Bank</td><td><input type="text" name="bank"></td>
+        <td>Total</td><td><input type="text" name="total"></td>
+        <td>Total Due</td><td><input type="text" name="due"></td>
+      </tr>
+      <tr>
+        <td>Date</td><td><input type="date" name="payDate"></td>
+        <td>Add: VAT</td><td><input type="text" name="addVat"></td>
+        <td>Total Payable</td><td><input type="text" name="payable"></td>
+      </tr>
+    </table>
+
+    <table class="signature-section">
+      <tr>
+        <td>PREPARED BY:</td>
+        <td>APPROVED BY:</td>
+        <td>RECEIVED BY:</td>
+      </tr>
+      <tr>
+        <td>___________________________<br><span>Signature over Printed Name</span></td>
+        <td>___________________________<br><span>Signature over Printed Name</span></td>
+        <td>___________________________<br><span>Signature over Printed Name</span></td>
+      </tr>
+    </table>
+
+    <div class="footer">
+      <div>2 Boxes SD08. D04-1000</div>
+      <div>BONS COMMERCIAL PRESS</div>
+      <div>Bons bldg., Sta. Il., Pio del Pilar, Makati City</div>
+      <div>VAT Reg. TIN: __________________</div>
+      <div>Printer’s Accreditation No.: __________________</div>
+      <div>Date of Expiration: __________________</div>
+      <div>Date of Issue: __________________</div>
+    </div>
+  </div>
+
+  <script src="EINVOICING.js"></script>
+
+</body>
+</html>

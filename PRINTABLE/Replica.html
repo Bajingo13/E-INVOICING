@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Service Invoice</title>
+  <link rel="stylesheet" href="Replica.css" />
+</head>
+<body>
+  <div class="invoice-container">
+    <header class="header">
+      <div class="logo">
+        <br>
+        <img src="bsu logo.JPG"/>
+        <div class="logo-text">
+        
+        </div>
+      </div>
+      <div class="company-info">
+        <h1>BUSINESS SET UP & COMPLIANCE INC.</h1>
+        <p>
+          Unit 1011, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San
+          Antonio,<br />
+          1203 City of Makati, NCR, Fourth District, Philippines<br />
+          Tel. No.: 8403-4877<br />
+          VAT Reg. TIN: 008-640-850-00000
+        </p>
+      </div>
+    </header>
+
+    <section class="invoice-info">
+  <div class="left-info">
+    <div class="field">
+      <span class="label">BILL TO :</span>
+      <span class="line">_________________________________________________________________________</span>
+    </div>
+    <div class="field">
+  <span class="label">ADDRESS :</span>
+  <span class="line">_________________________________________________________________________</span>
+</div>
+<div class="field">
+  <span class="label">&nbsp;</span> <!-- keeps alignment -->
+  <span class="line">_________________________________________________________________________</span>
+</div>
+
+  </div>
+
+  <div class="right-info">
+    <div class="field">
+      <span class="label">N<span class="small-zero">o</span> :</span>
+      <span class="line">___________</span>
+    </div>
+    <div class="field">
+      <span class="label">DATE :</span>
+      <span class="line">___________</span>
+    </div>
+    <div class="field">
+      <span class="label">TIN :</span>
+      <span class="line">___________</span>
+    </div>
+    <div class="field">
+      <span class="label">TIME :</span>
+      <span class="line">___________</span>
+    </div>
+  </div>
+</section>
+
+
+
+    <h2 class="service-invoice-title">SERVICE INVOICE</h2>
+
+    <table class="invoice-table">
+      <thead>
+        <tr>
+          <th class="desc">DESCRIPTION</th>
+          <th>QUANTITY</th>
+          <th class="unit-cost">UNIT COST/<br />RATE</th>
+          <th>AMOUNT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="4" style="height: 250px;"></td></tr>
+      </tbody>
+    </table>
+
+    <table class="payment-table">
+  <colgroup>
+    <col style="width: 20%;">   <!-- Column 1: Payment method (Cash, Check...) -->
+    <col style="width: 10%;">
+    <col style="width: 26%;">
+    <col style="width: 10%;">   <!-- Column 2: VAT types -->
+    <col style="width: 26%;">   <!-- Column 3: Totals -->
+    <col style="width: 10%;">   <!-- Column 4: This is now wider -->
+  </colgroup>
+  <thead>
+    <tr>
+      <th colspan="6" class="form-payment-label">FORM OF PAYMENT</th>
+    </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td>Cash</td>
+    <td></td>
+    <td>VATable Sales</td>
+    <td></td>
+    <td>Total Sales (VAT Inclusive)</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Check</td>
+    <td></td>
+    <td>VAT-Exempt Sales</td>
+    <td></td>
+    <td>Less: VAT</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Check No.</td>
+    <td></td>
+    <td>Zero-Rated Sales</td>
+    <td></td>
+    <td>Amount Net of VAT</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Bank</td>
+    <td></td>
+    <td>VAT Amount</td>
+    <td></td>
+    <td>Less: Withholding Tax</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Date</td>
+    <td></td>
+    <td>Total</td>
+    <td></td>
+    <td>Total Due</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td>Add: VAT</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td>Total Payable</td>
+    <td></td>
+  </tr>
+</tbody>
+
+</table>
+
+
+
+   <section class="signatures-box">
+  <div class="signatures">
+    <div>
+      <p class="label">PREPARED BY:</p>
+      <div class="line"></div>
+      <p>Signature over Printed Name</p>
+    </div>
+    <div>
+      <p class="label">APPROVED BY:</p>
+      <div class="line"></div>
+      <p>Signature over Printed Name</p>
+    </div>
+    <div>
+      <p class="label">RECEIVED BY:</p>
+      <div class="line"></div>
+      <p>Signature over Printed Name</p>
+    </div>
+  </div>
+</section>
+
+  </div>
+  <footer class="footer-info">
+      <div class="left-footer">
+        <small>
+          2 Boxes 500x3 0001-1000<br />
+          BIR ATP OCN:<br />
+          Date of ATP:<br />
+          Loose-Leaf Permit No.:<br />
+          Date of Issue:
+        </small>
+      </div>
+      <div class="right-footer">
+        <small>
+          BONS COMMERCIAL PRESS<br />
+          6811 Santuico St., Pio del Pilar, Makati City<br />
+          Mobile No.:<br />
+          VAT REG. TIN:<br />
+          Printer's Accreditation No.:<br />
+          Date Accredited:<br />
+          Date of Expiration:
+        </small>
+      </div>
+    </footer>   
+    
+   <script src="replica.js"></script>
+
+
+
+</body>
+</html>
