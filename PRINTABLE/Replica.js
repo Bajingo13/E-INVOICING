@@ -13,7 +13,7 @@ window.onload = function () {
     return isNaN(num) ? "" : num.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' });
   }
 
-  // ✅ Fill the <span class="line"> elements
+  // ✅ Fill the <span class="line"> elements by label
   function fillLine(labelText, value) {
     const fields = document.querySelectorAll(".field");
 
@@ -27,47 +27,70 @@ window.onload = function () {
     });
   }
 
-  // ✅ Fill top fields
+  // ✅ Fill top fields (with fallback to new ID-based fields)
   fillLine("BILL TO", data.billTo);
-  fillLine("ADDRESS", data.address);
+  fillLine("ADDRESS", `${data.address1} ${data.address2}`.trim());
   fillLine("N", data.invoiceNo); // Handles "No"
   fillLine("DATE", data.date);
   fillLine("TIN", data.tin);
   fillLine("TIME", data.time);
 
-  const tbody = document.querySelector(".invoice-table tbody");
-const placeholderRow = tbody.querySelector("tr");
+  // ✅ Also support direct ID-based filling for key fields
+  const fillById = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value || "";
+  };
 
- if (Array.isArray(data.items)) {
-  data.items.forEach(item => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${item.desc || ""}</td>
-      <td>${item.qty || ""}</td>
-      <td>${formatCurrency(item.rate)}</td>
-      <td>${formatCurrency(item.amt)}</td>
-    `;
-    tbody.insertBefore(row, placeholderRow); // Insert before placeholder
-  });
-}
+  // 🔄 ID-based fields (top section + payment + signatures)
+  fillById("billTo", data.billTo);
+  fillById("address1", data.address1);
+  fillById("address2", data.address2);
+  fillById("invoiceNumber", data.invoiceNo);
+  fillById("invoiceDate", data.date);
+  fillById("tin", data.tin);
+  fillById("time", data.time);
 
-  // ✅ Fill payment table
-  const paymentValues = [
-    data.cash ? "✔" : "", "", formatCurrency(data.vatableSales), "", formatCurrency(data.totalSales),
-    data.check ? "✔" : "", formatCurrency(data.vatExempt), "", formatCurrency(data.lessVat),
-    data.checkNo || "", "", formatCurrency(data.zeroRated), "", formatCurrency(data.netVat),
-    data.bank || "", "", formatCurrency(data.vatAmount), "", formatCurrency(data.withholding),
-    data.payDate || "", "", formatCurrency(data.total), "", formatCurrency(data.due),
-    "", "", "", "", formatCurrency(data.addVat),
-    "", "", "", "", formatCurrency(data.payable)
-  ];
+  // ✅ Items table
+  const tbody = document.getElementById("itemRows");
+  const placeholderRow = tbody.querySelector("tr");
 
-  const paymentCells = document.querySelectorAll(".payment-table td");
-  paymentValues.forEach((val, i) => {
-    if (paymentCells[i]) {
-      paymentCells[i].textContent = val;
-    }
-  });
+  if (Array.isArray(data.items)) {
+    data.items.forEach(item => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${item.desc || ""}</td>
+        <td>${item.qty || ""}</td>
+        <td>${formatCurrency(item.rate)}</td>
+        <td>${formatCurrency(item.amt)}</td>
+      `;
+      tbody.insertBefore(row, placeholderRow); // Insert before placeholder
+    });
+  }
+
+  // ✅ Fill payment-related fields by ID
+  fillById("cash", data.cash ? "✔" : "");
+  fillById("check", data.check ? "✔" : "");
+  fillById("checkNumber", data.checkNo);
+  fillById("bank", data.bank);
+  fillById("paymentDate", data.payDate);
+
+  fillById("vatableSales", formatCurrency(data.vatableSales));
+  fillById("vatExemptSales", formatCurrency(data.vatExempt));
+  fillById("zeroRatedSales", formatCurrency(data.zeroRated));
+  fillById("vatAmount", formatCurrency(data.vatAmount));
+  fillById("lessVAT", formatCurrency(data.lessVat));
+  fillById("netOfVAT", formatCurrency(data.netVat));
+  fillById("withholdingTax", formatCurrency(data.withholding));
+  fillById("total", formatCurrency(data.total));
+  fillById("totalDue", formatCurrency(data.due));
+  fillById("addVAT", formatCurrency(data.addVat));
+  fillById("totalPayable", formatCurrency(data.payable));
+  fillById("totalWithVAT", formatCurrency(data.totalSales));
+
+  // ✅ Fill signatures if available
+  fillById("preparedBy", data.preparedBy);
+  fillById("approvedBy", data.approvedBy);
+  fillById("receivedBy", data.receivedBy);
 };
 
 // ✅ Clear stored data when leaving

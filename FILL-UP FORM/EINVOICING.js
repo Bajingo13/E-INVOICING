@@ -19,7 +19,8 @@ function saveToLocalStorage() {
     invoiceNo,
     billTo,
     date,
-    address: document.querySelector('input[name="address"]')?.value || "",
+    address1: document.querySelector('input[name="address1"]')?.value || "",
+    address2: document.querySelector('input[name="address2"]')?.value || "",
     tin: document.querySelector('input[name="tin"]')?.value || "",
     time: document.querySelector('input[name="time"]')?.value || "",
     items: Array.from(document.querySelectorAll('#items-body tr')).map(row => ({
@@ -44,7 +45,10 @@ function saveToLocalStorage() {
     cash: document.querySelector('input[name="cash"]')?.checked || false,
     check: document.querySelector('input[name="check"]')?.checked || false,
     checkNo: document.querySelector('input[name="checkNo"]')?.value || "",
-    bank: document.querySelector('input[name="bank"]')?.value || ""
+    bank: document.querySelector('input[name="bank"]')?.value || "",
+    preparedBy: document.querySelector('input[name="preparedBy"]')?.value || "",
+    approvedBy: document.querySelector('input[name="approvedBy"]')?.value || "",
+    receivedBy: document.querySelector('input[name="receivedBy"]')?.value || ""
   };
 
   localStorage.setItem('invoiceData', JSON.stringify(data));
@@ -75,7 +79,7 @@ function updateAmount(el) {
   const amtField = row.querySelector('input[name="amt[]"]');
   amtField.value = (qty * rate).toFixed(2);
 
-  calculateTotals(); // auto-update totals after each row input
+  calculateTotals();
 }
 
 function deleteRow(button) {
@@ -84,7 +88,7 @@ function deleteRow(button) {
 
   if (tbody.rows.length > 1) {
     tbody.removeChild(row);
-    calculateTotals(); // recalculate after row deletion
+    calculateTotals();
   } else {
     alert("At least one row must remain.");
   }
