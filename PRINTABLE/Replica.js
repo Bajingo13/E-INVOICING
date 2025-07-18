@@ -16,11 +16,9 @@ window.onload = function () {
   // ✅ Fill the <span class="line"> elements by label
   function fillLine(labelText, value) {
     const fields = document.querySelectorAll(".field");
-
     fields.forEach(field => {
       const label = field.querySelector(".label");
       const line = field.querySelector(".line");
-
       if (label && line && label.textContent.trim().startsWith(labelText)) {
         line.textContent = value || "___________";
       }
@@ -51,21 +49,41 @@ window.onload = function () {
   fillById("time", data.time);
 
   // ✅ Items table
-  const tbody = document.getElementById("itemRows");
-  const placeholderRow = tbody.querySelector("tr");
+  // ✅ Items table
+const tbody = document.getElementById("itemRows");
+const placeholderRow = tbody.querySelector("tr");
 
-  if (Array.isArray(data.items)) {
-    data.items.forEach(item => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${item.desc || ""}</td>
-        <td>${item.qty || ""}</td>
-        <td>${formatCurrency(item.rate)}</td>
-        <td>${formatCurrency(item.amt)}</td>
-      `;
-      tbody.insertBefore(row, placeholderRow); // Insert before placeholder
+// ✅ Load dynamic columns reliably
+const extraFields = Array.isArray(data.extraColumns) ? data.extraColumns : [];
+
+// ✅ Update table headers dynamically
+const theadRow = document.querySelector("#itemRows").closest("table").querySelector("thead tr");
+extraFields.forEach(field => {
+  const th = document.createElement("th");
+  th.textContent = field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  theadRow.appendChild(th);
+});
+
+// ✅ Render item rows
+if (Array.isArray(data.items)) {
+  data.items.forEach(item => {
+    const row = document.createElement("tr");
+    const cells = [
+      `<td>${item.desc || ""}</td>`,
+      `<td>${item.qty || ""}</td>`,
+      `<td>${formatCurrency(item.rate)}</td>`,
+      `<td>${formatCurrency(item.amt)}</td>`
+    ];
+
+    extraFields.forEach(field => {
+      cells.push(`<td>${item[field] || ""}</td>`);
     });
-  }
+
+    row.innerHTML = cells.join("");
+    tbody.insertBefore(row, placeholderRow);
+  });
+}
+
 
   // ✅ Fill payment-related fields by ID
   fillById("cash", data.cash ? "✔" : "");

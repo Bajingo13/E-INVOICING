@@ -14,6 +14,17 @@ function saveToLocalStorage() {
 
   calculateTotals();
 
+  // ✅ Get dynamic column names (after the 4 default columns)
+  const allThs = document.querySelectorAll("#items-table thead th");
+  const extraColumns = [];
+  allThs.forEach((th, index) => {
+    if (index >= 4) {
+      const key = th.textContent.trim().toLowerCase().replace(/\s+/g, "_");
+      extraColumns.push(key);
+    }
+  });
+
+  // ✅ Build data object
   const data = {
     invoiceNo,
     billTo,
@@ -22,12 +33,29 @@ function saveToLocalStorage() {
     address2: document.querySelector('input[name="address2"]')?.value || "",
     tin: document.querySelector('input[name="tin"]')?.value || "",
     time: document.querySelector('input[name="time"]')?.value || "",
-    items: Array.from(document.querySelectorAll('#items-body tr')).map(row => ({
-      desc: row.querySelector('input[name="desc[]"]')?.value || "",
-      qty: row.querySelector('input[name="qty[]"]')?.value || "",
-      rate: row.querySelector('input[name="rate[]"]')?.value || "",
-      amt: row.querySelector('input[name="amt[]"]')?.value || "",
-    })),
+
+    // ✅ Save each row including extra columns
+    items: Array.from(document.querySelectorAll('#items-body tr')).map(row => {
+      const item = {
+        desc: row.querySelector('input[name="desc[]"]')?.value || "",
+        qty: row.querySelector('input[name="qty[]"]')?.value || "",
+        rate: row.querySelector('input[name="rate[]"]')?.value || "",
+        amt: row.querySelector('input[name="amt[]"]')?.value || ""
+      };
+
+      // ✅ Add dynamic fields (e.g., jade, remarks, etc.)
+      extraColumns.forEach((colKey, i) => {
+        const cell = row.querySelectorAll('td')[i + 4]; // offset for desc, qty, rate, amt
+        const input = cell?.querySelector('input');
+        item[colKey] = input?.value || "";
+      });
+
+      return item;
+    }),
+
+    extraColumns, // ✅ include headers for Replica.html to render
+
+    // ✅ Totals and Payment Details
     vatableSales: document.querySelector('input[name="vatableSales"]')?.value || "",
     totalSales: document.querySelector('input[name="totalSales"]')?.value || "",
     vatExempt: document.querySelector('input[name="vatExempt"]')?.value || "",
@@ -41,15 +69,18 @@ function saveToLocalStorage() {
     addVat: document.querySelector('input[name="addVat"]')?.value || "",
     payable: document.querySelector('input[name="payable"]')?.value || "",
     payDate: document.querySelector('input[name="payDate"]')?.value || "",
+
     cash: document.querySelector('input[name="cash"]')?.checked || false,
     check: document.querySelector('input[name="check"]')?.checked || false,
     checkNo: document.querySelector('input[name="checkNo"]')?.value || "",
     bank: document.querySelector('input[name="bank"]')?.value || "",
+
     preparedBy: document.querySelector('input[name="preparedBy"]')?.value || "",
     approvedBy: document.querySelector('input[name="approvedBy"]')?.value || "",
     receivedBy: document.querySelector('input[name="receivedBy"]')?.value || ""
   };
 
+  // ✅ Save to localStorage and redirect
   localStorage.setItem('invoiceData', JSON.stringify(data));
   console.log("✅ Saved invoiceData:", data);
 
@@ -220,3 +251,5 @@ function removeColumn() {
   adjustColumnWidths();
 }
 
+// When saving data from EINVOICING.html
+invoiceData.extraColumns = dynamicColumnNamesArray; // e.g., ['discount', 'remarks']
