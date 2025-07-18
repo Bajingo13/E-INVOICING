@@ -69,47 +69,57 @@ function addRow() {
     <td><input type="number" class="input-short" name="amt[]" readonly></td>
   `;
 
-  // Extra dynamic columns (excluding 4 default + 1 delete)
-  const extraCols = headerCols.length - 5;
+  // Extra dynamic columns (excluding default 4)
+  const extraCols = headerCols.length - 4;
   for (let i = 0; i < extraCols; i++) {
     const td = document.createElement("td");
     td.innerHTML = `<input type="text">`;
     newRow.appendChild(td);
   }
 
-  // Trash/delete column (always last)
-  const deleteTd = document.createElement("td");
-  deleteTd.innerHTML = `<button type="button" class="delete-btn" onclick="deleteRow(this)">🗑️</button>`;
-  newRow.appendChild(deleteTd);
-
   tbody.appendChild(newRow);
-  
-  // Adjust column widths after adding a row
   adjustColumnWidths();
 }
+
+function removeRow() {
+  const tbody = document.getElementById('items-body');
+  const rowCount = tbody.rows.length;
+
+  if (rowCount <= 1) {
+    alert("At least one row must remain.");
+    return;
+  }
+
+  const index = prompt(`Enter row number to remove (1 to ${rowCount}):`);
+  const rowIndex = parseInt(index);
+
+  if (isNaN(rowIndex) || rowIndex < 1 || rowIndex > rowCount) {
+    alert("Invalid row number.");
+    return;
+  }
+
+  tbody.deleteRow(rowIndex - 1); // Convert to 0-based index
+  calculateTotals();
+  adjustColumnWidths();
+}
+
 
 function addColumn() {
   const columnName = prompt("Enter new column name:");
   if (!columnName) return;
 
   const theadRow = document.querySelector("#items-table thead tr");
-  const ths = theadRow.querySelectorAll("th");
-
-  const deleteTh = ths[ths.length - 1]; // trash column
   const newTh = document.createElement("th");
   newTh.textContent = columnName;
-  theadRow.insertBefore(newTh, deleteTh);
+  theadRow.appendChild(newTh);
 
   const rows = document.querySelectorAll("#items-table tbody tr");
   rows.forEach(row => {
-    const tds = row.querySelectorAll("td");
-    const deleteTd = tds[tds.length - 1]; // trash column
     const newTd = document.createElement("td");
     newTd.innerHTML = `<input type="text" name="${columnName.toLowerCase().replace(/\s+/g, '_')}[]">`;
-    row.insertBefore(newTd, deleteTd);
+    row.appendChild(newTd);
   });
-  
-  // Adjust column widths after adding a column
+
   adjustColumnWidths();
 }
 
@@ -121,21 +131,6 @@ function updateAmount(el) {
   amtField.value = (qty * rate).toFixed(2);
 
   calculateTotals();
-}
-
-function deleteRow(button) {
-  const tbody = document.getElementById('items-body');
-  const row = button.closest('tr');
-
-  if (tbody.rows.length > 1) {
-    tbody.removeChild(row);
-    calculateTotals();
-  } else {
-    alert("At least one row must remain.");
-  }
-  
-  // Adjust column widths after deleting a row
-  adjustColumnWidths();
 }
 
 function calculateTotals() {
@@ -161,39 +156,67 @@ function calculateTotals() {
   document.querySelector('input[name="due"]').value = due.toFixed(2);
 }
 
-/**
- * Adjust column widths dynamically to keep table layout intact
- */
 function adjustColumnWidths() {
   const table = document.getElementById('items-table');
   const theadRow = table.querySelector('thead tr');
   const ths = theadRow.querySelectorAll('th');
 
-  const deleteColWidth = 40; // px width of trash column
-  const totalTableWidth = table.clientWidth || 900; // fallback width if clientWidth 0
-  const availableWidth = totalTableWidth - deleteColWidth;
+  const totalTableWidth = table.clientWidth || 900;
+  const colCount = ths.length;
 
-  const colCount = ths.length - 1; // exclude trash column
+  if (colCount === 0) return;
 
-  if (colCount <= 0) return; // safety
+  const colWidthPercent = 100 / colCount;
 
-  const colWidthPercent = (availableWidth / totalTableWidth) * 100 / colCount;
-
-  // Set width for each th except trash column
-  for (let i = 0; i < ths.length - 1; i++) {
+  for (let i = 0; i < ths.length; i++) {
     ths[i].style.width = colWidthPercent + '%';
   }
 
-  // Set fixed width for trash column
-  ths[ths.length - 1].style.width = deleteColWidth + 'px';
-
-  // Adjust tbody cells width similarly
   const rows = table.querySelectorAll('tbody tr');
   rows.forEach(row => {
     const tds = row.querySelectorAll('td');
-    for (let i = 0; i < tds.length - 1; i++) {
+    for (let i = 0; i < tds.length; i++) {
       tds[i].style.width = colWidthPercent + '%';
     }
-    tds[tds.length - 1].style.width = deleteColWidth + 'px';
   });
 }
+
+function removeColumn() {
+  const columnName = prompt("Enter the exact column name to remove:");
+  if (!columnName) return;
+
+  const theadRow = document.querySelector("#items-table thead tr");
+  const ths = theadRow.querySelectorAll("th");
+
+  let colIndexToRemove = -1;
+  ths.forEach((th, index) => {
+    if (th.textContent.trim().toLowerCase() === columnName.trim().toLowerCase()) {
+      colIndexToRemove = index;
+    }
+  });
+
+  if (colIndexToRemove === -1) {
+    alert(`Column "${columnName}" not found.`);
+    return;
+  }
+
+  if (colIndexToRemove < 4) {
+    alert("Default columns (Description, Qty, Rate, Amt) cannot be removed.");
+    return;
+  }
+
+  // Remove header
+  theadRow.removeChild(ths[colIndexToRemove]);
+
+  // Remove cells in body rows
+  const rows = document.querySelectorAll("#items-table tbody tr");
+  rows.forEach(row => {
+    const tds = row.querySelectorAll("td");
+    if (tds.length > colIndexToRemove) {
+      row.removeChild(tds[colIndexToRemove]);
+    }
+  });
+
+  adjustColumnWidths();
+}
+

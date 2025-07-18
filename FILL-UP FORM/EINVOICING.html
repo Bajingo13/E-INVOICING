@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <title>Service Invoice</title>
   <link rel="stylesheet" href="EINVOICING.css" />
+  <style>
+    .row-controls {
+      margin: 10px 0;
+      display: flex;
+      gap: 10px;
+    }
+  </style>
 </head>
 <body>
   <div class="invoice-container">
@@ -48,8 +55,12 @@
 
     <div class="invoice-title">SERVICE INVOICE</div>
 
-    <button onclick="addRow()">➕ Add Row</button>
-    <button onclick="addColumn()">➕ Add Column</button>
+    <div class="row-controls">
+      <button type="button" onclick="addRow()">➕ Add Row</button>
+      <button type="button" onclick="addColumn()">➕ Add Column</button>
+      <button type="button" onclick="removeRow()">➖ Remove Row</button>
+      <button type="button" onclick="removeColumn()">➖ Remove Column</button>
+    </div>
 
     <table class="bordered" id="items-table">
       <thead>
@@ -58,7 +69,6 @@
           <th class="qty-col">QUANTITY</th>
           <th class="unit-col">UNIT COST/<br />RATE</th>
           <th class="amt-col">AMOUNT</th>
-          <th class="delete-col">REMOVE</th>
         </tr>
       </thead>
       <tbody id="items-body">
@@ -67,7 +77,6 @@
           <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)" /></td>
           <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)" /></td>
           <td><input type="number" class="input-short" name="amt[]" readonly /></td>
-          <td class="delete-col"><button type="button" class="delete-btn" onclick="deleteRow(this)">🗑️</button></td>
         </tr>
       </tbody>
     </table>
@@ -156,5 +165,13 @@
   </div>
 
   <script src="EINVOICING.js"></script>
+  <script>
+    function removeLastRow() {
+      const tbody = document.getElementById('items-body');
+      if (tbody.rows.length > 1) {
+        tbody.deleteRow(tbody.rows.length - 1);
+      }
+    }
+  </script>
 </body>
 </html>
