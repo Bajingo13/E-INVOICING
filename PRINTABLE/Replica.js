@@ -115,3 +115,46 @@ if (Array.isArray(data.items)) {
 window.addEventListener('beforeunload', () => {
   localStorage.removeItem('invoiceData');
 });
+
+const itemRows = document.getElementById("itemRows");
+itemRows.innerHTML = ""; // Clear old content
+
+const theadRow = document.getElementById("replica-thead-row");
+theadRow.innerHTML = ""; // Clear old headers
+
+// Load items and extra fields
+const items = JSON.parse(localStorage.getItem("invoiceItems")) || [];
+const extraFields = JSON.parse(localStorage.getItem("extraFields")) || [];
+
+// Build the header dynamically
+["DESCRIPTION", "QUANTITY", "UNIT COST/RATE", "AMOUNT"].forEach(label => {
+  const th = document.createElement("th");
+  th.textContent = label;
+  theadRow.appendChild(th);
+});
+
+extraFields.forEach(field => {
+  const th = document.createElement("th");
+  th.textContent = field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  theadRow.appendChild(th);
+});
+
+const colgroup = document.getElementById("invoice-colgroup");
+colgroup.innerHTML = ""; // Clear old column widths
+
+const baseWidths = ["40%", "10%", "15%", "15%"]; // DESCRIPTION, QTY, UNIT, AMOUNT
+const extraWidth = (20 / extraFields.length).toFixed(2); // Divide remaining 20%
+
+// Set widths for base columns
+baseWidths.forEach(width => {
+  const col = document.createElement("col");
+  col.style.width = width;
+  colgroup.appendChild(col);
+});
+
+// Set widths for extra columns
+extraFields.forEach(() => {
+  const col = document.createElement("col");
+  col.style.width = `${extraWidth}%`;
+  colgroup.appendChild(col);
+});

@@ -65,18 +65,14 @@
     <h2 class="service-invoice-title">SERVICE INVOICE</h2>
 
     <table class="invoice-table">
-      <thead>
-        <tr>
-          <th class="desc">DESCRIPTION</th>
-          <th>QUANTITY</th>
-          <th class="unit-cost">UNIT COST/<br />RATE</th>
-          <th>AMOUNT</th>
-        </tr>
-      </thead>
-      <tbody id="itemRows">
-        <tr><td colspan="4" style="height: 400px;"></td></tr>
-      </tbody>
-    </table>
+  <colgroup id="invoice-colgroup">
+    <!-- JS will dynamically populate this -->
+  </colgroup>
+  <thead>
+    <tr id="replica-thead-row"></tr>
+  </thead>
+  <tbody id="itemRows"></tbody>
+</table>
 
     <table class="payment-table">
       <colgroup>

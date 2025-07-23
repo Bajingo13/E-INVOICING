@@ -187,6 +187,21 @@ body {
   text-align: left;
   vertical-align: top;
 }
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.invoice-table th,
+.invoice-table td {
+  border: 1px solid #000;
+  padding: 4px;
+  word-break: break-word;
+  text-align: left;
+  vertical-align: top;
+}
+
 
 .payment-table th.form-payment-label {
   font-weight: bold;
