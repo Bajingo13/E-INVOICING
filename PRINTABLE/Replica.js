@@ -141,3 +141,23 @@ window.onload = function () {
 window.addEventListener('beforeunload', () => {
   localStorage.removeItem('invoiceData');
 });
+
+// Export to JSON function
+function exportToJson() {
+  const data = JSON.parse(localStorage.getItem('invoiceData'));
+  if (!data) {
+    alert("No invoice data found.");
+    return;
+  }
+
+  const filename = `invoice_${data.invoiceNo || 'data'}.json`;
+  const jsonStr = JSON.stringify(data, null, 2);
+
+  const blob = new Blob([jsonStr], { type: "application/json" });
+  const link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+}
+

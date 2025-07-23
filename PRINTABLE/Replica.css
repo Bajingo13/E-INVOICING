@@ -264,3 +264,9 @@ body {
   width: 50%;
   line-height: 1.2;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
