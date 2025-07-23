@@ -7,14 +7,17 @@ window.onload = function () {
     return;
   }
 
-  // ✅ Format as PHP currency
-  function formatCurrency(value) {
+  // 🔁 Formatter
+  const formatCurrency = (value) => {
     const num = parseFloat(value);
-    return isNaN(num) ? "" : num.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' });
-  }
+    return isNaN(num) ? "" : num.toLocaleString('en-PH', {
+      style: 'currency',
+      currency: 'PHP'
+    });
+  };
 
-  // ✅ Fill the <span class="line"> elements by label
-  function fillLine(labelText, value) {
+  // 🔁 Fill by .label/.line combo
+  const fillLine = (labelText, value) => {
     const fields = document.querySelectorAll(".field");
     fields.forEach(field => {
       const label = field.querySelector(".label");
@@ -23,23 +26,22 @@ window.onload = function () {
         line.textContent = value || "___________";
       }
     });
-  }
+  };
 
-  // ✅ Fill top fields (with fallback to new ID-based fields)
-  fillLine("BILL TO", data.billTo);
-  fillLine("ADDRESS", `${data.address1} ${data.address2}`.trim());
-  fillLine("N", data.invoiceNo); // Handles "No"
-  fillLine("DATE", data.date);
-  fillLine("TIN", data.tin);
-  fillLine("TIME", data.time);
-
-  // ✅ Also support direct ID-based filling for key fields
+  // 🔁 Fill by ID
   const fillById = (id, value) => {
     const el = document.getElementById(id);
     if (el) el.textContent = value || "";
   };
 
-  // 🔄 ID-based fields (top section + payment + signatures)
+  // ✅ Top Section
+  fillLine("BILL TO", data.billTo);
+  fillLine("ADDRESS", `${data.address1} ${data.address2}`.trim());
+  fillLine("N", data.invoiceNo);
+  fillLine("DATE", data.date);
+  fillLine("TIN", data.tin);
+  fillLine("TIME", data.time);
+
   fillById("billTo", data.billTo);
   fillById("address1", data.address1);
   fillById("address2", data.address2);
@@ -48,50 +50,74 @@ window.onload = function () {
   fillById("tin", data.tin);
   fillById("time", data.time);
 
-  // ✅ Items table
-  // ✅ Items table
-const tbody = document.getElementById("itemRows");
-const placeholderRow = tbody.querySelector("tr");
+  // ✅ Extra Columns
+  const extraFields = Array.isArray(data.extraColumns) ? data.extraColumns : [];
 
-// ✅ Load dynamic columns reliably
-const extraFields = Array.isArray(data.extraColumns) ? data.extraColumns : [];
+  // ✅ Table Setup
+  const tbody = document.getElementById("itemRows");
+  const theadRow = document.getElementById("replica-thead-row");
+  const colgroup = document.getElementById("invoice-colgroup");
 
-// ✅ Update table headers dynamically
-const theadRow = document.querySelector("#itemRows").closest("table").querySelector("thead tr");
-extraFields.forEach(field => {
-  const th = document.createElement("th");
-  th.textContent = field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  theadRow.appendChild(th);
-});
+  // Clear existing
+  tbody.innerHTML = "";
+  theadRow.innerHTML = "";
+  colgroup.innerHTML = "";
 
-// ✅ Render item rows
-if (Array.isArray(data.items)) {
-  data.items.forEach(item => {
-    const row = document.createElement("tr");
-    const cells = [
-      `<td>${item.desc || ""}</td>`,
-      `<td>${item.qty || ""}</td>`,
-      `<td>${formatCurrency(item.rate)}</td>`,
-      `<td>${formatCurrency(item.amt)}</td>`
-    ];
-
-    extraFields.forEach(field => {
-      cells.push(`<td>${item[field] || ""}</td>`);
-    });
-
-    row.innerHTML = cells.join("");
-    tbody.insertBefore(row, placeholderRow);
+  // Build Headers
+  ["DESCRIPTION", "QUANTITY", "UNIT COST/RATE", "AMOUNT"].forEach(label => {
+    const th = document.createElement("th");
+    th.textContent = label;
+    theadRow.appendChild(th);
   });
-}
 
+  extraFields.forEach(field => {
+    const th = document.createElement("th");
+    th.textContent = field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    theadRow.appendChild(th);
+  });
 
-  // ✅ Fill payment-related fields by ID
+  // Build Column Widths
+  const baseWidths = ["40%", "10%", "15%", "15%"];
+  const extraWidth = extraFields.length > 0 ? (20 / extraFields.length).toFixed(2) : 0;
+
+  baseWidths.forEach(width => {
+    const col = document.createElement("col");
+    col.style.width = width;
+    colgroup.appendChild(col);
+  });
+
+  extraFields.forEach(() => {
+    const col = document.createElement("col");
+    col.style.width = `${extraWidth}%`;
+    colgroup.appendChild(col);
+  });
+
+  // Build Rows
+  if (Array.isArray(data.items)) {
+    data.items.forEach(item => {
+      const row = document.createElement("tr");
+      const cells = [
+        `<td>${item.desc || ""}</td>`,
+        `<td>${item.qty || ""}</td>`,
+        `<td>${formatCurrency(item.rate)}</td>`,
+        `<td>${formatCurrency(item.amt)}</td>`
+      ];
+      extraFields.forEach(field => {
+        cells.push(`<td>${item[field] || ""}</td>`);
+      });
+      row.innerHTML = cells.join("");
+      tbody.appendChild(row);
+    });
+  }
+
+  // ✅ Payment Section
   fillById("cash", data.cash ? "✔" : "");
   fillById("check", data.check ? "✔" : "");
   fillById("checkNumber", data.checkNo);
   fillById("bank", data.bank);
   fillById("paymentDate", data.payDate);
 
+  // ✅ Totals
   fillById("vatableSales", formatCurrency(data.vatableSales));
   fillById("vatExemptSales", formatCurrency(data.vatExempt));
   fillById("zeroRatedSales", formatCurrency(data.zeroRated));
@@ -105,56 +131,13 @@ if (Array.isArray(data.items)) {
   fillById("totalPayable", formatCurrency(data.payable));
   fillById("totalWithVAT", formatCurrency(data.totalSales));
 
-  // ✅ Fill signatures if available
+  // ✅ Signatures
   fillById("preparedBy", data.preparedBy);
   fillById("approvedBy", data.approvedBy);
   fillById("receivedBy", data.receivedBy);
 };
 
-// ✅ Clear stored data when leaving
+// ✅ Clear localStorage when closing/refreshing
 window.addEventListener('beforeunload', () => {
   localStorage.removeItem('invoiceData');
-});
-
-const itemRows = document.getElementById("itemRows");
-itemRows.innerHTML = ""; // Clear old content
-
-const theadRow = document.getElementById("replica-thead-row");
-theadRow.innerHTML = ""; // Clear old headers
-
-// Load items and extra fields
-const items = JSON.parse(localStorage.getItem("invoiceItems")) || [];
-const extraFields = JSON.parse(localStorage.getItem("extraFields")) || [];
-
-// Build the header dynamically
-["DESCRIPTION", "QUANTITY", "UNIT COST/RATE", "AMOUNT"].forEach(label => {
-  const th = document.createElement("th");
-  th.textContent = label;
-  theadRow.appendChild(th);
-});
-
-extraFields.forEach(field => {
-  const th = document.createElement("th");
-  th.textContent = field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  theadRow.appendChild(th);
-});
-
-const colgroup = document.getElementById("invoice-colgroup");
-colgroup.innerHTML = ""; // Clear old column widths
-
-const baseWidths = ["40%", "10%", "15%", "15%"]; // DESCRIPTION, QTY, UNIT, AMOUNT
-const extraWidth = (20 / extraFields.length).toFixed(2); // Divide remaining 20%
-
-// Set widths for base columns
-baseWidths.forEach(width => {
-  const col = document.createElement("col");
-  col.style.width = width;
-  colgroup.appendChild(col);
-});
-
-// Set widths for extra columns
-extraFields.forEach(() => {
-  const col = document.createElement("col");
-  col.style.width = `${extraWidth}%`;
-  colgroup.appendChild(col);
 });

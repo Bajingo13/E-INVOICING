@@ -15,10 +15,12 @@
 <body>
   <div class="invoice-container">
 
+    <!-- === BUTTONS === -->
     <div class="buttons">
       <button type="button" onclick="saveToLocalStorage()">💾 Save & Preview</button>
     </div>
 
+    <!-- === HEADER === -->
     <div class="header">
       <div class="logo-title">
         <div class="logo">
@@ -38,6 +40,7 @@
       </div>
     </div>
 
+    <!-- === BILLING INFO === -->
     <table class="info-table">
       <tr>
         <td><strong>BILL TO:</strong> <input type="text" name="billTo" class="input-long" /></td>
@@ -53,8 +56,10 @@
       </tr>
     </table>
 
+    <!-- === TITLE === -->
     <div class="invoice-title">SERVICE INVOICE</div>
 
+    <!-- === ROW & COLUMN CONTROLS === -->
     <div class="row-controls">
       <button type="button" onclick="addRow()">➕ Add Row</button>
       <button type="button" onclick="addColumn()">➕ Add Column</button>
@@ -62,6 +67,7 @@
       <button type="button" onclick="removeColumn()">➖ Remove Column</button>
     </div>
 
+    <!-- === ITEMS TABLE === -->
     <table class="bordered" id="items-table">
       <thead>
         <tr>
@@ -81,6 +87,7 @@
       </tbody>
     </table>
 
+    <!-- === PAYMENT SECTION === -->
     <table class="form-payment">
       <tr>
         <td colspan="2">FORM OF PAYMENT</td>
@@ -131,6 +138,7 @@
       </tr>
     </table>
 
+    <!-- === SIGNATURES === -->
     <table class="signature-section">
       <tr>
         <td>PREPARED BY:</td>
@@ -153,6 +161,7 @@
       </tr>
     </table>
 
+    <!-- === FOOTER === -->
     <div class="footer">
       <div>2 Boxes SD08. D04-1000</div>
       <div>BONS COMMERCIAL PRESS</div>
@@ -164,6 +173,7 @@
     </div>
   </div>
 
+  <!-- === SCRIPTS === -->
   <script src="EINVOICING.js"></script>
   <script>
     function removeLastRow() {

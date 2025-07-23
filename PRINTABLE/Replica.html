@@ -8,6 +8,8 @@
 </head>
 <body>
   <div class="invoice-container">
+
+    <!-- ===================== HEADER ===================== -->
     <header class="header">
       <div class="logo">
         <br>
@@ -17,63 +19,43 @@
       <div class="company-info">
         <h1>BUSINESS SET UP & COMPLIANCE INC.</h1>
         <p>
-          Unit 1011, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San
-          Antonio,<br />
-          1203 City of Makati, NCR, Fourth District, Philippines<br />
-          Tel. No.: 8403-4877<br />
+          Unit 1011, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San Antonio,<br>
+          1203 City of Makati, NCR, Fourth District, Philippines<br>
+          Tel. No.: 8403-4877<br>
           VAT Reg. TIN: 008-640-850-00000
         </p>
       </div>
     </header>
 
+    <!-- ===================== INVOICE INFO ===================== -->
     <section class="invoice-info">
       <div class="left-info">
-        <div class="field">
-          <span class="label">BILL TO :</span>
-          <span class="line" id="billTo">_________________________________________________________________________</span>
-        </div>
-        <div class="field">
-          <span class="label">ADDRESS :</span>
-          <span class="line" id="address1">_________________________________________________________________________</span>
-        </div>
-        <div class="field">
-          <span class="label">&nbsp;</span>
-          <span class="line" id="address2">_________________________________________________________________________</span>
-        </div>
+        <div class="field"><span class="label">BILL TO :</span><span class="line" id="billTo">_________________________________________________________________________</span></div>
+        <div class="field"><span class="label">ADDRESS :</span><span class="line" id="address1">_________________________________________________________________________</span></div>
+        <div class="field"><span class="label">&nbsp;</span><span class="line" id="address2">_________________________________________________________________________</span></div>
       </div>
 
       <div class="right-info">
-        <div class="field">
-          <span class="label">N<span class="small-zero">o</span> :</span>
-          <span class="line" id="invoiceNumber">___________</span>
-        </div>
-        <div class="field">
-          <span class="label">DATE :</span>
-          <span class="line" id="invoiceDate">___________</span>
-        </div>
-        <div class="field">
-          <span class="label">TIN :</span>
-          <span class="line" id="tin">___________</span>
-        </div>
-        <div class="field">
-          <span class="label">TIME :</span>
-          <span class="line" id="time">___________</span>
-        </div>
+        <div class="field"><span class="label">N<span class="small-zero">o</span> :</span><span class="line" id="invoiceNumber">___________</span></div>
+        <div class="field"><span class="label">DATE :</span><span class="line" id="invoiceDate">___________</span></div>
+        <div class="field"><span class="label">TIN :</span><span class="line" id="tin">___________</span></div>
+        <div class="field"><span class="label">TIME :</span><span class="line" id="time">___________</span></div>
       </div>
     </section>
 
+    <!-- ===================== TITLE ===================== -->
     <h2 class="service-invoice-title">SERVICE INVOICE</h2>
 
+    <!-- ===================== ITEMIZED TABLE ===================== -->
     <table class="invoice-table">
-  <colgroup id="invoice-colgroup">
-    <!-- JS will dynamically populate this -->
-  </colgroup>
-  <thead>
-    <tr id="replica-thead-row"></tr>
-  </thead>
-  <tbody id="itemRows"></tbody>
-</table>
+      <colgroup id="invoice-colgroup"></colgroup>
+      <thead>
+        <tr id="replica-thead-row"></tr>
+      </thead>
+      <tbody id="itemRows"></tbody>
+    </table>
 
+    <!-- ===================== PAYMENT TABLE ===================== -->
     <table class="payment-table">
       <colgroup>
         <col style="width: 20%;">
@@ -90,64 +72,44 @@
       </thead>
       <tbody>
         <tr>
-          <td>Cash</td>
-          <td id="cash"></td>
-          <td>VATable Sales</td>
-          <td id="vatableSales"></td>
-          <td>Total Sales (VAT Inclusive)</td>
-          <td id="totalWithVAT"></td>
+          <td>Cash</td><td id="cash"></td>
+          <td>VATable Sales</td><td id="vatableSales"></td>
+          <td>Total Sales (VAT Inclusive)</td><td id="totalWithVAT"></td>
         </tr>
         <tr>
-          <td>Check</td>
-          <td id="check"></td>
-          <td>VAT-Exempt Sales</td>
-          <td id="vatExemptSales"></td>
-          <td>Less: VAT</td>
-          <td id="lessVAT"></td>
+          <td>Check</td><td id="check"></td>
+          <td>VAT-Exempt Sales</td><td id="vatExemptSales"></td>
+          <td>Less: VAT</td><td id="lessVAT"></td>
         </tr>
         <tr>
-          <td>Check No.</td>
-          <td id="checkNumber"></td>
-          <td>Zero-Rated Sales</td>
-          <td id="zeroRatedSales"></td>
-          <td>Amount Net of VAT</td>
-          <td id="netOfVAT"></td>
+          <td>Check No.</td><td id="checkNumber"></td>
+          <td>Zero-Rated Sales</td><td id="zeroRatedSales"></td>
+          <td>Amount Net of VAT</td><td id="netOfVAT"></td>
         </tr>
         <tr>
-          <td>Bank</td>
-          <td id="bank"></td>
-          <td>VAT Amount</td>
-          <td id="vatAmount"></td>
-          <td>Less: Withholding Tax</td>
-          <td id="withholdingTax"></td>
+          <td>Bank</td><td id="bank"></td>
+          <td>VAT Amount</td><td id="vatAmount"></td>
+          <td>Less: Withholding Tax</td><td id="withholdingTax"></td>
         </tr>
         <tr>
-          <td>Date</td>
-          <td id="paymentDate"></td>
-          <td>Total</td>
-          <td id="total"></td>
-          <td>Total Due</td>
-          <td id="totalDue"></td>
+          <td>Date</td><td id="paymentDate"></td>
+          <td>Total</td><td id="total"></td>
+          <td>Total Due</td><td id="totalDue"></td>
         </tr>
         <tr>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td>Add: VAT</td>
-          <td id="addVAT"></td>
+          <td></td><td></td>
+          <td></td><td></td>
+          <td>Add: VAT</td><td id="addVAT"></td>
         </tr>
         <tr>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td>Total Payable</td>
-          <td id="totalPayable"></td>
+          <td></td><td></td>
+          <td></td><td></td>
+          <td>Total Payable</td><td id="totalPayable"></td>
         </tr>
       </tbody>
     </table>
 
+    <!-- ===================== SIGNATURE SECTION ===================== -->
     <section class="signatures-box">
       <div class="signatures">
         <div>
@@ -167,31 +129,34 @@
         </div>
       </div>
     </section>
+
+    <!-- ===================== FOOTER ===================== -->
+    <footer class="footer-info">
+      <div class="left-footer">
+        <small>
+          2 Boxes 500x3 0001-1000<br>
+          BIR ATP OCN:<br>
+          Date of ATP:<br>
+          Loose-Leaf Permit No.:<br>
+          Date of Issue:
+        </small>
+      </div>
+      <div class="right-footer">
+        <small>
+          BONS COMMERCIAL PRESS<br>
+          6811 Santuico St., Pio del Pilar, Makati City<br>
+          Mobile No.:<br>
+          VAT REG. TIN:<br>
+          Printer's Accreditation No.:<br>
+          Date Accredited:<br>
+          Date of Expiration:
+        </small>
+      </div>
+    </footer>
+
   </div>
 
-  <footer class="footer-info">
-    <div class="left-footer">
-      <small>
-        2 Boxes 500x3 0001-1000<br />
-        BIR ATP OCN:<br />
-        Date of ATP:<br />
-        Loose-Leaf Permit No.:<br />
-        Date of Issue:
-      </small>
-    </div>
-    <div class="right-footer">
-      <small>
-        BONS COMMERCIAL PRESS<br />
-        6811 Santuico St., Pio del Pilar, Makati City<br />
-        Mobile No.:<br />
-        VAT REG. TIN:<br />
-        Printer's Accreditation No.:<br />
-        Date Accredited:<br />
-        Date of Expiration:
-      </small>
-    </div>
-  </footer>
-
+  <!-- ===================== SCRIPT ===================== -->
   <script src="Replica.js"></script>
 
 </body>

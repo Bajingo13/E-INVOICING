@@ -1,3 +1,6 @@
+/* ----------------------------------
+   GENERAL STYLES
+---------------------------------- */
 body {
   font-family: "Times New Roman", Times, serif;
   font-size: 14px;
@@ -7,11 +10,14 @@ body {
 
 .invoice-container {
   max-width: 900px;
-  margin: 0px auto;
+  margin: 0 auto;
   border: 1px solid #000;
   padding: 10px 20px 20px 20px;
 }
 
+/* ----------------------------------
+   HEADER SECTION
+---------------------------------- */
 .header {
   display: flex;
   align-items: flex-start;
@@ -55,6 +61,9 @@ body {
   font-size: 14px;
 }
 
+/* ----------------------------------
+   INVOICE INFO (Top Fields)
+---------------------------------- */
 .invoice-info {
   display: flex;
   justify-content: space-between;
@@ -62,7 +71,8 @@ body {
   margin-bottom: 15px;
 }
 
-.left-info, .right-info {
+.left-info,
+.right-info {
   flex: 1;
 }
 
@@ -82,15 +92,7 @@ body {
 
 .line {
   flex: 1;
-
 }
-
-
-.small-zero {
-  font-size: 10px;
-  vertical-align: super;
-}
-
 
 .bill-to label,
 .address label,
@@ -110,6 +112,7 @@ body {
   box-sizing: border-box;
 }
 
+/* TIN & DATE */
 .tin-time {
   display: flex;
   justify-content: space-between;
@@ -139,6 +142,9 @@ body {
   vertical-align: super;
 }
 
+/* ----------------------------------
+   SECTION TITLE
+---------------------------------- */
 .service-invoice-title {
   text-align: center;
   font-weight: bold;
@@ -146,6 +152,9 @@ body {
   font-size: 18px;
 }
 
+/* ----------------------------------
+   TABLES
+---------------------------------- */
 .invoice-table,
 .payment-table {
   width: 100%;
@@ -154,102 +163,57 @@ body {
   font-size: 13px;
 }
 
+.invoice-table {
+  table-layout: fixed;
+}
+
 .invoice-table th,
 .invoice-table td,
 .payment-table td {
   border: 1px solid #000;
   padding: 4px 8px;
   vertical-align: top;
+  word-break: break-word;
+  text-align: center;
 }
 
 .invoice-table th {
   font-weight: bold;
-  text-align: center;
 }
 
 .invoice-table .desc {
   width: 60%;
+  text-align: left;
 }
 
 .invoice-table .unit-cost {
   width: 12%;
-  text-align: center;
   font-size: 11px;
   line-height: 1.1;
-}
-
-.invoice-table th,
-.invoice-table td {
-  text-align: center;
 }
 
 .invoice-table td.desc {
   text-align: left;
   vertical-align: top;
 }
-.invoice-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
 
-.invoice-table th,
-.invoice-table td {
-  border: 1px solid #000;
-  padding: 4px;
-  word-break: break-word;
-  text-align: left;
-  vertical-align: top;
-}
-
-
+/* PAYMENT TABLE */
 .payment-table th.form-payment-label {
   font-weight: bold;
   text-align: left;
   padding: 6px 8px;
   font-size: 13px;
   border: 1px solid #000;
-  background-color: #f9f9f9; /* Optional light background */
+  background-color: #f9f9f9;
 }
 
 .payment-table td {
   font-size: 12px;
 }
 
-.signatures {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 20px;
-}
-
-.signatures > div {
-  flex: 1;
-  text-align: center;
-  font-size: 12px;
-}
-
-.signatures .line {
-  border-bottom: 1px solid #000;
-  margin-bottom: 6px;
-  height: 25px;
-}
-
-.footer-info {
-  width: 900px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  font-size: 9px;
-  margin-top: 10px;
-  line-height: 1.2;
-}
-
-.footer-info .left-footer,
-.footer-info .right-footer {
-  width: 50%;
-  line-height: 1.2;
-
-}
+/* ----------------------------------
+   SIGNATURES
+---------------------------------- */
 .signatures-box {
   border: 1px solid #000;
   padding: 15px;
@@ -282,4 +246,21 @@ body {
   height: 25px;
 }
 
+/* ----------------------------------
+   FOOTER
+---------------------------------- */
+.footer-info {
+  width: 900px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  margin-top: 10px;
+  line-height: 1.2;
+}
 
+.footer-info .left-footer,
+.footer-info .right-footer {
+  width: 50%;
+  line-height: 1.2;
+}
