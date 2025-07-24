@@ -1,11 +1,13 @@
 window.onload = function () {
-  const data = JSON.parse(localStorage.getItem('invoiceData'));
+  const raw = localStorage.getItem('invoiceData');
+const data = raw ? JSON.parse(raw) : {};
+
   console.log('📦 Loaded data:', data);
 
   if (!data) {
-    alert("No invoice data found. Please fill out the form first.");
-    return;
-  }
+  alert("No invoice data found. Displaying empty invoice.");
+}
+
 
   // 🔁 Formatter
   const formatCurrency = (value) => {
@@ -93,22 +95,59 @@ window.onload = function () {
   });
 
   // Build Rows
-  if (Array.isArray(data.items)) {
-    data.items.forEach(item => {
-      const row = document.createElement("tr");
-      const cells = [
-        `<td>${item.desc || ""}</td>`,
-        `<td>${item.qty || ""}</td>`,
-        `<td>${formatCurrency(item.rate)}</td>`,
-        `<td>${formatCurrency(item.amt)}</td>`
-      ];
-      extraFields.forEach(field => {
-        cells.push(`<td>${item[field] || ""}</td>`);
-      });
-      row.innerHTML = cells.join("");
-      tbody.appendChild(row);
+const TOTAL_ROWS = 21; // Change this number to adjust row count
+
+if (Array.isArray(data.items) && data.items.length > 0) {
+  data.items.forEach(item => {
+    const row = document.createElement("tr");
+    const cells = [
+      `<td>${item.desc || ""}</td>`,
+      `<td>${item.qty || ""}</td>`,
+      `<td>${formatCurrency(item.rate)}</td>`,
+      `<td>${formatCurrency(item.amt)}</td>`
+    ];
+    extraFields.forEach(field => {
+      cells.push(`<td>${item[field] || ""}</td>`);
     });
+    row.innerHTML = cells.join("");
+    tbody.appendChild(row);
+  });
+
+  // Fill in remaining empty rows to reach TOTAL_ROWS
+  const remaining = TOTAL_ROWS - data.items.length;
+  for (let i = 0; i < remaining; i++) {
+    const row = document.createElement("tr");
+    const cells = [
+      `<td>&nbsp;</td>`,
+      `<td>&nbsp;</td>`,
+      `<td>&nbsp;</td>`,
+      `<td>&nbsp;</td>`
+    ];
+    extraFields.forEach(() => {
+      cells.push(`<td>&nbsp;</td>`);
+    });
+    row.innerHTML = cells.join("");
+    tbody.appendChild(row);
   }
+
+} else {
+  // No items → fill all rows with blanks
+  for (let i = 0; i < TOTAL_ROWS; i++) {
+    const row = document.createElement("tr");
+    const cells = [
+      `<td>&nbsp;</td>`,
+      `<td>&nbsp;</td>`,
+      `<td>&nbsp;</td>`,
+      `<td>&nbsp;</td>`
+    ];
+    extraFields.forEach(() => {
+      cells.push(`<td>&nbsp;</td>`);
+    });
+    row.innerHTML = cells.join("");
+    tbody.appendChild(row);
+  }
+}
+
 
   // ✅ Payment Section
   fillById("cash", data.cash ? "✔" : "");
