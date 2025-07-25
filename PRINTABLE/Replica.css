@@ -140,6 +140,9 @@ body {
   font-size: 10px;
   vertical-align: super;
 }
+.right-fields {
+  margin-left: 20px; /* Reduced from 60px or 40px */
+}
 
 /* ----------------------------------
    SECTION TITLE

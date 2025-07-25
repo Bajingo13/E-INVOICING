@@ -26,9 +26,11 @@
         </p>
       </div>
       <div class="buttons no-print">
+  <div class="buttons no-print">
   <button onclick="exportToJson()">📤 Export as JSON</button>
-</div>
   <button onclick="exportToXml()">📤 Export as XML</button>
+</div>
+
     </header>
 
     <!-- ===================== INVOICE INFO ===================== -->
@@ -39,11 +41,13 @@
         <div class="field"><span class="label">&nbsp;</span><span class="line" id="address2">_________________________________________________________________________</span></div>
       </div>
 
+      <div class="right-fields">
       <div class="right-info">
         <div class="field"><span class="label">N<span class="small-zero">o</span> :</span><span class="line" id="invoiceNumber">___________</span></div>
         <div class="field"><span class="label">DATE :</span><span class="line" id="invoiceDate">___________</span></div>
         <div class="field"><span class="label">TIN :</span><span class="line" id="tin">___________</span></div>
         <div class="field"><span class="label">TIME :</span><span class="line" id="time">___________</span></div>
+      </div>
       </div>
     </section>
 
