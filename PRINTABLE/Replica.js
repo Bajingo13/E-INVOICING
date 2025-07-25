@@ -200,3 +200,66 @@ function exportToJson() {
   link.click();
 }
 
+function exportToXml() {
+  const data = JSON.parse(localStorage.getItem('invoiceData'));
+  if (!data) {
+    alert("No invoice data found.");
+    return;
+  }
+
+  const encode = (val) => {
+    if (val == null) return "";
+    return val.toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  };
+
+  // Start XML document
+  let xml = `<invoice>\n`;
+
+  // Basic fields
+  const simpleFields = [
+    "billTo", "address1", "address2", "invoiceNo", "date", "tin", "time",
+    "cash", "check", "checkNo", "bank", "payDate",
+    "vatableSales", "vatExempt", "zeroRated", "vatAmount", "lessVat",
+    "netVat", "withholding", "total", "due", "addVat", "payable", "totalSales",
+    "preparedBy", "approvedBy", "receivedBy"
+  ];
+
+  simpleFields.forEach(key => {
+    xml += `  <${key}>${encode(data[key])}</${key}>\n`;
+  });
+
+  // Extra Columns
+  if (Array.isArray(data.extraColumns)) {
+    xml += `  <extraColumns>\n`;
+    data.extraColumns.forEach(col => {
+      xml += `    <column>${encode(col)}</column>\n`;
+    });
+    xml += `  </extraColumns>\n`;
+  }
+
+  // Items
+  if (Array.isArray(data.items)) {
+    xml += `  <items>\n`;
+    data.items.forEach(item => {
+      xml += `    <item>\n`;
+      Object.entries(item).forEach(([key, value]) => {
+        xml += `      <${key}>${encode(value)}</${key}>\n`;
+      });
+      xml += `    </item>\n`;
+    });
+    xml += `  </items>\n`;
+  }
+
+  xml += `</invoice>`;
+
+  const filename = `invoice_${data.invoiceNo || 'data'}.xml`;
+  const blob = new Blob([xml], { type: "application/xml" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+}
