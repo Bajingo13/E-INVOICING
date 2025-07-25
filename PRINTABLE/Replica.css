@@ -166,18 +166,28 @@ body {
   table-layout: fixed;
 }
 
+/* === INVOICE TABLE WITH ONLY TOP & BOTTOM BORDERS === */
 .invoice-table th,
-.invoice-table td,
-.payment-table td {
-  border: 1px solid #000;
+.invoice-table td {
+  border-left: 1px solid #000;
+  border-right: 1px solid #000;
+  border-top: none;
+  border-bottom: none;
   padding: 4px 8px;
   vertical-align: top;
   word-break: break-word;
   text-align: center;
 }
 
-.invoice-table th {
-  font-weight: bold;
+/* Keep top border on the very first row */
+.invoice-table thead th {
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+}
+
+/* Add bottom border to last row */
+.invoice-table tr:last-child td {
+  border-bottom: 1px solid #000;
 }
 
 .invoice-table .desc {
@@ -196,7 +206,7 @@ body {
   vertical-align: top;
 }
 
-/* PAYMENT TABLE */
+/* === PAYMENT TABLE REMAINS UNCHANGED === */
 .payment-table th.form-payment-label {
   font-weight: bold;
   text-align: left;
@@ -208,6 +218,11 @@ body {
 
 .payment-table td {
   font-size: 12px;
+  border: 1px solid #000;
+  padding: 4px 8px;
+  vertical-align: top;
+  word-break: break-word;
+  text-align: center;
 }
 
 /* ----------------------------------
@@ -231,6 +246,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+ 
 }
 
 .signatures .label {
@@ -241,8 +257,8 @@ body {
 .signatures .line {
   width: 80%;
   border-bottom: 1px solid #000;
-  margin: 4px 0;
-  height: 25px;
+  margin-top: 20px; /* 👈 adds vertical space below the line only */
+  height: 50px;
 }
 
 /* ----------------------------------
@@ -264,6 +280,9 @@ body {
   line-height: 1.2;
 }
 
+/* ----------------------------------
+   PRINT
+---------------------------------- */
 @media print {
   .no-print {
     display: none !important;
