@@ -278,7 +278,7 @@ body {
 .signatures .line {
   width: 80%;
   border-bottom: 1px solid #000;
-  margin-top: 20px; /* 👈 adds vertical space below the line only */
+  margin-top: 10px; /* 👈 adds vertical space below the line only */
   height: 50px;
 }
 
