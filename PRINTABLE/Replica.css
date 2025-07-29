@@ -4,7 +4,7 @@
 body {
   font-family: "Times New Roman", Times, serif;
   font-size: 14px;
-  margin: 20px;
+  margin: 5px;
   color: #000;
 }
 
@@ -303,7 +303,7 @@ body {
 .footer-info .left-footer,
 .footer-info .right-footer {
   width: 50%;
-  line-height: 1.2;
+  line-height: 1.0;
 }
 
 /* ----------------------------------
