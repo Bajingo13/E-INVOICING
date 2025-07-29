@@ -23,22 +23,50 @@
     <!-- === HEADER === -->
     <div class="header">
       <div class="logo-title">
-        <div class="logo">
-          <strong>BSU & COMPLIANCE</strong><br />
-          <span class="small">Business Set Up & Compliance Inc.</span>
-        </div>
-        <div class="company-info">
-          <strong>BUSINESS SET UP & COMPLIANCE INC.</strong><br />
-          Unit 1011, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San Antonio,<br />
-          1203 City of Makati, NCR, Fourth District, Philippines<br />
-          Tel. No.: 8403-4877<br />
-          VAT Reg. TIN: 008-640-850-00000
-        </div>
+      <div class="logo">
+        <img id="uploaded-logo" src="" alt="Logo" style="display:none; max-height:60px;"/>
+        <button type="button" id="remove-logo-btn" style="display:none; font-size:12px; margin:2px 0 5px 0; padding:2px 6px;" onclick="removeLogo()">Remove Logo</button>
+        <input type="file" id="logo-upload" accept="image/*" style="margin-top:5px;" onchange="previewLogo(event)" />
+        <br />
+        <strong>BSU & COMPLIANCE</strong><br />
+        <span class="small">Business Set Up & Compliance Inc.</span>
+      </div>
+      <div class="company-info">
+        <strong>BUSINESS SET UP & COMPLIANCE INC.</strong><br />
+        Unit 1011, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San Antonio,<br />
+        1203 City of Makati, NCR, Fourth District, Philippines<br />
+        Tel. No.: 8403-4877<br />
+        VAT Reg. TIN: 008-640-850-00000
+      </div>
       </div>
       <div class="invoice-no">
-        No <input type="text" name="invoiceNo" class="input-small" />
+      No <input type="text" name="invoiceNo" class="input-small" />
       </div>
     </div>
+    <script>
+      function previewLogo(event) {
+      const img = document.getElementById('uploaded-logo');
+      const btn = document.getElementById('remove-logo-btn');
+      if (event.target.files && event.target.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+        img.src = e.target.result;
+        img.style.display = 'block';
+        btn.style.display = 'inline-block';
+        };
+        reader.readAsDataURL(event.target.files[0]);
+      }
+      }
+      function removeLogo() {
+      const img = document.getElementById('uploaded-logo');
+      const btn = document.getElementById('remove-logo-btn');
+      const input = document.getElementById('logo-upload');
+      img.src = '';
+      img.style.display = 'none';
+      btn.style.display = 'none';
+      input.value = '';
+      }
+    </script>
 
     <!-- === BILLING INFO === -->
     <table class="info-table">

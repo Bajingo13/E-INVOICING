@@ -245,3 +245,45 @@ function adjustColumnWidths() {
     }
   });
 }
+
+
+// Function to preview the uploaded logo
+
+          function previewLogo(event) {
+            const file = event.target.files[0];
+            if (file) {
+              const reader = new FileReader();
+              reader.onload = function(e) {
+          const img = document.getElementById('uploaded-logo');
+          img.src = e.target.result;
+          img.style.display = 'block';
+              };
+              reader.readAsDataURL(file);
+            }
+          }
+
+// Function to remove the logo
+
+      function previewLogo(event) {
+      const img = document.getElementById('uploaded-logo');
+      const btn = document.getElementById('remove-logo-btn');
+      if (event.target.files && event.target.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+        img.src = e.target.result;
+        img.style.display = 'block';
+        btn.style.display = 'inline-block';
+        };
+        reader.readAsDataURL(event.target.files[0]);
+      }
+      }
+      function removeLogo() {
+      const img = document.getElementById('uploaded-logo');
+      const btn = document.getElementById('remove-logo-btn');
+      const input = document.getElementById('logo-upload');
+      img.src = '';
+      img.style.display = 'none';
+      btn.style.display = 'none';
+      input.value = '';
+      }
+  
