@@ -84,7 +84,7 @@ body {
 
 .label {
   font-weight: bold;
-  width: 75px;
+  width: 100px;
   margin-right: 0px;
   white-space: nowrap;
 }
@@ -95,7 +95,7 @@ body {
 
 .bill-to label,
 .address label,
-.tin-time label,
+.terms label,
 .date-no label {
   font-weight: bold;
   width: 80px;
@@ -111,15 +111,20 @@ body {
   box-sizing: border-box;
 }
 
-/* TIN & DATE */
-.tin-time {
+/* TIN & TERMS */
+.tin-terms {
   display: flex;
-  justify-content: space-between;
-  gap: 20px;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
 }
 
-.tin-time > div {
-  flex: 1;
+.tin-terms .tin {
+  margin-top: 2px;
+}
+
+.tin-terms .terms {
+  margin-top: 2px;
 }
 
 .date-no {

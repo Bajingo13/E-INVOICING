@@ -33,7 +33,7 @@ function saveToLocalStorage() {
     address1: document.querySelector('input[name="address1"]')?.value || "",
     address2: document.querySelector('input[name="address2"]')?.value || "",
     tin: document.querySelector('input[name="tin"]')?.value || "",
-    time: document.querySelector('input[name="time"]')?.value || "",
+    terms: document.querySelector('input[name="terms"]')?.value || "",
 
     items: Array.from(document.querySelectorAll('#items-body tr')).map(row => {
       const item = {

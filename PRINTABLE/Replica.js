@@ -42,7 +42,7 @@ const data = raw ? JSON.parse(raw) : {};
   fillLine("N", data.invoiceNo);
   fillLine("DATE", data.date);
   fillLine("TIN", data.tin);
-  fillLine("TIME", data.time);
+  fillLine("TERMS", data.terms);
 
   fillById("billTo", data.billTo);
   fillById("address1", data.address1);
@@ -50,7 +50,7 @@ const data = raw ? JSON.parse(raw) : {};
   fillById("invoiceNumber", data.invoiceNo);
   fillById("invoiceDate", data.date);
   fillById("tin", data.tin);
-  fillById("time", data.time);
+ fillLine("TERMS", data.terms);
 
   // ✅ Extra Columns
   const extraFields = Array.isArray(data.extraColumns) ? data.extraColumns : [];
@@ -221,7 +221,7 @@ function exportToXml() {
 
   // Basic fields
   const simpleFields = [
-    "billTo", "address1", "address2", "invoiceNo", "date", "tin", "time",
+    "billTo", "address1", "address2", "invoiceNo", "date", "tin", "terms",
     "cash", "check", "checkNo", "bank", "payDate",
     "vatableSales", "vatExempt", "zeroRated", "vatAmount", "lessVat",
     "netVat", "withholding", "total", "due", "addVat", "payable", "totalSales",
