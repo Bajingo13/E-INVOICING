@@ -19,8 +19,53 @@
         <input type="password" id="password" name="password" required />
       </div>
       <a href="EINVOICING.html" class="btn-link">Login</a>
-      <p class="register-link">Don't have an account? <a href="#">Register</a></p>
+      <p class="register-link">Don't have an account? <a id="showRegister">Register</a></p>
     </form>
+
+    <!-- Overlay and Register Modal -->
+    <div class="overlay" id="registerOverlay">
+      <form class="register-form" id="registerForm">
+        <span class="close-btn" id="closeRegister">&times;</span>
+        <h2>Register</h2>
+        <div class="input-group">
+          <label for="newUsername">Username</label>
+          <input type="text" id="newUsername" name="newUsername" required />
+        </div>
+        <div class="input-group">
+          <label for="newPassword">Password</label>
+          <input type="password" id="newPassword" name="newPassword" required />
+        </div>
+        <div class="input-group">
+          <label for="confirmPassword">Confirm Password</label>
+          <input type="password" id="confirmPassword" name="confirmPassword" required />
+        </div>
+        <button type="submit">Register</button>
+      </form>
+    </div>
   </div>
+
+  <script>
+    const showRegister = document.getElementById('showRegister');
+    const overlay = document.getElementById('registerOverlay');
+    const registerForm = document.getElementById('registerForm');
+    const closeBtn = document.getElementById('closeRegister');
+
+    showRegister.addEventListener('click', () => {
+      overlay.style.display = 'flex';
+      registerForm.style.display = 'block';
+    });
+
+    closeBtn.addEventListener('click', () => {
+      overlay.style.display = 'none';
+      registerForm.style.display = 'none';
+    });
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.style.display = 'none';
+        registerForm.style.display = 'none';
+      }
+    });
+  </script>
 </body>
 </html>

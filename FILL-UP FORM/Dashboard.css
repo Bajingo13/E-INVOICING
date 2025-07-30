@@ -1,80 +1,93 @@
-/* Reset some default styles */
-* {
-  box-sizing: border-box;
+/* Reset and base styles */
+body {
   margin: 0;
-  padding: 0;
   font-family: Arial, sans-serif;
+  background: #f2f2f2;
 }
 
-/* Center the form */
-body {
+.login-container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background: linear-gradient(to right, #4CAF50, #ffffff);
+  position: relative;
 }
 
-.login-container {
-  background-color: white;
-  padding: 30px 40px;
+.login-form,
+.register-form {
+  background: white;
+  padding: 2rem;
   border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.2);
-  width: 100%;
-  max-width: 400px;
-}
-
-.login-form h2 {
-  text-align: center;
-  margin-bottom: 20px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  width: 300px;
 }
 
 .input-group {
-  margin-bottom: 15px;
+  margin-bottom: 1rem;
 }
 
 .input-group label {
   display: block;
   margin-bottom: 5px;
-  font-weight: bold;
 }
 
 .input-group input {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+  padding: 0.5rem;
+  box-sizing: border-box;
 }
 
+button,
 .btn-link {
   display: block;
-  text-align: center;
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
   background-color: #4CAF50;
   color: white;
-  padding: 10px;
-  border-radius: 5px;
+  text-align: center;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
   text-decoration: none;
-  font-size: 16px;
-  transition: background 0.3s ease;
-  margin-top: 10px;
 }
-
-.btn-link:hover {
-  background-color: #45A049;
-}
-
 
 .register-link {
   text-align: center;
   margin-top: 15px;
-  font-size: 14px;
 }
 
 .register-link a {
-  color: #4CAF50;
-  text-decoration: none;
+  color: #007BFF;
+  cursor: pointer;
 }
 
-.register-link a:hover {
-  text-decoration: underline;
+/* Modal styling */
+.overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.register-form {
+  position: relative;
+  display: none;
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  width: 320px;
+}
+
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 18px;
+  color: red;
+  cursor: pointer;
 }
