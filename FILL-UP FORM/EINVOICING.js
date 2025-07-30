@@ -12,7 +12,7 @@ function saveToLocalStorage() {
     alert("Please fill out required fields: Bill To, Invoice No, and Date.");
     return;
   }
-
+ 
   calculateTotals();
 
   // 🔸 Extract dynamic column headers

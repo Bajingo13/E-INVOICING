@@ -66,11 +66,14 @@ const data = raw ? JSON.parse(raw) : {};
   colgroup.innerHTML = "";
 
   // Build Headers
-  ["DESCRIPTION", "QUANTITY", "UNIT COST/RATE", "AMOUNT"].forEach(label => {
-    const th = document.createElement("th");
-    th.textContent = label;
-    theadRow.appendChild(th);
-  });
+  ["ITEM DESCRIPTION / NATURE OF SERVICE", "QUANTITY", "UNIT PRICE", "AMOUNT"].forEach(label => {
+  const th = document.createElement("th");
+  th.textContent = label;
+  theadRow.appendChild(th);
+});
+
+
+
 
   extraFields.forEach(field => {
     const th = document.createElement("th");

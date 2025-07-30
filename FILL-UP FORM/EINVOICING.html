@@ -14,7 +14,7 @@
 </head>
 <body>
   <div class="invoice-container">
-
+  
     <!-- === BUTTONS === -->
     <div class="buttons">
       <button type="button" onclick="saveToLocalStorage()">💾 Save & Preview</button>
@@ -100,9 +100,9 @@
     <table class="bordered" id="items-table">
       <thead>
         <tr>
-          <th class="desc-col">DESCRIPTION</th>
+          <th class="desc-col">ITEM DESCRIPTION/ <br> NATURE OF SERVICE </th>
           <th class="qty-col">QUANTITY</th>
-          <th class="unit-col">UNIT COST/<br />RATE</th>
+          <th class="unit-col">UNIT PRICE</th>
           <th class="amt-col">AMOUNT</th>
         </tr>
       </thead>
@@ -119,51 +119,55 @@
     <!-- === PAYMENT SECTION === -->
     <table class="form-payment">
       <tr>
-        <td colspan="2">FORM OF PAYMENT</td>
-        <td>VATable Sales</td>
-        <td><input type="text" name="vatableSales" /></td>
-        <td>Total Sales (VAT Inclusive)</td>
-        <td><input type="text" name="totalSales" /></td>
+      <td colspan="2">FORM OF PAYMENT</td>
+      <td>VATable Sales</td>
+      <td><input type="text" name="vatableSales" /></td>
+      <td>Total Sales (VAT Inclusive)</td>
+      <td><input type="text" name="totalSales" /></td>
       </tr>
       <tr>
-        <td>Cash</td>
-        <td><input type="checkbox" name="cash" /></td>
-        <td>VAT-Exempt Sales</td>
-        <td><input type="text" name="vatExempt" /></td>
-        <td>Less: VAT</td>
-        <td><input type="text" name="lessVat" /></td>
+      <td>Cash</td>
+      <td><input type="checkbox" name="cash" /></td>
+      <td>VAT </td>
+      <td><input type="text" name="vatExempt" /></td>
+      <td>Less: VAT</td>
+      <td><input type="text" name="lessVat" /></td>
       </tr>
       <tr>
-        <td>Check</td>
-        <td><input type="checkbox" name="check" /></td>
-        <td>Zero-Rated Sales</td>
-        <td><input type="text" name="zeroRated" /></td>
-        <td>Amount Net of VAT</td>
-        <td><input type="text" name="netVat" /></td>
+      <td>Check</td>
+      <td><input type="checkbox" name="check" /></td>
+      <td>Zero-Rated Sales</td>
+      <td><input type="text" name="zeroRated" /></td>
+      <td>Amount Net of VAT</td>
+      <td><input type="text" name="netVat" /></td>
       </tr>
       <tr>
-        <td>Check No.</td>
-        <td><input type="text" name="checkNo" /></td>
-        <td>VAT Amount</td>
-        <td><input type="text" name="vatAmount" /></td>
-        <td>Less: Withholding Tax</td>
-        <td><input type="text" name="withholding" /></td>
+      <td>Check No.</td>
+      <td><input type="text" name="checkNo" /></td>
+      <td>VAT-Exempt Sales</td>
+      <td><input type="text" name="vatAmount" /></td>
+      <td>Less: Discount <br> (SC/PWD/NAAC/MOV/SP)</td>
+      <td><input type="text" name="withholding" /></td>
       </tr>
       <tr>
-        <td>Bank</td>
-        <td><input type="text" name="bank" /></td>
-        <td>Total</td>
-        <td><input type="text" name="total" /></td>
-        <td>Total Due</td>
-        <td><input type="text" name="due" /></td>
+      <td>Bank</td>
+      <td><input type="text" name="bank" /></td>
+      <td>Total</td>
+      <td><input type="text" name="total" /></td>
+      <td>Add: VAT</td>
+      <td><input type="text" name="due" /></td>
       </tr>
       <tr>
-        <td>Date</td>
-        <td><input type="date" name="payDate" /></td>
-        <td>Add: VAT</td>
-        <td><input type="text" name="addVat" /></td>
-        <td>Total Payable</td>
-        <td><input type="text" name="payable" /></td>
+      <td>Date</td>
+      <td><input type="date" name="payDate" /></td>
+      <td></td>
+      <td></td>
+      <td>Less Witholding Tax</td>
+      <td><input type="text" name="payable" /></td>
+      </tr>
+      <tr>
+      <td colspan="5" style="text-align:right;"><strong>TOTAL AMOUNT DUE</strong></td>
+      <td><input type="text" name="totalAmountDue" /></td>
       </tr>
     </table>
 
