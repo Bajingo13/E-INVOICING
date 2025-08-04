@@ -81,6 +81,37 @@ function saveToLocalStorage() {
   localStorage.setItem('invoiceData', JSON.stringify(data));
   console.log("✅ Saved invoiceData:", data);
   window.location.href = "../PRINTABLE/Replica.html";
+
+  
+   // Example: collect input values
+  document.querySelectorAll('input').forEach(input => {
+    if (input.name.endsWith('[]')) {
+      const key = input.name.replace('[]', '');
+      if (!data[key]) data[key] = [];
+      data[key].push(input.value);
+    } else if (input.type === 'checkbox') {
+      data[input.name] = input.checked;
+    } else {
+      data[input.name] = input.value;
+    }
+  });
+
+  // Send data to server
+  fetch('/invoice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+    .then(res => res.json())
+    .then(result => {
+      alert('✅ Invoice saved!');
+      console.log(result);
+      // Optionally redirect to printable version here
+    })
+    .catch(err => {
+      alert('❌ Failed to save invoice.');
+      console.error(err);
+    });
 }
 
 /* -------------------------- 2. ROW FUNCTIONS -------------------------- */
