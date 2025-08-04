@@ -12,10 +12,9 @@ function saveToLocalStorage() {
     alert("Please fill out required fields: Bill To, Invoice No, and Date.");
     return;
   }
- 
+
   calculateTotals();
 
-  // 🔸 Extract dynamic column headers
   const allThs = document.querySelectorAll("#items-table thead th");
   const extraColumns = [];
   allThs.forEach((th, index) => {
@@ -25,7 +24,6 @@ function saveToLocalStorage() {
     }
   });
 
-  // 🔸 Collect all data
   const data = {
     invoiceNo,
     billTo,
@@ -79,39 +77,24 @@ function saveToLocalStorage() {
   };
 
   localStorage.setItem('invoiceData', JSON.stringify(data));
-  console.log("✅ Saved invoiceData:", data);
-  window.location.href = "../PRINTABLE/Replica.html";
+  console.log("📦 Saved to localStorage:", data);
 
-  
-   // Example: collect input values
-  document.querySelectorAll('input').forEach(input => {
-    if (input.name.endsWith('[]')) {
-      const key = input.name.replace('[]', '');
-      if (!data[key]) data[key] = [];
-      data[key].push(input.value);
-    } else if (input.type === 'checkbox') {
-      data[input.name] = input.checked;
-    } else {
-      data[input.name] = input.value;
-    }
-  });
-
-  // Send data to server
+  // ✅ Save to MySQL
   fetch('/invoice', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-    .then(res => res.json())
-    .then(result => {
-      alert('✅ Invoice saved!');
-      console.log(result);
-      // Optionally redirect to printable version here
-    })
-    .catch(err => {
-      alert('❌ Failed to save invoice.');
-      console.error(err);
-    });
+  .then(res => res.json())
+  .then(result => {
+    console.log("✅ Saved to MySQL:", result);
+    alert("Invoice saved successfully!");
+    window.location.href = "../PRINTABLE/Replica.html";
+  })
+  .catch(err => {
+    console.error("❌ Failed to save invoice:", err);
+    alert("Error saving invoice. Check console.");
+  });
 }
 
 /* -------------------------- 2. ROW FUNCTIONS -------------------------- */
@@ -277,44 +260,27 @@ function adjustColumnWidths() {
   });
 }
 
+/* ---------------------- 6. LOGO UPLOAD ---------------------- */
+function previewLogo(event) {
+  const img = document.getElementById('uploaded-logo');
+  const btn = document.getElementById('remove-logo-btn');
+  if (event.target.files && event.target.files[0]) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      img.src = e.target.result;
+      img.style.display = 'block';
+      btn.style.display = 'inline-block';
+    };
+    reader.readAsDataURL(event.target.files[0]);
+  }
+}
 
-// Function to preview the uploaded logo
-
-          function previewLogo(event) {
-            const file = event.target.files[0];
-            if (file) {
-              const reader = new FileReader();
-              reader.onload = function(e) {
-          const img = document.getElementById('uploaded-logo');
-          img.src = e.target.result;
-          img.style.display = 'block';
-              };
-              reader.readAsDataURL(file);
-            }
-          }
-
-// Function to remove the logo
-
-      function previewLogo(event) {
-      const img = document.getElementById('uploaded-logo');
-      const btn = document.getElementById('remove-logo-btn');
-      if (event.target.files && event.target.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-        img.src = e.target.result;
-        img.style.display = 'block';
-        btn.style.display = 'inline-block';
-        };
-        reader.readAsDataURL(event.target.files[0]);
-      }
-      }
-      function removeLogo() {
-      const img = document.getElementById('uploaded-logo');
-      const btn = document.getElementById('remove-logo-btn');
-      const input = document.getElementById('logo-upload');
-      img.src = '';
-      img.style.display = 'none';
-      btn.style.display = 'none';
-      input.value = '';
-      }
-  
+function removeLogo() {
+  const img = document.getElementById('uploaded-logo');
+  const btn = document.getElementById('remove-logo-btn');
+  const input = document.getElementById('logo-upload');
+  img.src = '';
+  img.style.display = 'none';
+  btn.style.display = 'none';
+  input.value = '';
+}

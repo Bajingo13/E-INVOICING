@@ -1,48 +1,69 @@
+require('dotenv').config();
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
 const bodyParser = require('body-parser');
+const mysql = require('mysql2');
+const path = require('path');
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 // Middleware
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/PRINTABLE', express.static(path.join(__dirname, 'PRINTABLE')));
 app.use(bodyParser.json());
 
-// === API ROUTES ===
+// MySQL Connection
+const db = mysql.createConnection({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME
+});
 
-// Save invoice data to JSON file (or DB later)
+db.connect(err => {
+  if (err) {
+    console.error('❌ DB connection failed:', err);
+    process.exit(1);
+  }
+  console.log('✅ Connected to MySQL DB');
+});
+
+// Save Invoice API
 app.post('/invoice', (req, res) => {
-  const invoiceData = req.body;
+  const data = req.body;
+  const { invoiceNo, billTo, address1, address2, tin, terms, date, totalAmountDue } = data;
 
-  // Simple save to file
-  const filename = `invoice-${Date.now()}.json`;
-  const filepath = path.join(__dirname, 'invoices', filename);
+  // Insert into invoices table
+  const invoiceQuery = `INSERT INTO invoices (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
-  fs.writeFile(filepath, JSON.stringify(invoiceData, null, 2), err => {
-    if (err) {
-      console.error('❌ Error saving file:', err);
-      return res.status(500).json({ message: 'Failed to save invoice' });
+  db.query(invoiceQuery, [invoiceNo, billTo, address1, address2, tin, terms, date, totalAmountDue], (err, result) => {
+    if (err) return res.status(500).json({ error: 'Error saving invoice', details: err });
+
+    const invoiceId = result.insertId;
+
+    // Insert items if any
+    if (data.desc && data.desc.length) {
+      const itemValues = data.desc.map((desc, index) => [
+        invoiceId,
+        desc,
+        data.qty[index] || 0,
+        data.rate[index] || 0,
+        data.amt[index] || 0
+      ]);
+
+      const itemQuery = `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount) VALUES ?`;
+
+      db.query(itemQuery, [itemValues], (itemErr) => {
+        if (itemErr) return res.status(500).json({ error: 'Items insert failed', details: itemErr });
+        res.json({ message: '✅ Invoice saved with items', invoiceId });
+      });
+    } else {
+      res.json({ message: '✅ Invoice saved (no items)', invoiceId });
     }
-    console.log('✅ Invoice saved:', filename);
-    res.json({ message: 'Invoice saved successfully', filename });
   });
 });
 
-// Optional: Preview data route (if needed)
-app.get('/preview/:filename', (req, res) => {
-  const filepath = path.join(__dirname, 'invoices', req.params.filename);
-  if (fs.existsSync(filepath)) {
-    const data = fs.readFileSync(filepath, 'utf8');
-    res.json(JSON.parse(data));
-  } else {
-    res.status(404).json({ error: 'File not found' });
-  }
-});
-
-// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
-
-app.use('/PRINTABLE', express.static(path.join(__dirname, 'PRINTABLE')));
