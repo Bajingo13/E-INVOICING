@@ -64,6 +64,52 @@ app.post('/invoice', (req, res) => {
   });
 });
 
+// GET all invoices
+app.get('/invoices', (req, res) => {
+  const query = `
+    SELECT 
+      invoice_no AS invoice_number,
+      date AS invoice_date,
+      bill_to,
+      total_amount_due AS total_amount
+    FROM invoices
+    ORDER BY date DESC
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching invoices:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    res.json(results);
+  });
+});
+
+
+app.delete('/invoice/:invoice_no', (req, res) => {
+  const invoiceNo = req.params.invoice_no;
+  const findInvoiceIdQuery = 'SELECT id FROM invoices WHERE invoice_no = ?';
+
+  db.query(findInvoiceIdQuery, [invoiceNo], (err, results) => {
+    if (err || results.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+
+    const invoiceId = results[0].id;
+
+    // Delete items first (foreign key with ON DELETE CASCADE helps, but just in case)
+    const deleteItems = 'DELETE FROM invoice_items WHERE invoice_id = ?';
+    db.query(deleteItems, [invoiceId], (err) => {
+      if (err) return res.status(500).json({ error: 'Failed to delete items' });
+
+      const deleteInvoice = 'DELETE FROM invoices WHERE id = ?';
+      db.query(deleteInvoice, [invoiceId], (err) => {
+        if (err) return res.status(500).json({ error: 'Failed to delete invoice' });
+        res.sendStatus(200);
+      });
+    });
+  });
+});
+
+
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
