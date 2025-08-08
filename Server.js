@@ -109,6 +109,58 @@ app.delete('/invoice/:invoice_no', (req, res) => {
 });
 
 
+// Get single invoice by invoice_no
+app.get('/invoice/:invoice_no', (req, res) => {
+  const invoiceNo = req.params.invoice_no;
+
+  // Get invoice header
+  const invoiceQuery = `
+    SELECT 
+      id,
+      invoice_no AS invoice_number,
+      bill_to,
+      address1,
+      address2,
+      tin,
+      terms,
+      date AS invoice_date,
+      total_amount_due AS total_amount
+    FROM invoices
+    WHERE invoice_no = ?
+  `;
+
+  db.query(invoiceQuery, [invoiceNo], (err, results) => {
+    if (err || results.length === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const invoice = results[0];
+    const invoiceId = invoice.id;
+
+    // Get items associated with this invoice
+    const itemsQuery = `
+      SELECT 
+        description,
+        quantity,
+        unit_price,
+        amount
+      FROM invoice_items
+      WHERE invoice_id = ?
+    `;
+
+    db.query(itemsQuery, [invoiceId], (itemErr, items) => {
+      if (itemErr) {
+        return res.status(500).json({ error: 'Failed to fetch items' });
+      }
+
+      // Add items to invoice object
+      invoice.items = items;
+      res.json(invoice);
+    });
+  });
+});
+
+
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);

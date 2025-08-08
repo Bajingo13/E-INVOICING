@@ -266,3 +266,35 @@ function exportToXml() {
   link.download = filename;
   link.click();
 }
+
+
+// Get invoice ID from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const invoiceId = urlParams.get('id');
+
+  // Example function to fill in invoice fields
+  function populateInvoice(data) {
+    document.getElementById("invoiceNumber").textContent = data.invoice_number ?? '';
+    document.getElementById("invoiceDate").textContent = data.invoice_date ?? '';
+    document.getElementById("billTo").textContent = data.bill_to ?? '';
+    document.getElementById("totalAmount").textContent = `₱${(data.total_amount ?? 0).toFixed(2)}`;
+    // Add more fields as needed
+  }
+
+  // Fetch the invoice by ID from the backend
+  if (invoiceId) {
+    fetch(`/invoice/${encodeURIComponent(invoiceId)}`)
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch invoice");
+        return res.json();
+      })
+      .then(data => {
+        populateInvoice(data);
+      })
+      .catch(err => {
+        console.error(err);
+        alert("Invoice not found.");
+      });
+  } else {
+    alert("No invoice ID provided in the URL.");
+  }
