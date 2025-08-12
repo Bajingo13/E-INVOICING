@@ -1,167 +1,135 @@
-require('dotenv').config();
+// server.js
 const express = require('express');
-const bodyParser = require('body-parser');
-const mysql = require('mysql2');
-const path = require('path');
-
+const mysql = require('mysql2/promise');
 const app = express();
-const PORT = 3000;
 
-// Middleware
+app.use(express.json()); // parse JSON bodies
+const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/PRINTABLE', express.static(path.join(__dirname, 'PRINTABLE')));
-app.use(bodyParser.json());
 
-// MySQL Connection
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME
+
+// Create DB connection pool
+const pool = mysql.createPool({
+  host: 'localhost',
+  user: 'root',
+  password: 'BSU2025!@',
+  database: 'invoice_system',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
 });
 
-db.connect(err => {
-  if (err) {
-    console.error('❌ DB connection failed:', err);
-    process.exit(1);
+// Helper: Insert invoice and return inserted id
+async function insertInvoice(conn, invoice) {
+  const sql = `
+    INSERT INTO invoices
+      (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  const params = [
+    invoice.invoice_no,
+    invoice.bill_to,
+    invoice.address1,
+    invoice.address2,
+    invoice.tin,
+    invoice.terms,
+    invoice.date,
+    invoice.total_amount_due,
+  ];
+  const [result] = await conn.execute(sql, params);
+  return result.insertId;
+}
+
+// Helper: Insert invoice items
+async function insertItems(conn, invoiceId, items) {
+  if (!Array.isArray(items)) return;
+  const sql = `
+    INSERT INTO invoice_items
+      (invoice_id, description, quantity, unit_price, amount)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+  for (const item of items) {
+    const params = [
+      invoiceId,
+      item.description,
+      item.quantity,
+      item.unit_price,
+      item.amount,
+    ];
+    await conn.execute(sql, params);
   }
-  console.log('✅ Connected to MySQL DB');
-});
+}
 
-// Save Invoice API
-app.post('/invoice', (req, res) => {
-  const data = req.body;
-  const { invoiceNo, billTo, address1, address2, tin, terms, date, totalAmountDue } = data;
-
-  // Insert into invoices table
-  const invoiceQuery = `INSERT INTO invoices (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-
-  db.query(invoiceQuery, [invoiceNo, billTo, address1, address2, tin, terms, date, totalAmountDue], (err, result) => {
-    if (err) return res.status(500).json({ error: 'Error saving invoice', details: err });
-
-    const invoiceId = result.insertId;
-
-    // Insert items if any
-    if (data.desc && data.desc.length) {
-      const itemValues = data.desc.map((desc, index) => [
-        invoiceId,
-        desc,
-        data.qty[index] || 0,
-        data.rate[index] || 0,
-        data.amt[index] || 0
-      ]);
-
-      const itemQuery = `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount) VALUES ?`;
-
-      db.query(itemQuery, [itemValues], (itemErr) => {
-        if (itemErr) return res.status(500).json({ error: 'Items insert failed', details: itemErr });
-        res.json({ message: '✅ Invoice saved with items', invoiceId });
-      });
-    } else {
-      res.json({ message: '✅ Invoice saved (no items)', invoiceId });
-    }
-  });
-});
-
-// GET all invoices
-app.get('/invoices', (req, res) => {
-  const query = `
-    SELECT 
-      invoice_no AS invoice_number,
-      date AS invoice_date,
-      bill_to,
-      total_amount_due AS total_amount
-    FROM invoices
-    ORDER BY date DESC
+// Helper: Insert payment info
+async function insertPayment(conn, invoiceId, payment) {
+  if (!payment) return;
+  const sql = `
+    INSERT INTO payments (
+      invoice_id, cash, check_payment, check_no, bank, vatable_sales, total_sales,
+      vat_exempt, less_vat, zero_rated, net_vat, vat_amount, withholding, total,
+      due, pay_date, payable
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
-  db.query(query, (err, results) => {
-    if (err) {
-      console.error('Error fetching invoices:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    res.json(results);
-  });
+  const params = [
+    invoiceId,
+    payment.cash || false,
+    payment.check_payment || false,
+    payment.check_no || null,
+    payment.bank || null,
+    payment.vatable_sales || 0,
+    payment.total_sales || 0,
+    payment.vat_exempt || 0,
+    payment.less_vat || 0,
+    payment.zero_rated || 0,
+    payment.net_vat || 0,
+    payment.vat_amount || 0,
+    payment.withholding || 0,
+    payment.total || 0,
+    payment.due || 0,
+    payment.pay_date || null,
+    payment.payable || 0,
+  ];
+  await conn.execute(sql, params);
+}
+
+// POST /api/invoices endpoint
+app.post('/api/invoices', async (req, res) => {
+  const invoiceData = req.body;
+
+  // Basic validation (expand as needed)
+  if (
+    !invoiceData.invoice_no ||
+    !invoiceData.bill_to ||
+    !invoiceData.date ||
+    !invoiceData.items ||
+    !Array.isArray(invoiceData.items) ||
+    invoiceData.items.length === 0
+  ) {
+    return res.status(400).json({ error: 'Missing required invoice fields or items' });
+  }
+
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    const invoiceId = await insertInvoice(conn, invoiceData);
+    await insertItems(conn, invoiceId, invoiceData.items);
+    await insertPayment(conn, invoiceId, invoiceData.payment);
+
+    await conn.commit();
+
+    res.status(201).json({ success: true, invoiceId });
+  } catch (error) {
+    await conn.rollback();
+    console.error('Database transaction error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    conn.release();
+  }
 });
 
-
-app.delete('/invoice/:invoice_no', (req, res) => {
-  const invoiceNo = req.params.invoice_no;
-  const findInvoiceIdQuery = 'SELECT id FROM invoices WHERE invoice_no = ?';
-
-  db.query(findInvoiceIdQuery, [invoiceNo], (err, results) => {
-    if (err || results.length === 0) return res.status(404).json({ error: 'Invoice not found' });
-
-    const invoiceId = results[0].id;
-
-    // Delete items first (foreign key with ON DELETE CASCADE helps, but just in case)
-    const deleteItems = 'DELETE FROM invoice_items WHERE invoice_id = ?';
-    db.query(deleteItems, [invoiceId], (err) => {
-      if (err) return res.status(500).json({ error: 'Failed to delete items' });
-
-      const deleteInvoice = 'DELETE FROM invoices WHERE id = ?';
-      db.query(deleteInvoice, [invoiceId], (err) => {
-        if (err) return res.status(500).json({ error: 'Failed to delete invoice' });
-        res.sendStatus(200);
-      });
-    });
-  });
-});
-
-
-// Get single invoice by invoice_no
-app.get('/invoice/:invoice_no', (req, res) => {
-  const invoiceNo = req.params.invoice_no;
-
-  // Get invoice header
-  const invoiceQuery = `
-    SELECT 
-      id,
-      invoice_no AS invoice_number,
-      bill_to,
-      address1,
-      address2,
-      tin,
-      terms,
-      date AS invoice_date,
-      total_amount_due AS total_amount
-    FROM invoices
-    WHERE invoice_no = ?
-  `;
-
-  db.query(invoiceQuery, [invoiceNo], (err, results) => {
-    if (err || results.length === 0) {
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
-
-    const invoice = results[0];
-    const invoiceId = invoice.id;
-
-    // Get items associated with this invoice
-    const itemsQuery = `
-      SELECT 
-        description,
-        quantity,
-        unit_price,
-        amount
-      FROM invoice_items
-      WHERE invoice_id = ?
-    `;
-
-    db.query(itemsQuery, [invoiceId], (itemErr, items) => {
-      if (itemErr) {
-        return res.status(500).json({ error: 'Failed to fetch items' });
-      }
-
-      // Add items to invoice object
-      invoice.items = items;
-      res.json(invoice);
-    });
-  });
-});
-
-
-
+const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });

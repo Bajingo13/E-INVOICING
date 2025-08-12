@@ -1,11 +1,11 @@
 console.log("✅ EINVOICING.js is loaded");
 
 /* ------------------------- 1. MAIN SAVE FUNCTION ------------------------- */
-function saveToLocalStorage() {
-  console.log("🟢 saveToLocalStorage called");
+async function saveToDatabase() {
+  console.log("🟢 saveToDatabase called");
 
-  const billTo = document.querySelector('input[name="billTo"]').value;
-  const invoiceNo = document.querySelector('input[name="invoiceNo"]').value;
+  const billTo = document.querySelector('input[name="billTo"]').value.trim();
+  const invoiceNo = document.querySelector('input[name="invoiceNo"]').value.trim();
   const date = document.querySelector('input[name="date"]').value;
 
   if (!billTo || !invoiceNo || !date) {
@@ -15,6 +15,7 @@ function saveToLocalStorage() {
 
   calculateTotals();
 
+  // Get extra dynamic columns beyond the 4 default ones (desc, qty, rate, amt)
   const allThs = document.querySelectorAll("#items-table thead th");
   const extraColumns = [];
   allThs.forEach((th, index) => {
@@ -24,77 +25,86 @@ function saveToLocalStorage() {
     }
   });
 
-  const data = {
-    invoiceNo,
-    billTo,
-    date,
-    address1: document.querySelector('input[name="address1"]')?.value || "",
-    address2: document.querySelector('input[name="address2"]')?.value || "",
-    tin: document.querySelector('input[name="tin"]')?.value || "",
-    terms: document.querySelector('input[name="terms"]')?.value || "",
+  // Map items from table rows
+  const items = Array.from(document.querySelectorAll('#items-body tr')).map(row => {
+    const item = {
+      description: row.querySelector('input[name="desc[]"]')?.value.trim() || "",
+      quantity: parseInt(row.querySelector('input[name="qty[]"]')?.value) || 0,
+      unit_price: parseFloat(row.querySelector('input[name="rate[]"]')?.value) || 0,
+      amount: parseFloat(row.querySelector('input[name="amt[]"]')?.value) || 0
+    };
 
-    items: Array.from(document.querySelectorAll('#items-body tr')).map(row => {
-      const item = {
-        desc: row.querySelector('input[name="desc[]"]')?.value || "",
-        qty: row.querySelector('input[name="qty[]"]')?.value || "",
-        rate: row.querySelector('input[name="rate[]"]')?.value || "",
-        amt: row.querySelector('input[name="amt[]"]')?.value || ""
-      };
+    // Include extra columns if any (optional)
+    extraColumns.forEach((colKey, i) => {
+      const cell = row.querySelectorAll('td')[i + 4];
+      const input = cell?.querySelector('input');
+      if (input) {
+        item[colKey] = input.value.trim();
+      }
+    });
 
-      extraColumns.forEach((colKey, i) => {
-        const cell = row.querySelectorAll('td')[i + 4];
-        const input = cell?.querySelector('input');
-        item[colKey] = input?.value || "";
-      });
+    return item;
+  });
 
-      return item;
-    }),
-
-    extraColumns,
-
-    vatableSales: document.querySelector('input[name="vatableSales"]')?.value || "",
-    totalSales: document.querySelector('input[name="totalSales"]')?.value || "",
-    vatExempt: document.querySelector('input[name="vatExempt"]')?.value || "",
-    lessVat: document.querySelector('input[name="lessVat"]')?.value || "",
-    zeroRated: document.querySelector('input[name="zeroRated"]')?.value || "",
-    netVat: document.querySelector('input[name="netVat"]')?.value || "",
-    vatAmount: document.querySelector('input[name="vatAmount"]')?.value || "",
-    withholding: document.querySelector('input[name="withholding"]')?.value || "",
-    total: document.querySelector('input[name="total"]')?.value || "",
-    due: document.querySelector('input[name="due"]')?.value || "",
-    addVat: document.querySelector('input[name="addVat"]')?.value || "",
-    payable: document.querySelector('input[name="payable"]')?.value || "",
-    payDate: document.querySelector('input[name="payDate"]')?.value || "",
-
+  // Prepare payment object matching your DB fields
+  const payment = {
     cash: document.querySelector('input[name="cash"]')?.checked || false,
-    check: document.querySelector('input[name="check"]')?.checked || false,
-    checkNo: document.querySelector('input[name="checkNo"]')?.value || "",
-    bank: document.querySelector('input[name="bank"]')?.value || "",
-
-    preparedBy: document.querySelector('input[name="preparedBy"]')?.value || "",
-    approvedBy: document.querySelector('input[name="approvedBy"]')?.value || "",
-    receivedBy: document.querySelector('input[name="receivedBy"]')?.value || ""
+    check_payment: document.querySelector('input[name="check"]')?.checked || false,
+    check_no: document.querySelector('input[name="checkNo"]')?.value.trim() || null,
+    bank: document.querySelector('input[name="bank"]')?.value.trim() || null,
+    vatable_sales: parseFloat(document.querySelector('input[name="vatableSales"]')?.value) || 0,
+    total_sales: parseFloat(document.querySelector('input[name="totalSales"]')?.value) || 0,
+    vat_exempt: parseFloat(document.querySelector('input[name="vatExempt"]')?.value) || 0,
+    less_vat: parseFloat(document.querySelector('input[name="lessVat"]')?.value) || 0,
+    zero_rated: parseFloat(document.querySelector('input[name="zeroRated"]')?.value) || 0,
+    net_vat: parseFloat(document.querySelector('input[name="netVat"]')?.value) || 0,
+    vat_amount: parseFloat(document.querySelector('input[name="vatAmount"]')?.value) || 0,
+    withholding: parseFloat(document.querySelector('input[name="withholding"]')?.value) || 0,
+    total: parseFloat(document.querySelector('input[name="total"]')?.value) || 0,
+    due: parseFloat(document.querySelector('input[name="due"]')?.value) || 0,
+    pay_date: document.querySelector('input[name="payDate"]')?.value || null,
+    payable: parseFloat(document.querySelector('input[name="payable"]')?.value) || 0,
   };
 
-  localStorage.setItem('invoiceData', JSON.stringify(data));
-  console.log("📦 Saved to localStorage:", data);
+  // Build main invoice data object
+  const data = {
+    invoice_no: invoiceNo,
+    bill_to: billTo,
+    address1: document.querySelector('input[name="address1"]')?.value.trim() || "",
+    address2: document.querySelector('input[name="address2"]')?.value.trim() || "",
+    tin: document.querySelector('input[name="tin"]')?.value.trim() || "",
+    terms: document.querySelector('input[name="terms"]')?.value.trim() || "",
+    date,
+    total_amount_due: payment.payable || 0,
+    items,
+    payment,
+  };
 
-  // ✅ Save to MySQL
-  fetch('/invoice', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
-  .then(res => res.json())
-  .then(result => {
-    console.log("✅ Saved to MySQL:", result);
-    alert("Invoice saved successfully!");
-    window.location.href = "../PRINTABLE/Replica.html";
-  })
-  .catch(err => {
+  // Optionally save in localStorage for backup/debug
+  localStorage.setItem('invoiceData', JSON.stringify(data));
+  console.log("📦 Prepared invoice data:", data);
+
+  // Send to backend
+  try {
+    const response = await fetch('/api/invoices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+
+    if (response.ok) {
+      console.log("✅ Saved to MySQL:", result);
+      alert("Invoice saved successfully!");
+      window.location.href = "../PRINTABLE/Replica.html"; // or wherever you want to redirect
+    } else {
+      console.error("❌ Server error:", result);
+      alert(`Error saving invoice: ${result.error || 'Unknown server error'}`);
+    }
+  } catch (err) {
     console.error("❌ Failed to save invoice:", err);
     alert("Error saving invoice. Check console.");
-  });
+  }
 }
 
 /* -------------------------- 2. ROW FUNCTIONS -------------------------- */
@@ -240,23 +250,20 @@ function adjustColumnWidths() {
   const theadRow = table.querySelector('thead tr');
   const ths = theadRow.querySelectorAll('th');
 
-  const totalTableWidth = table.clientWidth || 900;
-  const colCount = ths.length;
+  if (ths.length === 0) return;
 
-  if (colCount === 0) return;
+  const colWidthPercent = 100 / ths.length;
 
-  const colWidthPercent = 100 / colCount;
-
-  for (let i = 0; i < ths.length; i++) {
-    ths[i].style.width = colWidthPercent + '%';
-  }
+  ths.forEach(th => {
+    th.style.width = colWidthPercent + '%';
+  });
 
   const rows = table.querySelectorAll('tbody tr');
   rows.forEach(row => {
     const tds = row.querySelectorAll('td');
-    for (let i = 0; i < tds.length; i++) {
-      tds[i].style.width = colWidthPercent + '%';
-    }
+    tds.forEach(td => {
+      td.style.width = colWidthPercent + '%';
+    });
   });
 }
 
