@@ -7,7 +7,7 @@ app.use(express.json()); // parse JSON bodies
 const path = require('path');
 app.use(express.static(path.join(__dirname, 'public')));
 
-
+ 
 // Create DB connection pool
 const pool = mysql.createPool({
   host: 'localhost',
@@ -129,7 +129,83 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
+// GET /invoice/:id
+app.get('/invoice/:id', async (req, res) => {
+  const { id } = req.params;
+
+  const conn = await pool.getConnection();
+  try {
+    // Get main invoice
+    const [invoiceRows] = await conn.execute(
+      `SELECT * FROM invoices WHERE id = ? LIMIT 1`,
+      [id]
+    );
+
+    if (invoiceRows.length === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const invoice = invoiceRows[0];
+
+    // Get invoice items
+    const [items] = await conn.execute(
+      `SELECT description AS desc, quantity AS qty, unit_price AS rate, amount AS amt
+       FROM invoice_items
+       WHERE invoice_id = ?`,
+      [invoice.id]
+    );
+
+    // Detect any "extra" item columns beyond the default 4
+    const extraColumns = [];
+    if (items.length > 0) {
+      const keys = Object.keys(items[0]);
+      const defaultCols = ['desc', 'qty', 'rate', 'amt'];
+      keys.forEach(k => {
+        if (!defaultCols.includes(k)) extraColumns.push(k);
+      });
+    }
+
+    // Get payment info
+    const [payments] = await conn.execute(
+      `SELECT 
+        cash, check_payment AS \`check\`, check_no, bank, pay_date,
+        vatable_sales, vat_exempt, zero_rated, vat_amount, less_vat, net_vat, withholding AS withholding_tax,
+        total, due AS total_due, add_vat, payable AS total_payable, total_with_vat,
+        prepared_by, approved_by, received_by
+       FROM payments
+       WHERE invoice_id = ? LIMIT 1`,
+      [invoice.id]
+    );
+
+    const payment = payments[0] || {};
+
+    // Merge invoice + payment + items into single object
+    const result = {
+      invoice_no: invoice.invoice_no,
+      bill_to: invoice.bill_to,
+      address1: invoice.address1,
+      address2: invoice.address2,
+      tin: invoice.tin,
+      terms: invoice.terms,
+      date: invoice.date,
+      extra_columns: extraColumns,
+      items,
+      ...payment
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching invoice:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+
+

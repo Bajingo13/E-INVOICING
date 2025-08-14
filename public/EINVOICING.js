@@ -96,7 +96,7 @@ async function saveToDatabase() {
     if (response.ok) {
       console.log("✅ Saved to MySQL:", result);
       alert("Invoice saved successfully!");
-      window.location.href = "../PRINTABLE/Replica.html"; // or wherever you want to redirect
+      window.location.href = `../PRINTABLE/Replica.html?invoice_no=${encodeURIComponent(result.invoice_no)}`;
     } else {
       console.error("❌ Server error:", result);
       alert(`Error saving invoice: ${result.error || 'Unknown server error'}`);
