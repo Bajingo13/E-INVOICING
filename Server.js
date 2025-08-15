@@ -1,14 +1,13 @@
 // server.js
 const express = require('express');
 const mysql = require('mysql2/promise');
-const app = express();
-
-app.use(express.json()); // parse JSON bodies
 const path = require('path');
+
+const app = express();
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
- 
-// Create DB connection pool
+// MySQL connection pool
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
@@ -19,7 +18,7 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
-// Helper: Insert invoice and return inserted id
+// --------------------- INSERT HELPERS ---------------------
 async function insertInvoice(conn, invoice) {
   const sql = `
     INSERT INTO invoices
@@ -40,7 +39,6 @@ async function insertInvoice(conn, invoice) {
   return result.insertId;
 }
 
-// Helper: Insert invoice items
 async function insertItems(conn, invoiceId, items) {
   if (!Array.isArray(items)) return;
   const sql = `
@@ -60,7 +58,6 @@ async function insertItems(conn, invoiceId, items) {
   }
 }
 
-// Helper: Insert payment info
 async function insertPayment(conn, invoiceId, payment) {
   if (!payment) return;
   const sql = `
@@ -92,11 +89,12 @@ async function insertPayment(conn, invoiceId, payment) {
   await conn.execute(sql, params);
 }
 
-// POST /api/invoices endpoint
+// --------------------- ROUTES ---------------------
+
+// POST /api/invoices
 app.post('/api/invoices', async (req, res) => {
   const invoiceData = req.body;
 
-  // Basic validation (expand as needed)
   if (
     !invoiceData.invoice_no ||
     !invoiceData.bill_to ||
@@ -109,16 +107,12 @@ app.post('/api/invoices', async (req, res) => {
   }
 
   const conn = await pool.getConnection();
-
   try {
     await conn.beginTransaction();
-
     const invoiceId = await insertInvoice(conn, invoiceData);
     await insertItems(conn, invoiceId, invoiceData.items);
     await insertPayment(conn, invoiceId, invoiceData.payment);
-
     await conn.commit();
-
     res.status(201).json({ success: true, invoiceId });
   } catch (error) {
     await conn.rollback();
@@ -129,16 +123,16 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// GET /invoice/:id
-app.get('/invoice/:id', async (req, res) => {
-  const { id } = req.params;
-
+// GET /invoice-no/:invoiceNo
+app.get('/invoice-no/:invoiceNo', async (req, res) => {
+  const { invoiceNo } = req.params;
   const conn = await pool.getConnection();
+
   try {
-    // Get main invoice
+    // 1️⃣ Get invoice by invoice_no
     const [invoiceRows] = await conn.execute(
-      `SELECT * FROM invoices WHERE id = ? LIMIT 1`,
-      [id]
+      `SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1`,
+      [invoiceNo]
     );
 
     if (invoiceRows.length === 0) {
@@ -147,31 +141,51 @@ app.get('/invoice/:id', async (req, res) => {
 
     const invoice = invoiceRows[0];
 
-    // Get invoice items
+    // 2️⃣ Get items linked to this invoice
     const [items] = await conn.execute(
-      `SELECT description AS desc, quantity AS qty, unit_price AS rate, amount AS amt
+      `SELECT description, quantity, unit_price, amount
        FROM invoice_items
        WHERE invoice_id = ?`,
       [invoice.id]
     );
 
-    // Detect any "extra" item columns beyond the default 4
-    const extraColumns = [];
-    if (items.length > 0) {
-      const keys = Object.keys(items[0]);
-      const defaultCols = ['desc', 'qty', 'rate', 'amt'];
-      keys.forEach(k => {
-        if (!defaultCols.includes(k)) extraColumns.push(k);
-      });
+    // 3️⃣ Detect extra columns dynamically
+    const [itemColumns] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
+    const defaultItemCols = ["invoice_id", "description", "quantity", "unit_price", "amount"];
+    const extraCols = itemColumns
+      .map(c => c.Field)
+      .filter(c => !defaultItemCols.includes(c));
+
+    let extraData = {};
+    if (extraCols.length > 0) {
+      const [extraRows] = await conn.execute(
+        `SELECT ${extraCols.map(c => `\`${c}\``).join(", ")} FROM invoice_items WHERE invoice_id = ?`,
+        [invoice.id]
+      );
+      extraData.extra_columns = extraRows;
+    } else {
+      extraData.extra_columns = [];
     }
 
-    // Get payment info
+    // 4️⃣ Get payment info (existing columns only)
     const [payments] = await conn.execute(
       `SELECT 
-        cash, check_payment AS \`check\`, check_no, bank, pay_date,
-        vatable_sales, vat_exempt, zero_rated, vat_amount, less_vat, net_vat, withholding AS withholding_tax,
-        total, due AS total_due, add_vat, payable AS total_payable, total_with_vat,
-        prepared_by, approved_by, received_by
+         cash,
+         check_payment AS \`check\`,
+         check_no,
+         bank,
+         pay_date,
+         vatable_sales,
+         total_sales,
+         vat_exempt,
+         less_vat,
+         zero_rated,
+         net_vat,
+         vat_amount,
+         withholding AS withholding_tax,
+         total,
+         due AS total_due,
+         payable AS total_payable
        FROM payments
        WHERE invoice_id = ? LIMIT 1`,
       [invoice.id]
@@ -179,8 +193,8 @@ app.get('/invoice/:id', async (req, res) => {
 
     const payment = payments[0] || {};
 
-    // Merge invoice + payment + items into single object
-    const result = {
+    // 5️⃣ Send complete invoice object
+    res.json({
       invoice_no: invoice.invoice_no,
       bill_to: invoice.bill_to,
       address1: invoice.address1,
@@ -188,24 +202,22 @@ app.get('/invoice/:id', async (req, res) => {
       tin: invoice.tin,
       terms: invoice.terms,
       date: invoice.date,
-      extra_columns: extraColumns,
       items,
-      ...payment
-    };
+      payment,
+      ...extraData
+    });
 
-    res.json(result);
   } catch (error) {
-    console.error('Error fetching invoice:', error);
+    console.error('Error fetching invoice:', error.message);
+    console.error(error.stack);
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     conn.release();
   }
 });
 
-
-const PORT = 3000;
+// Start the server
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
-
-
