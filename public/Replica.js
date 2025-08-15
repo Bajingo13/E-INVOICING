@@ -1,7 +1,7 @@
 window.onload = async function () {
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get('invoice_no');
-
+ 
   if (!invoiceNo) {
     alert("No invoice number provided in the URL.");
     return;
@@ -45,8 +45,14 @@ window.onload = async function () {
     colgroup.innerHTML = "";
     tbody.innerHTML = "";
 
-    // Header
-    const headers = ["ITEM DESCRIPTION / NATURE OF SERVICE", "QUANTITY", "UNIT PRICE", "AMOUNT", ...extraFields];
+    // Table Headers
+    const headers = [
+      "ITEM DESCRIPTION / NATURE OF SERVICE",
+      "QUANTITY",
+      "UNIT PRICE",
+      "AMOUNT",
+      ...extraFields
+    ];
     headers.forEach(label => {
       const th = document.createElement("th");
       th.textContent = label.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -54,16 +60,21 @@ window.onload = async function () {
     });
 
     // Column widths
-    ["40%", "10%", "15%", "15%"].forEach(width => {
+    const baseWidths = ["40%", "10%", "15%", "15%"];
+    baseWidths.forEach(width => {
       const col = document.createElement("col");
       col.style.width = width;
       colgroup.appendChild(col);
     });
-    extraFields.forEach(() => {
-      const col = document.createElement("col");
-      col.style.width = `${(20 / extraFields.length).toFixed(2)}%`;
-      colgroup.appendChild(col);
-    });
+
+    if (extraFields.length > 0) {
+      const extraWidth = (20 / extraFields.length).toFixed(2) + "%";
+      extraFields.forEach(() => {
+        const col = document.createElement("col");
+        col.style.width = extraWidth;
+        colgroup.appendChild(col);
+      });
+    }
 
     // Rows
     const TOTAL_ROWS = 21;
@@ -89,8 +100,9 @@ window.onload = async function () {
     const data = await res.json();
     console.log("📦 Loaded invoice data:", data);
 
+    // Remove "Id" from extra columns if present
     const extraFields = Array.isArray(data.extra_columns) && data.extra_columns.length > 0
-      ? Object.keys(data.extra_columns[0])
+      ? Object.keys(data.extra_columns[0]).filter(key => key.toLowerCase() !== 'id')
       : [];
 
     buildTable(Array.isArray(data.items) ? data.items : [], extraFields);
