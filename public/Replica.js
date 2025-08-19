@@ -100,8 +100,8 @@ window.onload = async function () {
       });
     }
 
-    // 4️⃣ Rows (fixed to 21 rows)
-    const TOTAL_ROWS = 21;
+    // 4️⃣ Rows (fixed to 20 rows)
+    const TOTAL_ROWS = 20;
     for (let i = 0; i < TOTAL_ROWS; i++) {
       const row = document.createElement("tr");
       const item = items[i] || {};
