@@ -1,28 +1,28 @@
 window.onload = async function () {
   const params = new URLSearchParams(window.location.search);
-  const invoiceNo = params.get('invoice_no');
- 
+  const invoiceNo = params.get("invoice_no");
+
   if (!invoiceNo) {
     alert("No invoice number provided in the URL.");
     return;
   }
 
+  // ---------- Helpers ----------
   const formatCurrency = (value) => {
     const num = parseFloat(value);
-    return isNaN(num) ? "" : num.toLocaleString('en-PH', {
-      style: 'currency',
-      currency: 'PHP'
-    });
+    return isNaN(num)
+      ? ""
+      : num.toLocaleString("en-PH", { style: "currency", currency: "PHP" });
   };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
     const date = new Date(dateStr);
-    return isNaN(date) ? dateStr : date.toLocaleDateString('en-PH');
+    return isNaN(date) ? dateStr : date.toLocaleDateString("en-PH");
   };
 
   const fillLine = (labelText, value) => {
-    document.querySelectorAll(".field").forEach(field => {
+    document.querySelectorAll(".field").forEach((field) => {
       const label = field.querySelector(".label");
       const line = field.querySelector(".line");
       if (label && line && label.textContent.trim().startsWith(labelText)) {
@@ -36,7 +36,8 @@ window.onload = async function () {
     if (el) el.textContent = value || "";
   };
 
-  const buildTable = (items, extraFields = []) => {
+  // ---------- Build Table ----------
+  const buildTable = (items) => {
     const theadRow = document.getElementById("replica-thead-row");
     const colgroup = document.getElementById("invoice-colgroup");
     const tbody = document.getElementById("itemRows");
@@ -45,30 +46,53 @@ window.onload = async function () {
     colgroup.innerHTML = "";
     tbody.innerHTML = "";
 
-    // Table Headers
+    // 1️⃣ Determine extra fields dynamically (only columns with at least one non-empty value)
+    let extraFieldsSet = new Set();
+    items.forEach((it) => {
+      Object.keys(it || {}).forEach((k) => {
+        if (
+          ![
+            "description",
+            "quantity",
+            "unit_price",
+            "amount",
+            "invoice_id",
+            "id",
+          ].includes(k.toLowerCase()) &&
+          it[k] != null &&
+          it[k] !== ""
+        ) {
+          extraFieldsSet.add(k);
+        }
+      });
+    });
+    const extraFields = Array.from(extraFieldsSet);
+
+    // 2️⃣ Headers
     const headers = [
-      "ITEM DESCRIPTION / NATURE OF SERVICE",
-      "QUANTITY",
-      "UNIT PRICE",
-      "AMOUNT",
-      ...extraFields
+      "Item Description / Nature of Service",
+      "Quantity",
+      "Unit Price",
+      "Amount",
+      ...extraFields,
     ];
-    headers.forEach(label => {
+    headers.forEach((label) => {
       const th = document.createElement("th");
-      th.textContent = label.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      th.textContent = label.replace(/_/g, " ").replace(/\b\w/g, (c) =>
+        c.toUpperCase()
+      );
       theadRow.appendChild(th);
     });
 
-    // Column widths
+    // 3️⃣ Column widths (proportional)
     const baseWidths = ["40%", "10%", "15%", "15%"];
-    baseWidths.forEach(width => {
+    baseWidths.forEach((width) => {
       const col = document.createElement("col");
       col.style.width = width;
       colgroup.appendChild(col);
     });
-
     if (extraFields.length > 0) {
-      const extraWidth = (20 / extraFields.length).toFixed(2) + "%";
+      const extraWidth = ((100 - 40 - 10 - 15 - 15) / extraFields.length).toFixed(2) + "%";
       extraFields.forEach(() => {
         const col = document.createElement("col");
         col.style.width = extraWidth;
@@ -76,23 +100,26 @@ window.onload = async function () {
       });
     }
 
-    // Rows
+    // 4️⃣ Rows (fixed to 21 rows)
     const TOTAL_ROWS = 21;
     for (let i = 0; i < TOTAL_ROWS; i++) {
       const row = document.createElement("tr");
       const item = items[i] || {};
+
       const cells = [
         `<td>${item.description || "&nbsp;"}</td>`,
         `<td>${item.quantity || "&nbsp;"}</td>`,
         `<td>${item.unit_price ? formatCurrency(item.unit_price) : "&nbsp;"}</td>`,
         `<td>${item.amount ? formatCurrency(item.amount) : "&nbsp;"}</td>`,
-        ...extraFields.map(f => `<td>${item[f] || "&nbsp;"}</td>`)
+        ...extraFields.map((f) => `<td>${item[f] != null ? item[f] : "&nbsp;"}</td>`),
       ];
+
       row.innerHTML = cells.join("");
       tbody.appendChild(row);
     }
   };
 
+  // ---------- Main ----------
   try {
     const res = await fetch(`/invoice-no/${encodeURIComponent(invoiceNo)}`);
     if (!res.ok) throw new Error("Failed to fetch invoice");
@@ -100,12 +127,8 @@ window.onload = async function () {
     const data = await res.json();
     console.log("📦 Loaded invoice data:", data);
 
-    // Remove "Id" from extra columns if present
-    const extraFields = Array.isArray(data.extra_columns) && data.extra_columns.length > 0
-      ? Object.keys(data.extra_columns[0]).filter(key => key.toLowerCase() !== 'id')
-      : [];
-
-    buildTable(Array.isArray(data.items) ? data.items : [], extraFields);
+    // Items table
+    buildTable(Array.isArray(data.items) ? data.items : []);
 
     // Header info
     fillLine("BILL TO", data.bill_to);
@@ -147,9 +170,8 @@ window.onload = async function () {
     fillById("preparedBy", payment.prepared_by || "");
     fillById("approvedBy", payment.approved_by || "");
     fillById("receivedBy", payment.received_by || "");
-
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error loading invoice:", err);
     alert("Error loading invoice — showing empty template.");
   }
 };

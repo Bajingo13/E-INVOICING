@@ -41,20 +41,34 @@ async function insertInvoice(conn, invoice) {
 
 async function insertItems(conn, invoiceId, items) {
   if (!Array.isArray(items)) return;
-  const sql = `
-    INSERT INTO invoice_items
-      (invoice_id, description, quantity, unit_price, amount)
-    VALUES (?, ?, ?, ?, ?)
-  `;
+
+  // Check existing columns
+  const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
+  const existingCols = cols.map(c => c.Field);
+
   for (const item of items) {
-    const params = [
-      invoiceId,
-      item.description,
-      item.quantity,
-      item.unit_price,
-      item.amount,
-    ];
-    await conn.execute(sql, params);
+    // Default fields
+    let columns = ["invoice_id", "description", "quantity", "unit_price", "amount"];
+    let values = [invoiceId, item.description, item.quantity, item.unit_price, item.amount];
+    let placeholders = ["?", "?", "?", "?", "?"];
+
+    // Handle extra fields dynamically
+    for (const [key, val] of Object.entries(item)) {
+      if (["description", "quantity", "unit_price", "amount"].includes(key)) continue;
+
+      // Add column if missing
+      if (!existingCols.includes(key)) {
+        await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
+        existingCols.push(key);
+      }
+
+      columns.push("`" + key + "`");
+      values.push(val);
+      placeholders.push("?");
+    }
+
+    const sql = `INSERT INTO invoice_items (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`;
+    await conn.execute(sql, values);
   }
 }
 
@@ -91,7 +105,7 @@ async function insertPayment(conn, invoiceId, payment) {
 
 // --------------------- ROUTES ---------------------
 
-// POST /api/invoices
+// POST /api/invoices (save invoice + items + payments)
 app.post('/api/invoices', async (req, res) => {
   const invoiceData = req.body;
 
@@ -123,51 +137,46 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// GET /invoice-no/:invoiceNo
+// GET /invoice-no/:invoiceNo (fetch invoice fully)
+// GET /invoice-no/:invoiceNo (fetch invoice fully, only active columns)
 app.get('/invoice-no/:invoiceNo', async (req, res) => {
   const { invoiceNo } = req.params;
   const conn = await pool.getConnection();
 
   try {
-    // 1️⃣ Get invoice by invoice_no
+    // 1️⃣ Get invoice
     const [invoiceRows] = await conn.execute(
       `SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1`,
       [invoiceNo]
     );
-
     if (invoiceRows.length === 0) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
-
     const invoice = invoiceRows[0];
 
-    // 2️⃣ Get items linked to this invoice
+    // 2️⃣ Get all item columns dynamically
+    const [itemCols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
+    const itemFields = itemCols.map(c => c.Field).filter(c => c !== "id" && c !== "invoice_id");
+
+    // 3️⃣ Get all items for this invoice
     const [items] = await conn.execute(
-      `SELECT description, quantity, unit_price, amount
-       FROM invoice_items
-       WHERE invoice_id = ?`,
+      `SELECT ${itemFields.map(f => `\`${f}\``).join(", ")} FROM invoice_items WHERE invoice_id = ?`,
       [invoice.id]
     );
 
-    // 3️⃣ Detect extra columns dynamically
-    const [itemColumns] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
-    const defaultItemCols = ["invoice_id", "description", "quantity", "unit_price", "amount"];
-    const extraCols = itemColumns
-      .map(c => c.Field)
-      .filter(c => !defaultItemCols.includes(c));
+    // 4️⃣ Determine active columns (columns with at least one non-empty value)
+    const activeColumns = itemFields.filter(col => {
+      return items.some(item => item[col] !== null && item[col] !== '');
+    });
 
-    let extraData = {};
-    if (extraCols.length > 0) {
-      const [extraRows] = await conn.execute(
-        `SELECT ${extraCols.map(c => `\`${c}\``).join(", ")} FROM invoice_items WHERE invoice_id = ?`,
-        [invoice.id]
-      );
-      extraData.extra_columns = extraRows;
-    } else {
-      extraData.extra_columns = [];
-    }
+    // 5️⃣ Map items to include only active columns
+    const filteredItems = items.map(item => {
+      const obj = {};
+      activeColumns.forEach(col => obj[col] = item[col]);
+      return obj;
+    });
 
-    // 4️⃣ Get payment info (existing columns only)
+    // 6️⃣ Get payment info
     const [payments] = await conn.execute(
       `SELECT 
          cash,
@@ -193,7 +202,7 @@ app.get('/invoice-no/:invoiceNo', async (req, res) => {
 
     const payment = payments[0] || {};
 
-    // 5️⃣ Send complete invoice object
+    // 7️⃣ Send complete invoice object
     res.json({
       invoice_no: invoice.invoice_no,
       bill_to: invoice.bill_to,
@@ -202,21 +211,19 @@ app.get('/invoice-no/:invoiceNo', async (req, res) => {
       tin: invoice.tin,
       terms: invoice.terms,
       date: invoice.date,
-      items,
-      payment,
-      ...extraData
+      items: filteredItems,    // only active columns included
+      payment
     });
 
   } catch (error) {
     console.error('Error fetching invoice:', error.message);
-    console.error(error.stack);
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     conn.release();
   }
 });
 
-// Start the server
+// --------------------- START SERVER ---------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);

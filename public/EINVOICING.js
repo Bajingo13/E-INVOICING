@@ -3,7 +3,7 @@ console.log("✅ EINVOICING.js is loaded");
 /* ------------------------- 1. MAIN SAVE FUNCTION ------------------------- */
 async function saveToDatabase() {
   console.log("🟢 saveToDatabase called");
-
+ 
   // Required fields
   const billTo = document.querySelector('input[name="billTo"]')?.value.trim();
   const invoiceNo = document.querySelector('input[name="invoiceNo"]')?.value.trim();
@@ -16,13 +16,13 @@ async function saveToDatabase() {
 
   calculateTotals(); // update totals before saving
 
-  // Gather extra columns dynamically
+  // ✅ Gather extra column keys dynamically from header
   const allThs = document.querySelectorAll("#items-table thead th");
   const extraColumns = Array.from(allThs)
-    .slice(4)
+    .slice(4) // skip Description, Qty, Rate, Amount
     .map(th => th.textContent.trim().toLowerCase().replace(/\s+/g, "_"));
 
-  // Gather items
+  // ✅ Gather items row-by-row
   const items = Array.from(document.querySelectorAll('#items-body tr')).map(row => {
     const item = {
       description: row.querySelector('input[name="desc[]"]')?.value.trim() || "",
@@ -31,17 +31,16 @@ async function saveToDatabase() {
       amount: parseFloat(row.querySelector('input[name="amt[]"]')?.value) || 0
     };
 
-    // Include extra columns
-    extraColumns.forEach((colKey, i) => {
-      const cell = row.querySelectorAll('td')[i + 4];
-      const input = cell?.querySelector('input');
-      if (input) item[colKey] = input.value.trim();
-    });
+    // ✅ Include extra columns dynamically
+    extraColumns.forEach(colKey => {
+  const input = row.querySelector(`input[name="${colKey}[]"]`);
+  item[colKey] = input?.value.trim() || '';
+});
 
     return item;
   });
 
-  // Prepare payment object
+  // Payment info
   const payment = {
     cash: document.querySelector('input[name="cash"]')?.checked || false,
     check_payment: document.querySelector('input[name="check"]')?.checked || false,
@@ -116,10 +115,11 @@ function addRow() {
     <td><input type="number" class="input-short" name="amt[]" readonly></td>
   `;
 
-  // Extra columns
+  // ✅ Add input fields for extra columns with proper name=""
   for (let i = 4; i < headerCols.length; i++) {
+    const colName = headerCols[i].textContent.trim().toLowerCase().replace(/\s+/g, "_");
     const td = document.createElement("td");
-    td.innerHTML = `<input type="text">`;
+    td.innerHTML = `<input type="text" name="${colName}[]">`;
     newRow.appendChild(td);
   }
 
@@ -149,9 +149,11 @@ function addColumn() {
   newTh.textContent = name;
   theadRow.appendChild(newTh);
 
+  // ✅ Keep correct input name for dynamic column
+  const colKey = name.toLowerCase().replace(/\s+/g, "_");
   document.querySelectorAll("#items-table tbody tr").forEach(row => {
     const td = document.createElement("td");
-    td.innerHTML = `<input type="text" name="${name.toLowerCase().replace(/\s+/g, '_')}[]">`;
+    td.innerHTML = `<input type="text" name="${colKey}[]">`;
     row.appendChild(td);
   });
 
