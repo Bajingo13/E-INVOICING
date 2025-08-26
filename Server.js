@@ -2,12 +2,14 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// MySQL connection pool
+// --------------------- MYSQL POOL ---------------------
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
@@ -18,12 +20,33 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
+// --------------------- LOGO UPLOAD ---------------------
+const uploadFolder = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadFolder),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const invoiceNo = req.body.invoice_no || Date.now();
+    cb(null, `${invoiceNo}${ext}`);
+  }
+});
+
+const upload = multer({ storage });
+
+app.post('/upload-logo', upload.single('logo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const relativePath = `/uploads/${req.file.filename}`;
+  res.json({ filename: relativePath });
+});
+
 // --------------------- INSERT HELPERS ---------------------
 async function insertInvoice(conn, invoice) {
   const sql = `
     INSERT INTO invoices
-      (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due, logo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   const params = [
     invoice.invoice_no,
@@ -34,6 +57,7 @@ async function insertInvoice(conn, invoice) {
     invoice.terms,
     invoice.date,
     invoice.total_amount_due,
+    invoice.logo || null
   ];
   const [result] = await conn.execute(sql, params);
   return result.insertId;
@@ -42,21 +66,17 @@ async function insertInvoice(conn, invoice) {
 async function insertItems(conn, invoiceId, items) {
   if (!Array.isArray(items)) return;
 
-  // Check existing columns
   const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
   const existingCols = cols.map(c => c.Field);
 
   for (const item of items) {
-    // Default fields
     let columns = ["invoice_id", "description", "quantity", "unit_price", "amount"];
     let values = [invoiceId, item.description, item.quantity, item.unit_price, item.amount];
     let placeholders = ["?", "?", "?", "?", "?"];
 
-    // Handle extra fields dynamically
     for (const [key, val] of Object.entries(item)) {
       if (["description", "quantity", "unit_price", "amount"].includes(key)) continue;
 
-      // Add column if missing
       if (!existingCols.includes(key)) {
         await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
         existingCols.push(key);
@@ -104,19 +124,12 @@ async function insertPayment(conn, invoiceId, payment) {
 }
 
 // --------------------- ROUTES ---------------------
-
-// POST /api/invoices (save invoice + items + payments)
+// POST /api/invoices
 app.post('/api/invoices', async (req, res) => {
   const invoiceData = req.body;
 
-  if (
-    !invoiceData.invoice_no ||
-    !invoiceData.bill_to ||
-    !invoiceData.date ||
-    !invoiceData.items ||
-    !Array.isArray(invoiceData.items) ||
-    invoiceData.items.length === 0
-  ) {
+  if (!invoiceData.invoice_no || !invoiceData.bill_to || !invoiceData.date ||
+      !invoiceData.items || !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
     return res.status(400).json({ error: 'Missing required invoice fields or items' });
   }
 
@@ -137,46 +150,34 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
-// GET /invoice-no/:invoiceNo (fetch invoice fully)
-// GET /invoice-no/:invoiceNo (fetch invoice fully, only active columns)
+// GET /invoice-no/:invoiceNo
 app.get('/invoice-no/:invoiceNo', async (req, res) => {
   const { invoiceNo } = req.params;
   const conn = await pool.getConnection();
 
   try {
-    // 1️⃣ Get invoice
     const [invoiceRows] = await conn.execute(
       `SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1`,
       [invoiceNo]
     );
-    if (invoiceRows.length === 0) {
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
+    if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
     const invoice = invoiceRows[0];
 
-    // 2️⃣ Get all item columns dynamically
     const [itemCols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
     const itemFields = itemCols.map(c => c.Field).filter(c => c !== "id" && c !== "invoice_id");
 
-    // 3️⃣ Get all items for this invoice
     const [items] = await conn.execute(
       `SELECT ${itemFields.map(f => `\`${f}\``).join(", ")} FROM invoice_items WHERE invoice_id = ?`,
       [invoice.id]
     );
 
-    // 4️⃣ Determine active columns (columns with at least one non-empty value)
-    const activeColumns = itemFields.filter(col => {
-      return items.some(item => item[col] !== null && item[col] !== '');
-    });
-
-    // 5️⃣ Map items to include only active columns
+    const activeColumns = itemFields.filter(col => items.some(item => item[col] !== null && item[col] !== ''));
     const filteredItems = items.map(item => {
       const obj = {};
       activeColumns.forEach(col => obj[col] = item[col]);
       return obj;
     });
 
-    // 6️⃣ Get payment info
     const [payments] = await conn.execute(
       `SELECT 
          cash,
@@ -202,7 +203,6 @@ app.get('/invoice-no/:invoiceNo', async (req, res) => {
 
     const payment = payments[0] || {};
 
-    // 7️⃣ Send complete invoice object
     res.json({
       invoice_no: invoice.invoice_no,
       bill_to: invoice.bill_to,
@@ -211,8 +211,9 @@ app.get('/invoice-no/:invoiceNo', async (req, res) => {
       tin: invoice.tin,
       terms: invoice.terms,
       date: invoice.date,
-      items: filteredItems,    // only active columns included
-      payment
+      items: filteredItems,
+      payment,
+      logo: invoice.logo || null
     });
 
   } catch (error) {
@@ -225,6 +226,4 @@ app.get('/invoice-no/:invoiceNo', async (req, res) => {
 
 // --------------------- START SERVER ---------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));

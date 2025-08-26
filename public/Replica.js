@@ -1,3 +1,5 @@
+console.log("✅ REPLICA.js loaded");
+
 window.onload = async function () {
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get("invoice_no");
@@ -36,7 +38,7 @@ window.onload = async function () {
     if (el) el.textContent = value || "";
   };
 
-  // ---------- Build Table ----------
+  // ---------- Build Items Table ----------
   const buildTable = (items) => {
     const theadRow = document.getElementById("replica-thead-row");
     const colgroup = document.getElementById("invoice-colgroup");
@@ -46,21 +48,13 @@ window.onload = async function () {
     colgroup.innerHTML = "";
     tbody.innerHTML = "";
 
-    // 1️⃣ Determine extra fields dynamically (only columns with at least one non-empty value)
+    // Determine extra fields dynamically
     let extraFieldsSet = new Set();
     items.forEach((it) => {
       Object.keys(it || {}).forEach((k) => {
         if (
-          ![
-            "description",
-            "quantity",
-            "unit_price",
-            "amount",
-            "invoice_id",
-            "id",
-          ].includes(k.toLowerCase()) &&
-          it[k] != null &&
-          it[k] !== ""
+          !["description","quantity","unit_price","amount","invoice_id","id"].includes(k.toLowerCase()) &&
+          it[k] != null && it[k] !== ""
         ) {
           extraFieldsSet.add(k);
         }
@@ -68,23 +62,15 @@ window.onload = async function () {
     });
     const extraFields = Array.from(extraFieldsSet);
 
-    // 2️⃣ Headers
-    const headers = [
-      "Item Description / Nature of Service",
-      "Quantity",
-      "Unit Price",
-      "Amount",
-      ...extraFields,
-    ];
+    // Headers
+    const headers = ["Item Description / Nature of Service","Quantity","Unit Price","Amount", ...extraFields];
     headers.forEach((label) => {
       const th = document.createElement("th");
-      th.textContent = label.replace(/_/g, " ").replace(/\b\w/g, (c) =>
-        c.toUpperCase()
-      );
+      th.textContent = label.replace(/_/g," ").replace(/\b\w/g, (c) => c.toUpperCase());
       theadRow.appendChild(th);
     });
 
-    // 3️⃣ Column widths (proportional)
+    // Column widths
     const baseWidths = ["40%", "10%", "15%", "15%"];
     baseWidths.forEach((width) => {
       const col = document.createElement("col");
@@ -92,7 +78,7 @@ window.onload = async function () {
       colgroup.appendChild(col);
     });
     if (extraFields.length > 0) {
-      const extraWidth = ((100 - 40 - 10 - 15 - 15) / extraFields.length).toFixed(2) + "%";
+      const extraWidth = ((100-40-10-15-15)/extraFields.length).toFixed(2)+"%";
       extraFields.forEach(() => {
         const col = document.createElement("col");
         col.style.width = extraWidth;
@@ -100,26 +86,24 @@ window.onload = async function () {
       });
     }
 
-    // 4️⃣ Rows (fixed to 20 rows)
+    // Rows (20 fixed)
     const TOTAL_ROWS = 20;
-    for (let i = 0; i < TOTAL_ROWS; i++) {
+    for (let i=0; i<TOTAL_ROWS; i++) {
       const row = document.createElement("tr");
       const item = items[i] || {};
-
       const cells = [
         `<td>${item.description || "&nbsp;"}</td>`,
         `<td>${item.quantity || "&nbsp;"}</td>`,
         `<td>${item.unit_price ? formatCurrency(item.unit_price) : "&nbsp;"}</td>`,
         `<td>${item.amount ? formatCurrency(item.amount) : "&nbsp;"}</td>`,
-        ...extraFields.map((f) => `<td>${item[f] != null ? item[f] : "&nbsp;"}</td>`),
+        ...extraFields.map((f)=>`<td>${item[f]!=null?item[f]:"&nbsp;"}</td>`)
       ];
-
       row.innerHTML = cells.join("");
       tbody.appendChild(row);
     }
   };
 
-  // ---------- Main ----------
+  // ---------- Main Fetch ----------
   try {
     const res = await fetch(`/invoice-no/${encodeURIComponent(invoiceNo)}`);
     if (!res.ok) throw new Error("Failed to fetch invoice");
@@ -127,12 +111,21 @@ window.onload = async function () {
     const data = await res.json();
     console.log("📦 Loaded invoice data:", data);
 
+    // --- LOGO ---
+    if (data.logo) {
+      const logoEl = document.getElementById("uploaded-logo");
+      if (logoEl) {
+        logoEl.src = data.logo;
+        logoEl.style.display = "block";
+      }
+    }
+
     // Items table
-    buildTable(Array.isArray(data.items) ? data.items : []);
+    buildTable(Array.isArray(data.items)?data.items:[]);
 
     // Header info
     fillLine("BILL TO", data.bill_to);
-    fillLine("ADDRESS", `${data.address1 || ""} ${data.address2 || ""}`.trim());
+    fillLine("ADDRESS", `${data.address1||""} ${data.address2||""}`.trim());
     fillLine("N", data.invoice_no);
     fillLine("DATE", formatDate(data.date));
     fillLine("TIN", data.tin);
@@ -146,10 +139,10 @@ window.onload = async function () {
     fillById("tin", data.tin);
     fillById("terms", data.terms);
 
-    // Payment Section
+    // Payment
     const payment = data.payment || {};
     fillById("cash", payment.cash ? "✔" : "");
-    fillById("check", payment.check ? "✔" : "");
+    fillById("check", payment.check_payment ? "✔" : "");
     fillById("checkNumber", payment.check_no);
     fillById("bank", payment.bank);
     fillById("paymentDate", formatDate(payment.pay_date));
@@ -161,7 +154,7 @@ window.onload = async function () {
     fillById("vatAmount", formatCurrency(payment.vat_amount));
     fillById("lessVAT", formatCurrency(payment.less_vat));
     fillById("netOfVAT", formatCurrency(payment.net_vat));
-    fillById("withholdingTax", formatCurrency(payment.withholding_tax));
+    fillById("withholdingTax", formatCurrency(payment.withholding));
     fillById("total", formatCurrency(payment.total));
     fillById("totalDue", formatCurrency(payment.total_due));
     fillById("totalPayable", formatCurrency(payment.total_payable));

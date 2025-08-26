@@ -3,26 +3,26 @@ console.log("✅ EINVOICING.js is loaded");
 /* ------------------------- 1. MAIN SAVE FUNCTION ------------------------- */
 async function saveToDatabase() {
   console.log("🟢 saveToDatabase called");
- 
+
   // Required fields
   const billTo = document.querySelector('input[name="billTo"]')?.value.trim();
   const invoiceNo = document.querySelector('input[name="invoiceNo"]')?.value.trim();
-  const date = document.querySelector('input[name="date"]')?.value;
+  const date = document.querySelector('input[name="date"]')?.value.trim();
 
   if (!billTo || !invoiceNo || !date) {
-    alert("Please fill out required fields: Bill To, Invoice No, and Date.");
+    alert("Please fill in required fields: Bill To, Invoice No, and Date.");
     return;
   }
 
-  calculateTotals(); // update totals before saving
+  calculateTotals(); // Ensure totals are updated before saving
 
-  // ✅ Gather extra column keys dynamically from header
+  // Gather extra column keys dynamically from header
   const allThs = document.querySelectorAll("#items-table thead th");
   const extraColumns = Array.from(allThs)
-    .slice(4) // skip Description, Qty, Rate, Amount
+    .slice(4) // skip Description, Quantity, Unit Price, Amount
     .map(th => th.textContent.trim().toLowerCase().replace(/\s+/g, "_"));
 
-  // ✅ Gather items row-by-row
+  // Gather items row-by-row
   const items = Array.from(document.querySelectorAll('#items-body tr')).map(row => {
     const item = {
       description: row.querySelector('input[name="desc[]"]')?.value.trim() || "",
@@ -31,11 +31,11 @@ async function saveToDatabase() {
       amount: parseFloat(row.querySelector('input[name="amt[]"]')?.value) || 0
     };
 
-    // ✅ Include extra columns dynamically
+    // Include extra columns dynamically
     extraColumns.forEach(colKey => {
-  const input = row.querySelector(`input[name="${colKey}[]"]`);
-  item[colKey] = input?.value.trim() || '';
-});
+      const input = row.querySelector(`input[name="${colKey}[]"]`);
+      item[colKey] = input?.value.trim() || '';
+    });
 
     return item;
   });
@@ -60,6 +60,30 @@ async function saveToDatabase() {
     payable: parseFloat(document.querySelector('input[name="payable"]')?.value) || 0
   };
 
+  // -------------------- UPLOAD LOGO --------------------
+  let logoPath = '';
+  const logoFile = document.getElementById('logo-upload')?.files?.[0];
+  if (logoFile) {
+    const formData = new FormData();
+    formData.append('logo', logoFile);
+    formData.append('invoice_no', invoiceNo);
+
+    try {
+      const uploadResp = await fetch('/upload-logo', {
+        method: 'POST',
+        body: formData
+      });
+      const uploadResult = await uploadResp.json();
+      if (uploadResp.ok) {
+        logoPath = uploadResult.filename;
+      } else {
+        console.warn('Logo upload failed:', uploadResult.error);
+      }
+    } catch (err) {
+      console.warn('Logo upload error:', err);
+    }
+  }
+
   // Build invoice object
   const invoiceData = {
     invoice_no: invoiceNo,
@@ -71,11 +95,10 @@ async function saveToDatabase() {
     date,
     total_amount_due: payment.payable || 0,
     items,
-    payment
+    payment,
+    logo: logoPath
   };
 
-  // Backup in localStorage
-  localStorage.setItem('invoiceData', JSON.stringify(invoiceData));
   console.log("📦 Prepared invoice data:", invoiceData);
 
   // Send to backend
@@ -115,7 +138,6 @@ function addRow() {
     <td><input type="number" class="input-short" name="amt[]" readonly></td>
   `;
 
-  // ✅ Add input fields for extra columns with proper name=""
   for (let i = 4; i < headerCols.length; i++) {
     const colName = headerCols[i].textContent.trim().toLowerCase().replace(/\s+/g, "_");
     const td = document.createElement("td");
@@ -149,7 +171,6 @@ function addColumn() {
   newTh.textContent = name;
   theadRow.appendChild(newTh);
 
-  // ✅ Keep correct input name for dynamic column
   const colKey = name.toLowerCase().replace(/\s+/g, "_");
   document.querySelectorAll("#items-table tbody tr").forEach(row => {
     const td = document.createElement("td");
@@ -220,7 +241,7 @@ function adjustColumnWidths() {
   });
 }
 
-/* ---------------------- 6. LOGO UPLOAD ---------------------- */
+/* ---------------------- 6. LOGO UPLOAD PREVIEW ---------------------- */
 function previewLogo(event) {
   const img = document.getElementById('uploaded-logo');
   const btn = document.getElementById('remove-logo-btn');
