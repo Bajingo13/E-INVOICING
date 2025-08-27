@@ -1,4 +1,4 @@
-// server.js
+// ================== server.js ==================
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
@@ -7,6 +7,17 @@ const fs = require('fs');
 
 const app = express();
 app.use(express.json());
+
+
+
+// --------------------- HTML ROUTES ---------------------
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Login.html')));
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Dashboard.html')));
+app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
+
+// --------------------- STATIC ASSETS ---------------------
+// Serve all files in 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --------------------- MYSQL POOL ---------------------
@@ -32,16 +43,144 @@ const storage = multer.diskStorage({
     cb(null, `${invoiceNo}${ext}`);
   }
 });
-
 const upload = multer({ storage });
 
-app.post('/upload-logo', upload.single('logo'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const relativePath = `/uploads/${req.file.filename}`;
-  res.json({ filename: relativePath });
+// --------------------- LOGIN ROUTE ---------------------
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) 
+    return res.json({ success: false, message: "Username and password required" });
+
+  try {
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.execute(
+        'SELECT * FROM users WHERE username = ? AND password = ?', 
+        [username, password]
+      );
+
+      if (rows.length > 0) {
+        res.json({ success: true });
+      } else {
+        res.json({ success: false, message: "Invalid username or password" });
+      }
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
-// --------------------- INSERT HELPERS ---------------------
+
+// --------------------- CREATE ACCOUNT ---------------------
+app.post('/api/create-account', async (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) return res.json({ success: false, message: "Username and password required" });
+
+  const conn = await pool.getConnection();
+  try {
+    // Check if user exists
+    const [rows] = await conn.execute('SELECT * FROM users WHERE username = ?', [username]);
+    if (rows.length > 0) return res.json({ success: false, message: "Username already exists" });
+
+    // Insert new user
+    await conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', [username, password]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  } finally {
+    conn.release();
+  }
+});
+
+
+// --------------------- DASHBOARD API ---------------------
+app.get('/api/dashboard', async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const [invoices] = await conn.execute('SELECT COUNT(*) AS total FROM invoices');
+    const [payments] = await conn.execute('SELECT SUM(total) AS total FROM payments');
+    const [pending] = await conn.execute('SELECT COUNT(*) AS total FROM invoices WHERE total_amount_due > 0');
+
+    res.json({
+      totalInvoices: invoices[0].total,
+      totalPayments: payments[0].total || 0,
+      pendingInvoices: pending[0].total
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({});
+  } finally {
+    conn.release();
+  }
+});
+
+// --------------------- COMPANY INFO ROUTES ---------------------
+const companyUpload = multer({ 
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const folder = path.join(__dirname, 'public', 'uploads');
+      if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+      cb(null, folder);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `company_logo${ext}`);
+    }
+  })
+});
+
+app.post('/save-company-info', companyUpload.single('logo'), async (req, res) => {
+  try {
+    const { company_name, company_address, tel_no, vat_tin } = req.body;
+    const logo_path = req.file ? `/uploads/${req.file.filename}` : null;
+
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.execute(`SELECT * FROM company_info LIMIT 1`);
+      if (rows.length > 0) {
+        await conn.execute(
+          `UPDATE company_info SET company_name=?, company_address=?, tel_no=?, vat_tin=?, logo_path=? WHERE company_id=?`,
+          [company_name, company_address, tel_no, vat_tin, logo_path || rows[0].logo_path, rows[0].company_id]
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO company_info (company_name, company_address, tel_no, vat_tin, logo_path)
+           VALUES (?, ?, ?, ?, ?)`,
+          [company_name, company_address, tel_no, vat_tin, logo_path]
+        );
+      }
+      res.json({ message: "✅ Company info saved successfully!" });
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "❌ Error saving company info" });
+  }
+});
+
+app.get('/get-company-info', async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.execute(`SELECT * FROM company_info LIMIT 1`);
+      res.json(rows[0] || {});
+    } finally {
+      conn.release();
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "❌ Error fetching company info" });
+  }
+});
+
+// --------------------- HELPERS: INVOICES ---------------------
 async function insertInvoice(conn, invoice) {
   const sql = `
     INSERT INTO invoices
@@ -94,6 +233,7 @@ async function insertItems(conn, invoiceId, items) {
 
 async function insertPayment(conn, invoiceId, payment) {
   if (!payment) return;
+
   const sql = `
     INSERT INTO payments (
       invoice_id, cash, check_payment, check_no, bank, vatable_sales, total_sales,
@@ -118,18 +258,17 @@ async function insertPayment(conn, invoiceId, payment) {
     payment.total || 0,
     payment.due || 0,
     payment.pay_date || null,
-    payment.payable || 0,
+    payment.payable || 0
   ];
   await conn.execute(sql, params);
 }
 
-// --------------------- ROUTES ---------------------
-// POST /api/invoices
+// --------------------- INVOICE ROUTE ---------------------
 app.post('/api/invoices', async (req, res) => {
   const invoiceData = req.body;
 
   if (!invoiceData.invoice_no || !invoiceData.bill_to || !invoiceData.date ||
-      !invoiceData.items || !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
+      !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
     return res.status(400).json({ error: 'Missing required invoice fields or items' });
   }
 
@@ -141,83 +280,9 @@ app.post('/api/invoices', async (req, res) => {
     await insertPayment(conn, invoiceId, invoiceData.payment);
     await conn.commit();
     res.status(201).json({ success: true, invoiceId });
-  } catch (error) {
+  } catch (err) {
     await conn.rollback();
-    console.error('Database transaction error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  } finally {
-    conn.release();
-  }
-});
-
-// GET /invoice-no/:invoiceNo
-app.get('/invoice-no/:invoiceNo', async (req, res) => {
-  const { invoiceNo } = req.params;
-  const conn = await pool.getConnection();
-
-  try {
-    const [invoiceRows] = await conn.execute(
-      `SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1`,
-      [invoiceNo]
-    );
-    if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
-    const invoice = invoiceRows[0];
-
-    const [itemCols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
-    const itemFields = itemCols.map(c => c.Field).filter(c => c !== "id" && c !== "invoice_id");
-
-    const [items] = await conn.execute(
-      `SELECT ${itemFields.map(f => `\`${f}\``).join(", ")} FROM invoice_items WHERE invoice_id = ?`,
-      [invoice.id]
-    );
-
-    const activeColumns = itemFields.filter(col => items.some(item => item[col] !== null && item[col] !== ''));
-    const filteredItems = items.map(item => {
-      const obj = {};
-      activeColumns.forEach(col => obj[col] = item[col]);
-      return obj;
-    });
-
-    const [payments] = await conn.execute(
-      `SELECT 
-         cash,
-         check_payment AS \`check\`,
-         check_no,
-         bank,
-         pay_date,
-         vatable_sales,
-         total_sales,
-         vat_exempt,
-         less_vat,
-         zero_rated,
-         net_vat,
-         vat_amount,
-         withholding AS withholding_tax,
-         total,
-         due AS total_due,
-         payable AS total_payable
-       FROM payments
-       WHERE invoice_id = ? LIMIT 1`,
-      [invoice.id]
-    );
-
-    const payment = payments[0] || {};
-
-    res.json({
-      invoice_no: invoice.invoice_no,
-      bill_to: invoice.bill_to,
-      address1: invoice.address1,
-      address2: invoice.address2,
-      tin: invoice.tin,
-      terms: invoice.terms,
-      date: invoice.date,
-      items: filteredItems,
-      payment,
-      logo: invoice.logo || null
-    });
-
-  } catch (error) {
-    console.error('Error fetching invoice:', error.message);
+    console.error('Database transaction error:', err);
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     conn.release();

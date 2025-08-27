@@ -1,0 +1,118 @@
+/* ---------------- RESET ---------------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Arial', sans-serif;
+}
+
+/* ---------------- BODY ---------------- */
+body {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #ffffff; /* white background */
+}
+
+/* ---------------- LOGIN CONTAINER ---------------- */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 20px;
+}
+
+/* ---------------- LOGIN BOX ---------------- */
+.login-box {
+  background: #f9f9f9; /* slightly off-white to stand out */
+  padding: 60px 50px; /* bigger form */
+  border-radius: 15px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  width: 400px; /* slightly wider */
+  max-width: 90%;
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+
+.login-box:hover {
+  transform: translateY(-5px);
+}
+
+/* ---------------- HEADINGS ---------------- */
+.login-box h2 {
+  margin-bottom: 30px;
+  color: #333;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+/* ---------------- INPUTS ---------------- */
+.login-box input {
+  width: 100%;
+  padding: 16px;
+  margin: 14px 0;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  font-size: 17px;
+  transition: border-color 0.3s;
+}
+
+.login-box input:focus {
+  border-color: #007BFF;
+  outline: none;
+}
+
+/* ---------------- BUTTONS ---------------- */
+.login-box button {
+  width: 100%;
+  padding: 16px;
+  margin-top: 12px;
+  background: #007BFF;
+  border: none;
+  color: #fff;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: background 0.3s;
+}
+
+.login-box button:hover {
+  background: #0056b3;
+}
+
+/* ---------------- CREATE ACCOUNT BUTTON ---------------- */
+.create-btn {
+  margin-top: 15px;
+  background: #28a745;
+}
+
+.create-btn:hover {
+  background: #1e7e34;
+}
+
+/* ---------------- ERROR MESSAGE ---------------- */
+#errorMsg {
+  color: red;
+  font-size: 14px;
+  margin-top: 10px;
+  min-height: 18px;
+}
+
+/* ---------------- RESPONSIVE ---------------- */
+@media (max-width: 450px) {
+  .login-box {
+    padding: 50px 25px;
+    width: 90%;
+  }
+
+  .login-box h2 {
+    font-size: 24px;
+  }
+
+  .login-box input, .login-box button {
+    font-size: 16px;
+    padding: 14px;
+  }
+}
