@@ -1,8 +1,8 @@
 .header {
   width: 100%;
-  display: flex;
-  justify-content: space-between; /* logo left, company info center/right, invoice no right */
-  align-items: center;             /* vertically center everything */
+  display: flex;                  /* enable flexbox */
+  justify-content: space-between; /* logo left, invoice no right */
+  align-items: flex-start;        /* align everything at the top */
   margin-bottom: 20px;
 }
 
