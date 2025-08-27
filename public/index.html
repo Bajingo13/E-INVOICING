@@ -21,23 +21,27 @@
     </div>
 
     <!-- === HEADER === -->
-    <div class="header">
-      <div class="logo-title">
-      <div class="logo">
-  <img src="bsu logo.JPG" alt="Company Logo" style="max-height:60px;" />
+<div class="header">
+  <div class="logo">
+  <img id="invoice-logo" alt="Company Logo" />
 </div>
-      <div class="company-info">
-        <strong>BUSINESS SET UP & COMPLIANCE INC.</strong><br />
-        Unit 1011, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San Antonio,<br />
-        1203 City of Makati, NCR, Fourth District, Philippines<br />
-        Tel. No.: 8403-4877<br />
-        VAT Reg. TIN: 008-640-850-00000
-      </div>
-      </div>
-      <div class="invoice-no">
-      No <input type="text" name="invoiceNo" class="input-small" />
-      </div>
-    </div>
+
+
+  <div class="company-info" id="company-info">
+    <strong>Sample Company</strong><br />
+    123 Street 456 Avenue, Makati City, Philippines<br />
+    Tel. No.: 0978652<br />
+    VAT Reg. TIN: 1122334455
+  </div>
+
+  <div class="invoice-no">
+    No <input type="text" name="invoiceNo" class="input-small" />
+  </div>
+</div>
+
+
+
+
     <script>
       function previewLogo(event) {
       const img = document.getElementById('uploaded-logo');

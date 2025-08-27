@@ -31,19 +31,34 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
-// --------------------- LOGO UPLOAD ---------------------
-const uploadFolder = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadFolder),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const invoiceNo = req.body.invoice_no || Date.now();
-    cb(null, `${invoiceNo}${ext}`);
+// --------------------- LOGO UPLOAD FOR INVOICES ---------------------
+const invoiceLogoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const folder = path.join(__dirname, 'public', 'uploads');
+      if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+      cb(null, folder);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      const invoiceNo = req.body.invoice_no || Date.now();
+      cb(null, `invoice_${invoiceNo}${ext}`);
+    }
+  })
+});
+
+app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const filePath = `/uploads/${req.file.filename}`;
+    res.json({ filename: filePath, message: "✅ Logo uploaded successfully!" });
+  } catch (err) {
+    console.error("Logo upload error:", err);
+    res.status(500).json({ error: "❌ Error uploading logo" });
   }
 });
-const upload = multer({ storage });
+
 
 // --------------------- LOGIN ROUTE ---------------------
 app.post('/api/login', async (req, res) => {

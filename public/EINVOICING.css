@@ -1,3 +1,29 @@
+.header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between; /* logo left, company info center/right, invoice no right */
+  align-items: center;             /* vertically center everything */
+  margin-bottom: 20px;
+}
+
+.logo img {
+  max-height: 60px;
+  display: block;
+}
+
+.company-info {
+  text-align: center;   /* company details stay left-aligned */
+  line-height: 1.4;
+  font-size: 14px;
+  flex: 1;            /* take remaining space between logo and invoice no */
+  margin-left: 20px;  /* spacing from logo */
+}
+
+.invoice-no {
+  text-align: right;
+}
+
+
 /* ==============================
    GENERAL PAGE STYLES
 ============================== */

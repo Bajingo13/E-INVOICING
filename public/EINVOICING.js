@@ -1,39 +1,48 @@
 console.log("✅ EINVOICING.js loaded");
 
-/* -------------------- 1. MAIN SAVE FUNCTION -------------------- */
-async function saveToDatabase() {
-  console.log("🟢 saveToDatabase called");
-
-  // ---------------------- LOAD COMPANY INFO ----------------------
-window.addEventListener('DOMContentLoaded', async () => {
+/* -------------------- 1. AUTO LOAD COMPANY INFO -------------------- */
+async function loadCompanyInfo() {
   try {
-    const response = await fetch('/api/company');
-    const company = await response.json();
+    const res = await fetch('/get-company-info'); // your existing route
+    const company = await res.json();
+    if (!company) return;
 
-    if (company) {
-      document.querySelector('input[name="billTo"]').value = company.name || '';
-      document.querySelector('input[name="address1"]').value = company.address1 || '';
-      document.querySelector('input[name="address2"]').value = company.address2 || '';
-      document.querySelector('input[name="tin"]').value = company.tin || '';
+    // Update form fields
+    document.querySelector('input[name="billTo"]').value = company.company_name || '';
+    document.querySelector('input[name="address1"]').value = company.company_address || '';
+    document.querySelector('input[name="address2"]').value = '';
+    document.querySelector('input[name="tin"]').value = company.vat_tin || '';
 
-      if (company.logo) {
-        const img = document.getElementById('uploaded-logo');
-        img.src = company.logo;
-        img.style.display = 'block';
-        document.getElementById('remove-logo-btn').style.display = 'inline-block';
-      }
+    // Update header dynamically
+    document.getElementById('company-name').textContent = company.company_name || '';
+    document.getElementById('company-address').textContent = company.company_address || '';
+    document.getElementById('company-tel').textContent = company.tel_no || '';
+    document.getElementById('company-tin').textContent = company.vat_tin || '';
+
+    // Update logo
+    const logoEl = document.getElementById('invoice-logo');
+    const previewLogoEl = document.getElementById('uploaded-logo');
+    const removeBtn = document.getElementById('remove-logo-btn');
+
+    if (company.logo_path) {
+      logoEl.src = company.logo_path;
+      previewLogoEl.src = company.logo_path;
+      previewLogoEl.style.display = 'block';
+      removeBtn.style.display = 'inline-block';
     }
   } catch (err) {
     console.warn('Failed to load company info:', err);
   }
-});
+}
 
 
-  // --- Required fields ---
+/* -------------------- 2. SAVE INVOICE -------------------- */
+async function saveToDatabase() {
+  console.log("🟢 saveToDatabase called");
+
   const billTo = document.querySelector('input[name="billTo"]')?.value.trim();
   const invoiceNo = document.querySelector('input[name="invoiceNo"]')?.value.trim();
   const date = document.querySelector('input[name="date"]')?.value.trim();
-
   if (!billTo || !invoiceNo || !date) {
     alert("Please fill in required fields: Bill To, Invoice No, and Date.");
     return;
@@ -41,13 +50,11 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   calculateTotals();
 
-  // --- Gather extra columns dynamically ---
+  // Gather dynamic columns
   const allThs = document.querySelectorAll("#items-table thead th");
-  const extraColumns = Array.from(allThs)
-    .slice(4) // Skip default columns
-    .map(th => th.textContent.trim().toLowerCase().replace(/\s+/g, "_"));
+  const extraColumns = Array.from(allThs).slice(4).map(th => th.textContent.trim().toLowerCase().replace(/\s+/g, "_"));
 
-  // --- Gather items ---
+  // Gather items
   const items = Array.from(document.querySelectorAll("#items-body tr")).map(row => {
     const item = {
       description: row.querySelector('input[name="desc[]"]')?.value.trim() || "",
@@ -62,7 +69,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     return item;
   });
 
-  // --- Gather payment info ---
+  // Payment info
   const payment = {
     cash: document.querySelector('input[name="cash"]')?.checked || false,
     check_payment: document.querySelector('input[name="check"]')?.checked || false,
@@ -82,23 +89,22 @@ window.addEventListener('DOMContentLoaded', async () => {
     payable: parseFloat(document.querySelector('input[name="payable"]')?.value) || 0
   };
 
-  // --- Handle logo upload ---
-  let logoPath = "";
+  // Upload logo if new file selected
+  let logoPath = document.getElementById('uploaded-logo')?.src || '';
   const logoFile = document.getElementById('logo-upload')?.files?.[0];
   if (logoFile) {
     const formData = new FormData();
     formData.append("logo", logoFile);
     formData.append("invoice_no", invoiceNo);
-
     try {
-      const resp = await fetch("/upload-logo", { method: "POST", body: formData });
-      const data = await resp.json();
-      if (resp.ok) logoPath = data.filename;
-      else console.warn("Logo upload failed:", data.error);
+      const uploadRes = await fetch("/upload-logo", { method: "POST", body: formData });
+      const uploadData = await uploadRes.json();
+      if (uploadRes.ok && uploadData.filename) logoPath = uploadData.filename;
+      else console.warn("Logo upload failed:", uploadData.error || uploadData);
     } catch (err) { console.warn("Logo upload error:", err); }
   }
 
-  // --- Build invoice object ---
+  // Build invoice object
   const invoiceData = {
     invoice_no: invoiceNo,
     bill_to: billTo,
@@ -115,7 +121,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   console.log("📦 Invoice data prepared:", invoiceData);
 
-  // --- Send to backend ---
+  // Send to backend
   try {
     const res = await fetch("/api/invoices", {
       method: "POST",
@@ -136,7 +142,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 }
 
-/* -------------------- 2. ROW FUNCTIONS -------------------- */
+/* -------------------- 3. ROW & COLUMN FUNCTIONS -------------------- */
 function addRow() {
   const tbody = document.getElementById("items-body");
   const headerCols = document.querySelectorAll("#items-table thead th");
@@ -170,7 +176,6 @@ function removeRow() {
   adjustColumnWidths();
 }
 
-/* -------------------- 3. COLUMN FUNCTIONS -------------------- */
 function addColumn() {
   const name = prompt("Enter new column name:");
   if (!name) return;
@@ -185,7 +190,6 @@ function addColumn() {
     td.innerHTML = `<input type="text" name="${colKey}[]">`;
     row.appendChild(td);
   });
-
   adjustColumnWidths();
 }
 
@@ -197,7 +201,6 @@ function removeColumn() {
   const index = ths.findIndex(th => th.textContent.trim().toLowerCase() === name.trim().toLowerCase());
   if (index < 4) return alert("Default columns cannot be removed.");
   if (index === -1) return alert(`Column "${name}" not found.`);
-
   ths[index].remove();
   document.querySelectorAll("#items-table tbody tr").forEach(row => row.querySelectorAll("td")[index]?.remove());
   adjustColumnWidths();
@@ -240,7 +243,7 @@ function adjustColumnWidths() {
   table.querySelectorAll("tbody tr").forEach(row => row.querySelectorAll("td").forEach(td => td.style.width = colWidth));
 }
 
-/* -------------------- 6. LOGO PREVIEW -------------------- */
+/* -------------------- 6. LOGO FUNCTIONS -------------------- */
 function previewLogo(event) {
   const img = document.getElementById("uploaded-logo");
   const btn = document.getElementById("remove-logo-btn");
@@ -264,3 +267,6 @@ function removeLogo() {
   btn.style.display = "none";
   input.value = "";
 }
+
+/* -------------------- 7. INIT -------------------- */
+window.addEventListener('DOMContentLoaded', loadCompanyInfo);
