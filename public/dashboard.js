@@ -1,12 +1,49 @@
-window.addEventListener('DOMContentLoaded', async () => {
+console.log("✅ Dashboard.js loaded");
+
+async function fetchDashboardData() {
   try {
     const res = await fetch('/api/dashboard');
-    const data = await res.json();
+    if (!res.ok) throw new Error("Failed to fetch dashboard data");
 
-    document.getElementById('totalInvoices').textContent = data.totalInvoices || 0;
-    document.getElementById('totalPayments').textContent = data.totalPayments || 0;
-    document.getElementById('pendingInvoices').textContent = data.pendingInvoices || 0;
+    const data = await res.json();
+    console.log("📊 Dashboard data:", data);
+
+    animateNumber('totalInvoices', data.totalInvoices || 0);
+    animateNumber('totalPayments', data.totalPayments || 0, true);
+    animateNumber('pendingInvoices', data.pendingInvoices || 0);
+
   } catch (err) {
-    console.error('Failed to fetch dashboard data', err);
+    console.error("❌ Error loading dashboard data:", err);
   }
-});
+}
+
+/**
+ * Animates a number counting up
+ * @param {string} elementId - ID of the element to update
+ * @param {number} targetValue - final number
+ * @param {boolean} isCurrency - format as PHP currency
+ */
+function animateNumber(elementId, targetValue, isCurrency = false) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+
+  let current = 0;
+  const increment = targetValue / 100; // 100 frames
+  const duration = 2000; // 2 seconds
+  const intervalTime = duration / 100;
+
+  const interval = setInterval(() => {
+    current += increment;
+    if (current >= targetValue) {
+      current = targetValue;
+      clearInterval(interval);
+    }
+
+    el.textContent = isCurrency
+      ? `₱${current.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : current.toLocaleString();
+  }, intervalTime);
+}
+
+// Fetch data on page load
+window.addEventListener('DOMContentLoaded', fetchDashboardData);
