@@ -1,48 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Company Setup</title>
-  <link rel="stylesheet" href="EINVOICING.css">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .form-container { max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; background: #f9f9f9; }
-    h2 { text-align: center; margin-bottom: 20px; }
-    label { font-weight: bold; display: block; margin-top: 10px; }
-    input, textarea { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
-    button { margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    #uploaded-logo { max-height: 60px; display: none; margin-top: 10px; }
-    #remove-logo-btn { display: none; margin: 5px 0; font-size: 12px; padding: 2px 6px; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <div class="form-container">
-    <h2>Company Information Setup</h2>
-    <form id="companyForm" enctype="multipart/form-data">
-      <label>Company Name</label>
-      <input type="text" name="company_name" placeholder="Company Name" required>
-
-      <label>Company Address</label>
-      <textarea name="company_address" rows="3" placeholder="Company Address" required></textarea>
-
-      <label>Telephone No.</label>
-      <input type="text" name="tel_no" placeholder="Telephone Number">
-
-      <label>VAT Reg. TIN</label>
-      <input type="text" name="vat_tin" placeholder="VAT Registration TIN">
-
-      <label>Upload Logo</label>
-      <input type="file" name="logo" id="logo" accept="image/*">
-      <img id="uploaded-logo" src="" alt="Logo Preview">
-      <button type="button" id="remove-logo-btn">Remove Logo</button>
-
-      <button type="submit">💾 Save Company Info</button>
-    </form>
-  </div>
-<script src="dashboard.js"></script>
-  <script>
-    const logoInput = document.getElementById('logo');
+ const logoInput = document.getElementById('logo');
     const logoImg = document.getElementById('uploaded-logo');
     const removeBtn = document.getElementById('remove-logo-btn');
 
@@ -98,6 +54,3 @@
         }
       } catch(err) { console.error(err); }
     });
-  </script>
-</body>
-</html>
