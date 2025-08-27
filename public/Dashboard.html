@@ -5,28 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard | E-Invoicing</title>
   <link rel="stylesheet" href="dashboard.css">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
 </head>
 <body>
   <header>
     <h1>E-Invoicing Dashboard</h1>
-    <a href="/">Logout</a>
+    <nav>
+      <a href="/invoice" class="btn">Create Invoice</a>
+      <a href="/company-setup" class="btn">Company Info</a>
+      <a href="/" class="btn logout">Logout</a>
+    </nav>
   </header>
 
   <main>
-    <div class="cards">
-      <div class="card">
-        <h3>Total Invoices</h3>
-        <p id="totalInvoices">0</p>
+    <section class="cards">
+      <div class="card total-invoices">
+        <div class="icon"><i class="ri-file-list-3-line"></i></div>
+        <div class="content">
+          <h3>Total Invoices</h3>
+          <p id="totalInvoices">0</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>Total Payments</h3>
-        <p id="totalPayments">0</p>
+      <div class="card total-payments">
+        <div class="icon"><i class="ri-currency-line"></i></div>
+        <div class="content">
+          <h3>Total Payments</h3>
+          <p id="totalPayments">₱0.00</p>
+        </div>
       </div>
-      <div class="card">
-        <h3>Pending Invoices</h3>
-        <p id="pendingInvoices">0</p>
+      <div class="card pending-invoices">
+        <div class="icon"><i class="ri-time-line"></i></div>
+        <div class="content">
+          <h3>Pending Invoices</h3>
+          <p id="pendingInvoices">0</p>
+        </div>
       </div>
-    </div>
+    </section>
+
+    <section class="recent-activity">
+      <h2>Recent Activity</h2>
+      <p>Feature coming soon: recent invoices and payments.</p>
+    </section>
   </main>
 
   <script src="dashboard.js"></script>

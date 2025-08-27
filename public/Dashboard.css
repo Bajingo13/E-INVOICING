@@ -1,46 +1,122 @@
-body {
+/* General Reset */
+* {
   margin: 0;
-  font-family: Arial, sans-serif;
-  background: #f4f7f8;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background: #f5f7fa;
+  color: #333;
+  min-height: 100vh;
 }
 
 header {
+  background: linear-gradient(90deg, #4e54c8, #8f94fb);
+  color: #fff;
+  padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #007BFF;
-  color: #fff;
-  padding: 20px;
+  flex-wrap: wrap;
 }
 
-header a {
+header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+header nav a {
   color: #fff;
   text-decoration: none;
-  font-weight: bold;
+  margin-left: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
 }
 
+header nav a:hover {
+  background: #fff;
+  color: #4e54c8;
+  font-weight: 600;
+}
+
+header nav a.logout {
+  background: #ff4d4f;
+}
+
+header nav a.logout:hover {
+  background: #ff7875;
+  color: #fff;
+}
+
+main {
+  padding: 2rem;
+}
+
+/* Cards */
 .cards {
-  display: flex;
-  justify-content: space-around;
-  margin: 40px 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
 }
 
 .card {
-  background: #fff;
-  padding: 30px;
+  display: flex;
+  align-items: center;
+  padding: 1.5rem;
   border-radius: 12px;
-  width: 250px;
-  text-align: center;
-  box-shadow: 0 0 20px rgba(0,0,0,0.1);
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.card h3 {
-  color: #333;
-  margin-bottom: 15px;
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
 }
 
-.card p {
-  font-size: 28px;
-  color: #007BFF;
-  font-weight: bold;
+.card .icon {
+  font-size: 2.5rem;
+  margin-right: 1rem;
+  color: #4e54c8;
+}
+
+.card.total-payments .icon {
+  color: #2ecc71;
+}
+
+.card.pending-invoices .icon {
+  color: #f39c12;
+}
+
+.card .content h3 {
+  font-size: 1rem;
+  margin-bottom: 0.3rem;
+  color: #666;
+}
+
+.card .content p {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* Recent Activity */
+.recent-activity {
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.recent-activity h2 {
+  margin-bottom: 1rem;
+  color: #4e54c8;
+}
+
+.recent-activity p {
+  color: #555;
 }
