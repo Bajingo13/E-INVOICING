@@ -13,6 +13,10 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Login.ht
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Dashboard.html')));
 app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
+app.get('/invoice-list', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'invoice-list.html'));
+});
+
 
 // --------------------- STATIC ASSETS ---------------------
 app.use(express.static(path.join(__dirname, 'public')));
@@ -339,6 +343,89 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
     conn.release();
   }
 });
+
+// --------------------- GET ALL INVOICES ---------------------
+app.get('/api/invoices', async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const [rows] = await conn.query(
+      `SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, 
+              i.total_amount_due, i.logo
+       FROM invoices i
+       ORDER BY i.date DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("❌ Error fetching all invoices:", err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    conn.release();
+  }
+});
+
+// DELETE invoice
+app.delete('/api/invoices/:invoiceNo', async (req, res) => {
+  const invoiceNo = req.params.invoiceNo;
+  const conn = await pool.getConnection();
+  try {
+    const [invoiceRows] = await conn.query('SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
+    if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+
+    const invoiceId = invoiceRows[0].id;
+
+    // Delete related items and payments first (foreign key constraints)
+    await conn.query('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
+    await conn.query('DELETE FROM payments WHERE invoice_id = ?', [invoiceId]);
+
+    // Delete invoice
+    await conn.query('DELETE FROM invoices WHERE id = ?', [invoiceId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+app.get('/api/invoices/edit/:invoiceNo', async (req, res) => {
+  const invoiceNo = req.params.invoiceNo;
+  const conn = await pool.getConnection();
+  try {
+    const [invoiceRows] = await conn.query('SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
+    if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+
+    const invoice = invoiceRows[0];
+
+    const [items] = await conn.query('SELECT * FROM invoice_items WHERE invoice_id = ?', [invoice.id]);
+    const [paymentRows] = await conn.query('SELECT * FROM payments WHERE invoice_id = ? LIMIT 1', [invoice.id]);
+
+    res.json({ ...invoice, items, payment: paymentRows[0] || {} });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+app.post('/api/invoices/bulk-delete', async (req, res) => {
+  const { invoices } = req.body;
+  if (!Array.isArray(invoices) || !invoices.length) return res.status(400).json({ error: 'No invoices selected' });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.query(`DELETE FROM invoices WHERE invoice_no IN (?)`, [invoices]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ Bulk delete error:', err);
+    res.status(500).json({ error: 'Server error' });
+  } finally {
+    conn.release();
+  }
+});
+
+
 
 // --------------------- START SERVER ---------------------
 const PORT = process.env.PORT || 3000;

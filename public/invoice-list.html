@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoices | E-Invoicing</title>
+  <link rel="stylesheet" href="invoice-list.css">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+  <header>
+    <h1>Invoice List</h1>
+    <nav>
+      <a href="/dashboard" class="btn">Dashboard</a>
+      <a href="/invoice" class="btn">Create Invoice</a>
+      <a href="/company-setup" class="btn">Company Info</a>
+      <a href="/" class="btn logout">Logout</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="search-container">
+      <input type="text" id="searchInput" placeholder="Search by invoice number or client...">
+    </div>
+
+    <table id="invoiceTable">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="selectAllInvoices"></th>
+          <th>Invoice No</th>
+          <th>Client</th>
+          <th>Date</th>
+          <th>Total Amount</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      
+      <div class="bulk-actions">
+  <button id="deleteSelectedBtn" class="btn btn-danger">Delete Selected</button>
+</div>
+
+      <tbody>
+        <!-- Invoice rows populated by JS -->
+      </tbody>
+    </table>
+  </main>
+
+  <script src="invoice-list.js"></script>
+</body>
+</html>
