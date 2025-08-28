@@ -1,5 +1,5 @@
 console.log("✅ REPLICA.js loaded");
-
+ 
 window.onload = async function () {
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get("invoice_no");
@@ -105,7 +105,7 @@ window.onload = async function () {
 
   // ---------- Main Fetch ----------
   try {
-    const res = await fetch(`/invoice-no/${encodeURIComponent(invoiceNo)}`);
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
     if (!res.ok) throw new Error("Failed to fetch invoice");
 
     const data = await res.json();

@@ -8,8 +8,6 @@ const fs = require('fs');
 const app = express();
 app.use(express.json());
 
-
-
 // --------------------- HTML ROUTES ---------------------
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Login.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Dashboard.html')));
@@ -17,7 +15,6 @@ app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'i
 app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
 
 // --------------------- STATIC ASSETS ---------------------
-// Serve all files in 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --------------------- MYSQL POOL ---------------------
@@ -30,7 +27,6 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
 });
-
 
 // --------------------- LOGO UPLOAD FOR INVOICES ---------------------
 const invoiceLogoUpload = multer({
@@ -58,7 +54,6 @@ app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
     res.status(500).json({ error: "❌ Error uploading logo" });
   }
 });
-
 
 // --------------------- LOGIN ROUTE ---------------------
 app.post('/api/login', async (req, res) => {
@@ -89,7 +84,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-
 // --------------------- CREATE ACCOUNT ---------------------
 app.post('/api/create-account', async (req, res) => {
   const { username, password } = req.body;
@@ -112,7 +106,6 @@ app.post('/api/create-account', async (req, res) => {
     conn.release();
   }
 });
-
 
 // --------------------- DASHBOARD API ---------------------
 app.get('/api/dashboard', async (req, res) => {
@@ -167,6 +160,7 @@ app.post('/save-company-info', companyUpload.single('logo'), async (req, res) =>
         await conn.execute(
           `INSERT INTO company_info (company_name, company_address, tel_no, vat_tin, logo_path)
            VALUES (?, ?, ?, ?, ?)`,
+
           [company_name, company_address, tel_no, vat_tin, logo_path]
         );
       }
@@ -303,6 +297,57 @@ app.post('/api/invoices', async (req, res) => {
     conn.release();
   }
 });
+
+// --------------------- GET INVOICE BY NUMBER ---------------------
+app.get('/api/invoices/:invoiceNo', async (req, res) => {
+  const invoiceNo = req.params.invoiceNo;
+
+  const conn = await pool.getConnection();
+  try {
+    // 1. Get invoice + company info
+    const [invoiceRows] = await conn.query(
+      `SELECT i.id, i.invoice_no, i.bill_to, i.invoice_date, i.due_date, i.terms,
+              c.company_name, c.company_address, c.tel_no, c.vat_tin, c.logo_path
+       FROM invoices i
+       LEFT JOIN companies c ON i.company_id = c.company_id
+       WHERE i.invoice_no = ? LIMIT 1`,
+      [invoiceNo]
+    );
+
+    if (invoiceRows.length === 0) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    const invoice = invoiceRows[0];
+
+    // 2. Get items
+    const [itemRows] = await conn.query(
+      `SELECT description, quantity, unit_price, amount
+       FROM invoice_items WHERE invoice_id = ?`,
+      [invoice.id]
+    );
+
+    // 3. Get payment breakdown
+    const [paymentRows] = await conn.query(
+      `SELECT subtotal, tax, total, amount_due
+       FROM payments WHERE invoice_id = ? LIMIT 1`,
+      [invoice.id]
+    );
+
+    res.json({
+      ...invoice,
+      items: itemRows,
+      payment: paymentRows[0] || {}
+    });
+
+  } catch (err) {
+    console.error("❌ Error fetching invoice:", err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    conn.release();
+  }
+});
+
 
 // --------------------- START SERVER ---------------------
 const PORT = process.env.PORT || 3000;
