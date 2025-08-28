@@ -304,50 +304,41 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
 
   const conn = await pool.getConnection();
   try {
-    // 1. Get invoice + company info
+    // 1. Get invoice
     const [invoiceRows] = await conn.query(
-      `SELECT i.id, i.invoice_no, i.bill_to, i.invoice_date, i.due_date, i.terms,
-              c.company_name, c.company_address, c.tel_no, c.vat_tin, c.logo_path
-       FROM invoices i
-       LEFT JOIN companies c ON i.company_id = c.company_id
-       WHERE i.invoice_no = ? LIMIT 1`,
+      `SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1`,
       [invoiceNo]
     );
 
     if (invoiceRows.length === 0) {
-      return res.status(404).json({ error: "Invoice not found" });
+      return res.status(404).json({ error: 'Invoice not found' });
     }
 
     const invoice = invoiceRows[0];
 
     // 2. Get items
     const [itemRows] = await conn.query(
-      `SELECT description, quantity, unit_price, amount
-       FROM invoice_items WHERE invoice_id = ?`,
+      `SELECT * FROM invoice_items WHERE invoice_id = ?`,
       [invoice.id]
     );
 
-    // 3. Get payment breakdown
+    // 3. Get payment (fixed ✅)
     const [paymentRows] = await conn.query(
-      `SELECT subtotal, tax, total, amount_due
-       FROM payments WHERE invoice_id = ? LIMIT 1`,
+      `SELECT * FROM payments WHERE invoice_id = ? LIMIT 1`,
       [invoice.id]
     );
 
-    res.json({
-      ...invoice,
-      items: itemRows,
-      payment: paymentRows[0] || {}
-    });
+    invoice.items = itemRows;
+    invoice.payment = paymentRows[0] || {};
 
+    res.json(invoice);
   } catch (err) {
-    console.error("❌ Error fetching invoice:", err);
-    res.status(500).json({ error: "Server error" });
+    console.error('❌ Error fetching invoice:', err);
+    res.status(500).json({ error: 'Internal server error' });
   } finally {
     conn.release();
   }
 });
-
 
 // --------------------- START SERVER ---------------------
 const PORT = process.env.PORT || 3000;

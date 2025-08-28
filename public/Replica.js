@@ -1,5 +1,5 @@
 console.log("✅ REPLICA.js loaded");
- 
+
 window.onload = async function () {
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get("invoice_no");
@@ -106,8 +106,10 @@ window.onload = async function () {
   // ---------- Main Fetch ----------
   try {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
-    if (!res.ok) throw new Error("Failed to fetch invoice");
-
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Failed to fetch invoice: ${res.status} ${errorText}`);
+    }
     const data = await res.json();
     console.log("📦 Loaded invoice data:", data);
 
@@ -156,8 +158,8 @@ window.onload = async function () {
     fillById("netOfVAT", formatCurrency(payment.net_vat));
     fillById("withholdingTax", formatCurrency(payment.withholding));
     fillById("total", formatCurrency(payment.total));
-    fillById("totalDue", formatCurrency(payment.total_due));
-    fillById("totalPayable", formatCurrency(payment.total_payable));
+    fillById("totalDue", formatCurrency(payment.due));
+    fillById("totalPayable", formatCurrency(payment.payable));
 
     // Signatures
     fillById("preparedBy", payment.prepared_by || "");
