@@ -43,6 +43,7 @@ async function saveToDatabase() {
   const billTo = document.querySelector('input[name="billTo"]')?.value.trim();
   const invoiceNo = document.querySelector('input[name="invoiceNo"]')?.value.trim();
   const date = document.querySelector('input[name="date"]')?.value.trim();
+
   if (!billTo || !invoiceNo || !date) {
     alert("Please fill in required fields: Bill To, Invoice No, and Date.");
     return;
@@ -52,7 +53,9 @@ async function saveToDatabase() {
 
   // Gather dynamic columns
   const allThs = document.querySelectorAll("#items-table thead th");
-  const extraColumns = Array.from(allThs).slice(4).map(th => th.textContent.trim().toLowerCase().replace(/\s+/g, "_"));
+  const extraColumns = Array.from(allThs)
+    .slice(4)
+    .map(th => th.textContent.trim().toLowerCase().replace(/\s+/g, "_"));
 
   // Gather items
   const items = Array.from(document.querySelectorAll("#items-body tr")).map(row => {
@@ -89,6 +92,15 @@ async function saveToDatabase() {
     payable: parseFloat(document.querySelector('input[name="payable"]')?.value) || 0
   };
 
+  // Gather footer info
+  const footer = {
+    atp_no: document.querySelector('input[name="footerAtpNo"]')?.value.trim() || "",
+    atp_date: document.querySelector('input[name="footerAtpDate"]')?.value.trim() || "",
+    bir_permit_no: document.querySelector('input[name="footerBirPermit"]')?.value.trim() || "",
+    bir_date: document.querySelector('input[name="footerBirDate"]')?.value.trim() || "",
+    serial_nos: document.querySelector('input[name="footerSerialNos"]')?.value.trim() || ""
+  };
+
   // Upload logo if new file selected
   let logoPath = document.getElementById('uploaded-logo')?.src || '';
   const logoFile = document.getElementById('logo-upload')?.files?.[0];
@@ -116,6 +128,7 @@ async function saveToDatabase() {
     total_amount_due: payment.payable || 0,
     items,
     payment,
+    footer,   // <-- footer included here
     logo: logoPath
   };
 
@@ -141,6 +154,8 @@ async function saveToDatabase() {
     console.error(err);
   }
 }
+
+
 
 /* -------------------- 3. ROW & COLUMN FUNCTIONS -------------------- */
 function addRow() {

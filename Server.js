@@ -276,6 +276,27 @@ async function insertPayment(conn, invoiceId, payment) {
   await conn.execute(sql, params);
 }
 
+async function insertFooter(conn, invoiceId, footer) {
+  if (!footer) return;
+
+  const sql = `
+    INSERT INTO invoice_footer
+      (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+  const params = [
+    invoiceId,
+    footer.atp_no || "",
+    footer.atp_date || "",
+    footer.bir_permit_no || "",
+    footer.bir_date || "",
+    footer.serial_nos || ""
+  ];
+  await conn.execute(sql, params);
+}
+
+
+
 // --------------------- INVOICE ROUTE ---------------------
 app.post('/api/invoices', async (req, res) => {
   const invoiceData = req.body;
@@ -288,19 +309,88 @@ app.post('/api/invoices', async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const invoiceId = await insertInvoice(conn, invoiceData);
-    await insertItems(conn, invoiceId, invoiceData.items);
-    await insertPayment(conn, invoiceId, invoiceData.payment);
+
+    // 1️⃣ Insert main invoice
+    const [invoiceResult] = await conn.execute(
+      `INSERT INTO invoices
+        (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due, logo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        invoiceData.invoice_no,
+        invoiceData.bill_to,
+        invoiceData.address1,
+        invoiceData.address2,
+        invoiceData.tin,
+        invoiceData.terms,
+        invoiceData.date,
+        invoiceData.total_amount_due,
+        invoiceData.logo || null
+      ]
+    );
+    const invoiceId = invoiceResult.insertId;
+
+    // 2️⃣ Insert items
+    for (const item of invoiceData.items) {
+      await conn.execute(
+        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount)
+         VALUES (?, ?, ?, ?, ?)`,
+        [invoiceId, item.description, item.quantity, item.unit_price, item.amount]
+      );
+    }
+
+    // 3️⃣ Insert payment
+    if (invoiceData.payment) {
+      const p = invoiceData.payment;
+      await conn.execute(
+        `INSERT INTO payments
+          (invoice_id, cash, check_payment, check_no, bank, vatable_sales, total_sales,
+           vat_exempt, less_vat, zero_rated, net_vat, vat_amount, withholding, total,
+           due, pay_date, payable)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          invoiceId,
+          p.cash || false,
+          p.check_payment || false,
+          p.check_no || null,
+          p.bank || null,
+          p.vatable_sales || 0,
+          p.total_sales || 0,
+          p.vat_exempt || 0,
+          p.less_vat || 0,
+          p.zero_rated || 0,
+          p.net_vat || 0,
+          p.vat_amount || 0,
+          p.withholding || 0,
+          p.total || 0,
+          p.due || 0,
+          p.pay_date || null,
+          p.payable || 0
+        ]
+      );
+    }
+
+    // 4️⃣ Insert footer
+    if (invoiceData.footer) {
+      const f = invoiceData.footer;
+      await conn.execute(
+        `INSERT INTO invoice_footer 
+          (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [invoiceId, f.atp_no, f.atp_date, f.bir_permit_no, f.bir_date, f.serial_nos]
+      );
+    }
+
     await conn.commit();
     res.status(201).json({ success: true, invoiceId });
   } catch (err) {
     await conn.rollback();
-    console.error('Database transaction error:', err);
+    console.error('❌ Database transaction error:', err);
     res.status(500).json({ error: 'Internal server error' });
   } finally {
     conn.release();
   }
 });
+
 
 // --------------------- GET INVOICE BY NUMBER ---------------------
 app.get('/api/invoices/:invoiceNo', async (req, res) => {

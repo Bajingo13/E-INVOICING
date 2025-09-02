@@ -269,3 +269,34 @@ input[type="number"] {
     margin: 0;
   }
 }
+
+.footer {
+  margin-top: 30px;
+}
+
+.footer-container {
+  display: flex;
+  gap: 40px;
+}
+
+.footer-section {
+  flex: 1;
+  min-width: 220px;
+}
+
+.footer-section-large {
+  flex: 2;
+  min-width: 320px;
+}
+
+.footer-row {
+  margin-bottom: 6px;
+}
+
+.input-footer {
+  width: 120px;
+}
+
+.footer-section-large .input-footer:last-child {
+  width: 180px;
+}

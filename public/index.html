@@ -188,20 +188,31 @@
       </tr>
     </table>
 
-    <!-- === FOOTER === -->
-    <div class="footer" style="margin-top:30px;">
-      <div style="display: flex; gap: 40px;">
-      <div style="flex: 1; min-width: 220px;">
-        <div style="margin-bottom: 6px;">ATP No./OCN: <input type="text" name="footerAtpNo" class="input-footer" style="width:120px;" /></div>
-        <div>Date Issued: <input type="text" name="footerAtpDate" class="input-footer" style="width:120px;" /></div>
+    <div class="footer">
+  <div class="footer-container">
+    <div class="footer-section">
+      <div class="footer-row">
+        ATP No./OCN: <input type="text" name="footerAtpNo" class="input-footer" />
       </div>
-      <div style="flex: 2; min-width: 320px;">
-        <div style="margin-bottom: 6px;">BIR Permit No.: <input type="text" name="footerBirPermit" class="input-footer" style="width:120px;" /></div>
-        <div style="margin-bottom: 6px;">Date Issued: <input type="text" name="footerBirDate" class="input-footer" style="width:120px;" /></div>
-        <div>Approved Inclusive Serial Nos.: <input type="text" name="footerSerialNos" class="input-footer" style="width:180px;" /></div>
-      </div>
+      <div class="footer-row">
+        Date Issued: <input type="date" name="footerAtpDate" class="input-footer" />
       </div>
     </div>
+    <div class="footer-section footer-section-large">
+      <div class="footer-row">
+        BIR Permit No.: <input type="text" name="footerBirPermit" class="input-footer" />
+      </div>
+      <div class="footer-row">
+        Date Issued: <input type="date" name="footerBirDate" class="input-footer" />
+      </div>
+      <div class="footer-row">
+        Approved Inclusive Serial Nos.: <input type="text" name="footerSerialNos" class="input-footer" />
+      </div>
+    </div>
+  </div>
+</div>
+
+
 
   <!-- === SCRIPTS === -->
   <script src="EINVOICING.js"></script>
