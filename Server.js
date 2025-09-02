@@ -395,35 +395,37 @@ app.post('/api/invoices', async (req, res) => {
 // --------------------- GET INVOICE BY NUMBER ---------------------
 app.get('/api/invoices/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
-
   const conn = await pool.getConnection();
   try {
-    // 1. Get invoice
+    // Get invoice
     const [invoiceRows] = await conn.query(
       `SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1`,
       [invoiceNo]
     );
-
-    if (invoiceRows.length === 0) {
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
-
+    if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
     const invoice = invoiceRows[0];
 
-    // 2. Get items
-    const [itemRows] = await conn.query(
+    // Get items
+    const [items] = await conn.query(
       `SELECT * FROM invoice_items WHERE invoice_id = ?`,
       [invoice.id]
     );
 
-    // 3. Get payment (fixed ✅)
+    // Get payment
     const [paymentRows] = await conn.query(
       `SELECT * FROM payments WHERE invoice_id = ? LIMIT 1`,
       [invoice.id]
     );
 
-    invoice.items = itemRows;
+    // Get footer
+    const [footerRows] = await conn.query(
+      `SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1`,
+      [invoice.id]
+    );
+
+    invoice.items = items;
     invoice.payment = paymentRows[0] || {};
+    invoice.footer = footerRows[0] || {};
 
     res.json(invoice);
   } catch (err) {
@@ -433,7 +435,6 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
     conn.release();
   }
 });
-
 // --------------------- GET ALL INVOICES ---------------------
 app.get('/api/invoices', async (req, res) => {
   const conn = await pool.getConnection();

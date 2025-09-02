@@ -170,3 +170,15 @@ window.onload = async function () {
     alert("Error loading invoice — showing empty template.");
   }
 };
+
+// ---------- FOOTER ----------
+if (data.footer) {
+  // Left footer
+  fillById("footer-atp-no", data.footer.atp_no);
+  fillById("footer-atp-date", formatDate(data.footer.atp_date));
+
+  // Right footer
+  fillById("footer-bir-permit", data.footer.bir_permit_no);
+  fillById("footer-bir-date", formatDate(data.footer.bir_date));
+  fillById("footer-serial-nos", data.footer.serial_nos);
+}
