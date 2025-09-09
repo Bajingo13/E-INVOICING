@@ -393,6 +393,7 @@ app.post('/api/invoices', async (req, res) => {
 
 
 // --------------------- GET INVOICE BY NUMBER ---------------------
+// --------------------- GET INVOICE BY NUMBER ---------------------
 app.get('/api/invoices/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const conn = await pool.getConnection();
@@ -423,9 +424,13 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
       [invoice.id]
     );
 
+    // 🔹 Get company info
+    const [companyRows] = await conn.query(`SELECT * FROM company_info LIMIT 1`);
+
     invoice.items = items;
     invoice.payment = paymentRows[0] || {};
     invoice.footer = footerRows[0] || {};
+    invoice.company = companyRows[0] || {};   // <--- include company info
 
     res.json(invoice);
   } catch (err) {
@@ -435,6 +440,7 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
     conn.release();
   }
 });
+
 // --------------------- GET ALL INVOICES ---------------------
 app.get('/api/invoices', async (req, res) => {
   const conn = await pool.getConnection();

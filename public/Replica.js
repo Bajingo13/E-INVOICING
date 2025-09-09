@@ -8,6 +8,7 @@ window.onload = async function () {
     alert("No invoice number provided in the URL.");
     return;
   }
+
   // ---------- Helpers ----------
   const formatCurrency = (value) => {
     const num = parseFloat(value);
@@ -47,13 +48,16 @@ window.onload = async function () {
     colgroup.innerHTML = "";
     tbody.innerHTML = "";
 
-    // Determine extra fields dynamically
+    // Detect extra fields dynamically
     let extraFieldsSet = new Set();
     items.forEach((it) => {
       Object.keys(it || {}).forEach((k) => {
         if (
-          !["description","quantity","unit_price","amount","invoice_id","id"].includes(k.toLowerCase()) &&
-          it[k] != null && it[k] !== ""
+          !["description", "quantity", "unit_price", "amount", "invoice_id", "id"].includes(
+            k.toLowerCase()
+          ) &&
+          it[k] != null &&
+          it[k] !== ""
         ) {
           extraFieldsSet.add(k);
         }
@@ -62,10 +66,16 @@ window.onload = async function () {
     const extraFields = Array.from(extraFieldsSet);
 
     // Headers
-    const headers = ["Item Description / Nature of Service","Quantity","Unit Price","Amount", ...extraFields];
+    const headers = [
+      "Item Description / Nature of Service",
+      "Quantity",
+      "Unit Price",
+      "Amount",
+      ...extraFields,
+    ];
     headers.forEach((label) => {
       const th = document.createElement("th");
-      th.textContent = label.replace(/_/g," ").replace(/\b\w/g, (c) => c.toUpperCase());
+      th.textContent = label.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       theadRow.appendChild(th);
     });
 
@@ -77,7 +87,7 @@ window.onload = async function () {
       colgroup.appendChild(col);
     });
     if (extraFields.length > 0) {
-      const extraWidth = ((100-40-10-15-15)/extraFields.length).toFixed(2)+"%";
+      const extraWidth = ((100 - 40 - 10 - 15 - 15) / extraFields.length).toFixed(2) + "%";
       extraFields.forEach(() => {
         const col = document.createElement("col");
         col.style.width = extraWidth;
@@ -85,9 +95,9 @@ window.onload = async function () {
       });
     }
 
-    // Rows (20 fixed)
+    // Fixed 20 rows
     const TOTAL_ROWS = 20;
-    for (let i=0; i<TOTAL_ROWS; i++) {
+    for (let i = 0; i < TOTAL_ROWS; i++) {
       const row = document.createElement("tr");
       const item = items[i] || {};
       const cells = [
@@ -95,7 +105,7 @@ window.onload = async function () {
         `<td>${item.quantity || "&nbsp;"}</td>`,
         `<td>${item.unit_price ? formatCurrency(item.unit_price) : "&nbsp;"}</td>`,
         `<td>${item.amount ? formatCurrency(item.amount) : "&nbsp;"}</td>`,
-        ...extraFields.map((f)=>`<td>${item[f]!=null?item[f]:"&nbsp;"}</td>`)
+        ...extraFields.map((f) => `<td>${item[f] != null ? item[f] : "&nbsp;"}</td>`),
       ];
       row.innerHTML = cells.join("");
       tbody.appendChild(row);
@@ -112,21 +122,26 @@ window.onload = async function () {
     const data = await res.json();
     console.log("📦 Loaded invoice data:", data);
 
-    // --- LOGO ---
-    if (data.logo) {
-      const logoEl = document.getElementById("uploaded-logo");
-      if (logoEl) {
-        logoEl.src = data.logo;
+    // --- Company Info & Logo ---
+    if (data.company) {
+      fillById("companyName", data.company.company_name);
+      fillById("companyAddress", data.company.company_address);
+      fillById("companyTel", data.company.tel_no);
+      fillById("companyTIN", data.company.vat_tin);
+
+      if (data.company.logo_path) {
+        const logoEl = document.getElementById("uploaded-logo");
+        logoEl.src = data.company.logo_path;
         logoEl.style.display = "block";
       }
     }
 
-    // Items table
-    buildTable(Array.isArray(data.items)?data.items:[]);
+    // --- Items Table ---
+    buildTable(Array.isArray(data.items) ? data.items : []);
 
-    // Header info
+    // --- Invoice Header Info ---
     fillLine("BILL TO", data.bill_to);
-    fillLine("ADDRESS", `${data.address1||""} ${data.address2||""}`.trim());
+    fillLine("ADDRESS", `${data.address1 || ""} ${data.address2 || ""}`.trim());
     fillLine("N", data.invoice_no);
     fillLine("DATE", formatDate(data.date));
     fillLine("TIN", data.tin);
@@ -140,7 +155,7 @@ window.onload = async function () {
     fillById("tin", data.tin);
     fillById("terms", data.terms);
 
-    // Payment
+    // --- Payment Section ---
     const payment = data.payment || {};
     fillById("cash", payment.cash ? "✔" : "");
     fillById("check", payment.check_payment ? "✔" : "");
@@ -148,7 +163,6 @@ window.onload = async function () {
     fillById("bank", payment.bank);
     fillById("paymentDate", formatDate(payment.pay_date));
 
-    // Totals
     fillById("vatableSales", formatCurrency(payment.vatable_sales));
     fillById("vatExemptSales", formatCurrency(payment.vat_exempt));
     fillById("zeroRatedSales", formatCurrency(payment.zero_rated));
@@ -160,24 +174,21 @@ window.onload = async function () {
     fillById("totalDue", formatCurrency(payment.due));
     fillById("totalPayable", formatCurrency(payment.payable));
 
-    // Signatures
-    fillById("preparedBy", payment.prepared_by || "");
-    fillById("approvedBy", payment.approved_by || "");
-    fillById("receivedBy", payment.received_by || "");
+    // --- Signatures ---
+    fillById("preparedBy", payment.prepared_by);
+    fillById("approvedBy", payment.approved_by);
+    fillById("receivedBy", payment.received_by);
+
+    // --- Footer ---
+    if (data.footer) {
+      fillById("footer-atp-no", data.footer.atp_no);
+      fillById("footer-atp-date", formatDate(data.footer.atp_date));
+      fillById("footer-bir-permit", data.footer.bir_permit_no);
+      fillById("footer-bir-date", formatDate(data.footer.bir_date));
+      fillById("footer-serial-nos", data.footer.serial_nos);
+    }
   } catch (err) {
     console.error("❌ Error loading invoice:", err);
     alert("Error loading invoice — showing empty template.");
   }
 };
-
-// ---------- FOOTER ----------
-if (data.footer) {
-  // Left footer
-  fillById("footer-atp-no", data.footer.atp_no);
-  fillById("footer-atp-date", formatDate(data.footer.atp_date));
-
-  // Right footer
-  fillById("footer-bir-permit", data.footer.bir_permit_no);
-  fillById("footer-bir-date", formatDate(data.footer.bir_date));
-  fillById("footer-serial-nos", data.footer.serial_nos);
-}
