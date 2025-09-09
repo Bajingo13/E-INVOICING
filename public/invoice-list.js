@@ -27,7 +27,6 @@ function populateTable(invoices) {
       <td>${inv.total_amount_due > 0 ? 'Pending' : 'Paid'}</td>
       <td>
         <button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>
-        <button class="action-btn print" onclick="printInvoice('${inv.invoice_no}')">Print</button>
         <button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>
         <button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>
       </td>
@@ -43,10 +42,7 @@ function viewInvoice(invoiceNo) {
   window.location.href = `/replica.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
 }
 
-function printInvoice(invoiceNo) {
-  const win = window.open(`/replica.html?invoice_no=${encodeURIComponent(invoiceNo)}&print=true`, '_blank');
-  win.addEventListener('load', () => win.print());
-}
+// Removed printInvoice function
 
 function editInvoice(invoiceNo) {
   window.location.href = `/invoice?invoice_no=${encodeURIComponent(invoiceNo)}&edit=true`;
