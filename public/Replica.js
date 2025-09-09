@@ -8,7 +8,6 @@ window.onload = async function () {
     alert("No invoice number provided in the URL.");
     return;
   }
-
   // ---------- Helpers ----------
   const formatCurrency = (value) => {
     const num = parseFloat(value);
