@@ -297,7 +297,7 @@ async function insertFooter(conn, invoiceId, footer) {
 
 
 
-// --------------------- INVOICE ROUTE ---------------------
+// --------------------- INVOICE ROUTE (Dynamic Columns) ---------------------
 app.post('/api/invoices', async (req, res) => {
   const invoiceData = req.body;
 
@@ -329,13 +329,33 @@ app.post('/api/invoices', async (req, res) => {
     );
     const invoiceId = invoiceResult.insertId;
 
-    // 2️⃣ Insert items
+    // 2️⃣ Insert items with dynamic columns
     for (const item of invoiceData.items) {
-      await conn.execute(
-        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount)
-         VALUES (?, ?, ?, ?, ?)`,
-        [invoiceId, item.description, item.quantity, item.unit_price, item.amount]
-      );
+      // Get existing columns in invoice_items table
+      const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
+      const existingCols = cols.map(c => c.Field);
+
+      const columns = ["invoice_id", "description", "quantity", "unit_price", "amount"];
+      const values = [invoiceId, item.description, item.quantity, item.unit_price, item.amount];
+      const placeholders = ["?", "?", "?", "?", "?"];
+
+      // Add extra/dynamic columns
+      for (const [key, val] of Object.entries(item)) {
+        if (["description","quantity","unit_price","amount"].includes(key)) continue;
+
+        // Add column to table if it doesn't exist
+        if (!existingCols.includes(key)) {
+          await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
+          existingCols.push(key);
+        }
+
+        columns.push("`" + key + "`");
+        values.push(val);
+        placeholders.push("?");
+      }
+
+      const sql = `INSERT INTO invoice_items (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`;
+      await conn.execute(sql, values);
     }
 
     // 3️⃣ Insert payment
@@ -392,6 +412,7 @@ app.post('/api/invoices', async (req, res) => {
 });
 
 
+
 // --------------------- GET INVOICE BY NUMBER ---------------------
 // --------------------- GET INVOICE BY NUMBER ---------------------
 app.get('/api/invoices/:invoiceNo', async (req, res) => {
@@ -406,11 +427,15 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
     if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
     const invoice = invoiceRows[0];
 
-    // Get items
-    const [items] = await conn.query(
-      `SELECT * FROM invoice_items WHERE invoice_id = ?`,
-      [invoice.id]
-    );
+    // --- Dynamically fetch all columns for items ---
+const [columns] = await conn.query(`SHOW COLUMNS FROM invoice_items`);
+const colNames = columns.map(c => c.Field); // get all column names
+
+const [items] = await conn.query(
+  `SELECT ${colNames.map(c => '`'+c+'`').join(', ')} FROM invoice_items WHERE invoice_id = ?`,
+  [invoice.id]
+);
+
 
     // Get payment
     const [paymentRows] = await conn.query(
