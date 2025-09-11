@@ -17,7 +17,6 @@ app.get('/invoice-list', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'invoice-list.html'));
 });
 
-
 // --------------------- STATIC ASSETS ---------------------
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -96,11 +95,9 @@ app.post('/api/create-account', async (req, res) => {
 
   const conn = await pool.getConnection();
   try {
-    // Check if user exists
     const [rows] = await conn.execute('SELECT * FROM users WHERE username = ?', [username]);
     if (rows.length > 0) return res.json({ success: false, message: "Username already exists" });
 
-    // Insert new user
     await conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', [username, password]);
     res.json({ success: true });
   } catch (err) {
@@ -164,7 +161,6 @@ app.post('/save-company-info', companyUpload.single('logo'), async (req, res) =>
         await conn.execute(
           `INSERT INTO company_info (company_name, company_address, tel_no, vat_tin, logo_path)
            VALUES (?, ?, ?, ?, ?)`,
-
           [company_name, company_address, tel_no, vat_tin, logo_path]
         );
       }
@@ -193,111 +189,7 @@ app.get('/get-company-info', async (req, res) => {
   }
 });
 
-// --------------------- HELPERS: INVOICES ---------------------
-async function insertInvoice(conn, invoice) {
-  const sql = `
-    INSERT INTO invoices
-      (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due, logo)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  const params = [
-    invoice.invoice_no,
-    invoice.bill_to,
-    invoice.address1,
-    invoice.address2,
-    invoice.tin,
-    invoice.terms,
-    invoice.date,
-    invoice.total_amount_due,
-    invoice.logo || null
-  ];
-  const [result] = await conn.execute(sql, params);
-  return result.insertId;
-}
-
-async function insertItems(conn, invoiceId, items) {
-  if (!Array.isArray(items)) return;
-
-  const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
-  const existingCols = cols.map(c => c.Field);
-
-  for (const item of items) {
-    let columns = ["invoice_id", "description", "quantity", "unit_price", "amount"];
-    let values = [invoiceId, item.description, item.quantity, item.unit_price, item.amount];
-    let placeholders = ["?", "?", "?", "?", "?"];
-
-    for (const [key, val] of Object.entries(item)) {
-      if (["description", "quantity", "unit_price", "amount"].includes(key)) continue;
-
-      if (!existingCols.includes(key)) {
-        await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
-        existingCols.push(key);
-      }
-
-      columns.push("`" + key + "`");
-      values.push(val);
-      placeholders.push("?");
-    }
-
-    const sql = `INSERT INTO invoice_items (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`;
-    await conn.execute(sql, values);
-  }
-}
-
-async function insertPayment(conn, invoiceId, payment) {
-  if (!payment) return;
-
-  const sql = `
-    INSERT INTO payments (
-      invoice_id, cash, check_payment, check_no, bank, vatable_sales, total_sales,
-      vat_exempt, less_vat, zero_rated, net_vat, vat_amount, withholding, total,
-      due, pay_date, payable
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  const params = [
-    invoiceId,
-    payment.cash || false,
-    payment.check_payment || false,
-    payment.check_no || null,
-    payment.bank || null,
-    payment.vatable_sales || 0,
-    payment.total_sales || 0,
-    payment.vat_exempt || 0,
-    payment.less_vat || 0,
-    payment.zero_rated || 0,
-    payment.net_vat || 0,
-    payment.vat_amount || 0,
-    payment.withholding || 0,
-    payment.total || 0,
-    payment.due || 0,
-    payment.pay_date || null,
-    payment.payable || 0
-  ];
-  await conn.execute(sql, params);
-}
-
-async function insertFooter(conn, invoiceId, footer) {
-  if (!footer) return;
-
-  const sql = `
-    INSERT INTO invoice_footer
-      (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-  const params = [
-    invoiceId,
-    footer.atp_no || "",
-    footer.atp_date || "",
-    footer.bir_permit_no || "",
-    footer.bir_date || "",
-    footer.serial_nos || ""
-  ];
-  await conn.execute(sql, params);
-}
-
-
-
-// --------------------- INVOICE ROUTE (Dynamic Columns) ---------------------
+// --------------------- CREATE INVOICE ---------------------
 app.post('/api/invoices', async (req, res) => {
   const invoiceData = req.body;
 
@@ -310,7 +202,6 @@ app.post('/api/invoices', async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // 1️⃣ Insert main invoice
     const [invoiceResult] = await conn.execute(
       `INSERT INTO invoices
         (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due, logo)
@@ -329,9 +220,7 @@ app.post('/api/invoices', async (req, res) => {
     );
     const invoiceId = invoiceResult.insertId;
 
-    // 2️⃣ Insert items with dynamic columns
     for (const item of invoiceData.items) {
-      // Get existing columns in invoice_items table
       const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
       const existingCols = cols.map(c => c.Field);
 
@@ -339,16 +228,12 @@ app.post('/api/invoices', async (req, res) => {
       const values = [invoiceId, item.description, item.quantity, item.unit_price, item.amount];
       const placeholders = ["?", "?", "?", "?", "?"];
 
-      // Add extra/dynamic columns
       for (const [key, val] of Object.entries(item)) {
         if (["description","quantity","unit_price","amount"].includes(key)) continue;
-
-        // Add column to table if it doesn't exist
         if (!existingCols.includes(key)) {
           await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
           existingCols.push(key);
         }
-
         columns.push("`" + key + "`");
         values.push(val);
         placeholders.push("?");
@@ -358,7 +243,6 @@ app.post('/api/invoices', async (req, res) => {
       await conn.execute(sql, values);
     }
 
-    // 3️⃣ Insert payment
     if (invoiceData.payment) {
       const p = invoiceData.payment;
       await conn.execute(
@@ -389,7 +273,6 @@ app.post('/api/invoices', async (req, res) => {
       );
     }
 
-    // 4️⃣ Insert footer
     if (invoiceData.footer) {
       const f = invoiceData.footer;
       await conn.execute(
@@ -411,15 +294,126 @@ app.post('/api/invoices', async (req, res) => {
   }
 });
 
+// --------------------- UPDATE INVOICE ---------------------
+app.put('/api/invoices/:invoiceNo', async (req, res) => {
+  const invoiceNo = req.params.invoiceNo;
+  const invoiceData = req.body;
 
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
 
-// --------------------- GET INVOICE BY NUMBER ---------------------
+    const [invoiceRows] = await conn.query(
+      `SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1`,
+      [invoiceNo]
+    );
+    if (invoiceRows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+    const invoiceId = invoiceRows[0].id;
+
+    await conn.execute(
+      `UPDATE invoices
+       SET bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?
+       WHERE id=?`,
+      [
+        invoiceData.bill_to,
+        invoiceData.address1,
+        invoiceData.address2,
+        invoiceData.tin,
+        invoiceData.terms,
+        invoiceData.date,
+        invoiceData.total_amount_due,
+        invoiceData.logo || null,
+        invoiceId
+      ]
+    );
+
+    await conn.execute(`DELETE FROM invoice_items WHERE invoice_id=?`, [invoiceId]);
+    for (const item of invoiceData.items) {
+      const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
+      const existingCols = cols.map(c => c.Field);
+
+      const columns = ["invoice_id", "description", "quantity", "unit_price", "amount"];
+      const values = [invoiceId, item.description, item.quantity, item.unit_price, item.amount];
+      const placeholders = ["?", "?", "?", "?", "?"];
+
+      for (const [key, val] of Object.entries(item)) {
+        if (["description","quantity","unit_price","amount"].includes(key)) continue;
+        if (!existingCols.includes(key)) {
+          await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
+          existingCols.push(key);
+        }
+        columns.push("`" + key + "`");
+        values.push(val);
+        placeholders.push("?");
+      }
+
+      await conn.execute(
+        `INSERT INTO invoice_items (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`,
+        values
+      );
+    }
+
+    await conn.execute(`DELETE FROM payments WHERE invoice_id=?`, [invoiceId]);
+    if (invoiceData.payment) {
+      const p = invoiceData.payment;
+      await conn.execute(
+        `INSERT INTO payments
+          (invoice_id, cash, check_payment, check_no, bank, vatable_sales, total_sales,
+           vat_exempt, less_vat, zero_rated, net_vat, vat_amount, withholding, total,
+           due, pay_date, payable)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          invoiceId,
+          p.cash || false,
+          p.check_payment || false,
+          p.check_no || null,
+          p.bank || null,
+          p.vatable_sales || 0,
+          p.total_sales || 0,
+          p.vat_exempt || 0,
+          p.less_vat || 0,
+          p.zero_rated || 0,
+          p.net_vat || 0,
+          p.vat_amount || 0,
+          p.withholding || 0,
+          p.total || 0,
+          p.due || 0,
+          p.pay_date || null,
+          p.payable || 0
+        ]
+      );
+    }
+
+    await conn.execute(`DELETE FROM invoice_footer WHERE invoice_id=?`, [invoiceId]);
+    if (invoiceData.footer) {
+      const f = invoiceData.footer;
+      await conn.execute(
+        `INSERT INTO invoice_footer 
+          (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [invoiceId, f.atp_no, f.atp_date, f.bir_permit_no, f.bir_date, f.serial_nos]
+      );
+    }
+
+    await conn.commit();
+    res.json({ success: true, invoiceId });
+  } catch (err) {
+    await conn.rollback();
+    console.error("❌ Update invoice error:", err);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    conn.release();
+  }
+});
+
 // --------------------- GET INVOICE BY NUMBER ---------------------
 app.get('/api/invoices/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const conn = await pool.getConnection();
   try {
-    // Get invoice
     const [invoiceRows] = await conn.query(
       `SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1`,
       [invoiceNo]
@@ -427,35 +421,30 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
     if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
     const invoice = invoiceRows[0];
 
-    // --- Dynamically fetch all columns for items ---
-const [columns] = await conn.query(`SHOW COLUMNS FROM invoice_items`);
-const colNames = columns.map(c => c.Field); // get all column names
+    const [columns] = await conn.query(`SHOW COLUMNS FROM invoice_items`);
+    const colNames = columns.map(c => c.Field);
 
-const [items] = await conn.query(
-  `SELECT ${colNames.map(c => '`'+c+'`').join(', ')} FROM invoice_items WHERE invoice_id = ?`,
-  [invoice.id]
-);
+    const [items] = await conn.query(
+      `SELECT ${colNames.map(c => '`'+c+'`').join(', ')} FROM invoice_items WHERE invoice_id = ?`,
+      [invoice.id]
+    );
 
-
-    // Get payment
     const [paymentRows] = await conn.query(
       `SELECT * FROM payments WHERE invoice_id = ? LIMIT 1`,
       [invoice.id]
     );
 
-    // Get footer
     const [footerRows] = await conn.query(
       `SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1`,
       [invoice.id]
     );
 
-    // 🔹 Get company info
     const [companyRows] = await conn.query(`SELECT * FROM company_info LIMIT 1`);
 
     invoice.items = items;
     invoice.payment = paymentRows[0] || {};
     invoice.footer = footerRows[0] || {};
-    invoice.company = companyRows[0] || {};   // <--- include company info
+    invoice.company = companyRows[0] || {};
 
     res.json(invoice);
   } catch (err) {
@@ -485,7 +474,7 @@ app.get('/api/invoices', async (req, res) => {
   }
 });
 
-// DELETE invoice
+// --------------------- DELETE INVOICE ---------------------
 app.delete('/api/invoices/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const conn = await pool.getConnection();
@@ -495,60 +484,20 @@ app.delete('/api/invoices/:invoiceNo', async (req, res) => {
 
     const invoiceId = invoiceRows[0].id;
 
-    // Delete related items and payments first (foreign key constraints)
     await conn.query('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
     await conn.query('DELETE FROM payments WHERE invoice_id = ?', [invoiceId]);
-
-    // Delete invoice
+    await conn.query('DELETE FROM invoice_footer WHERE invoice_id = ?', [invoiceId]);
     await conn.query('DELETE FROM invoices WHERE id = ?', [invoiceId]);
 
-    res.json({ success: true });
+    res.json({ success: true, message: 'Invoice deleted successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error("❌ Error deleting invoice:", err);
+    res.status(500).json({ error: 'Internal server error' });
   } finally {
     conn.release();
   }
 });
-app.get('/api/invoices/edit/:invoiceNo', async (req, res) => {
-  const invoiceNo = req.params.invoiceNo;
-  const conn = await pool.getConnection();
-  try {
-    const [invoiceRows] = await conn.query('SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
-    if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
-
-    const invoice = invoiceRows[0];
-
-    const [items] = await conn.query('SELECT * FROM invoice_items WHERE invoice_id = ?', [invoice.id]);
-    const [paymentRows] = await conn.query('SELECT * FROM payments WHERE invoice_id = ? LIMIT 1', [invoice.id]);
-
-    res.json({ ...invoice, items, payment: paymentRows[0] || {} });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
-  } finally {
-    conn.release();
-  }
-});
-
-app.post('/api/invoices/bulk-delete', async (req, res) => {
-  const { invoices } = req.body;
-  if (!Array.isArray(invoices) || !invoices.length) return res.status(400).json({ error: 'No invoices selected' });
-
-  const conn = await pool.getConnection();
-  try {
-    await conn.query(`DELETE FROM invoices WHERE invoice_no IN (?)`, [invoices]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('❌ Bulk delete error:', err);
-    res.status(500).json({ error: 'Server error' });
-  } finally {
-    conn.release();
-  }
-});
-
-
 
 // --------------------- START SERVER ---------------------
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));

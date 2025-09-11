@@ -155,6 +155,82 @@ async function saveToDatabase() {
   }
 }
 
+/* -------------------- LOAD INVOICE FOR EDITING -------------------- */
+async function loadInvoiceForEdit() {
+  const params = new URLSearchParams(window.location.search);
+const invoiceNo = params.get("invoice_no");
+const isEdit = params.get("edit") === "true";
+
+
+  if (!invoiceNo || !isEdit) return; // only run in edit mode
+
+  try {
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
+    if (!res.ok) throw new Error("Failed to fetch invoice");
+    const data = await res.json();
+
+    console.log("📦 Editing invoice data:", data);
+
+    // --- Fill basic info ---
+    document.querySelector('input[name="billTo"]').value = data.bill_to || "";
+    document.querySelector('input[name="address1"]').value = data.address1 || "";
+    document.querySelector('input[name="address2"]').value = data.address2 || "";
+    document.querySelector('input[name="tin"]').value = data.tin || "";
+    document.querySelector('input[name="terms"]').value = data.terms || "";
+    document.querySelector('input[name="invoiceNo"]').value = data.invoice_no || "";
+    document.querySelector('input[name="date"]').value = data.date ? data.date.split("T")[0] : "";
+
+    // --- Fill items ---
+    const tbody = document.getElementById("items-body");
+    tbody.innerHTML = ""; // clear existing
+    data.items.forEach(item => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><input type="text" class="input-full" name="desc[]" value="${item.description || ""}"></td>
+        <td><input type="number" class="input-short" name="qty[]" value="${item.quantity || 0}" oninput="updateAmount(this)"></td>
+        <td><input type="number" class="input-short" name="rate[]" value="${item.unit_price || 0}" oninput="updateAmount(this)"></td>
+        <td><input type="number" class="input-short" name="amt[]" value="${item.amount || 0}" readonly></td>
+      `;
+      tbody.appendChild(row);
+    });
+
+    // --- Fill payment section ---
+    document.querySelector('input[name="cash"]').checked = !!data.payment.cash;
+    document.querySelector('input[name="check"]').checked = !!data.payment.check_payment;
+    document.querySelector('input[name="checkNo"]').value = data.payment.check_no || "";
+    document.querySelector('input[name="bank"]').value = data.payment.bank || "";
+    document.querySelector('input[name="payDate"]').value = data.payment.pay_date ? data.payment.pay_date.split("T")[0] : "";
+
+    document.querySelector('input[name="vatableSales"]').value = data.payment.vatable_sales || 0;
+    document.querySelector('input[name="vatExempt"]').value = data.payment.vat_exempt || 0;
+    document.querySelector('input[name="zeroRated"]').value = data.payment.zero_rated || 0;
+    document.querySelector('input[name="vatAmount"]').value = data.payment.vat_amount || 0;
+    document.querySelector('input[name="lessVat"]').value = data.payment.less_vat || 0;
+    document.querySelector('input[name="netVat"]').value = data.payment.net_vat || 0;
+    document.querySelector('input[name="withholding"]').value = data.payment.withholding || 0;
+    document.querySelector('input[name="total"]').value = data.payment.total || 0;
+    document.querySelector('input[name="due"]').value = data.payment.due || 0;
+    document.querySelector('input[name="payable"]').value = data.payment.payable || 0;
+
+    // --- Footer ---
+    document.querySelector('input[name="footerAtpNo"]').value = data.footer?.atp_no || "";
+    document.querySelector('input[name="footerAtpDate"]').value = data.footer?.atp_date || "";
+    document.querySelector('input[name="footerBirPermit"]').value = data.footer?.bir_permit_no || "";
+    document.querySelector('input[name="footerBirDate"]').value = data.footer?.bir_date || "";
+    document.querySelector('input[name="footerSerialNos"]').value = data.footer?.serial_nos || "";
+
+    // --- Logo ---
+    if (data.logo) {
+      const logoEl = document.getElementById("uploaded-logo");
+      logoEl.src = data.logo;
+      logoEl.style.display = "block";
+    }
+
+  } catch (err) {
+    console.error("❌ Error loading invoice for edit:", err);
+  }
+}
+
 
 
 /* -------------------- 3. ROW & COLUMN FUNCTIONS -------------------- */
@@ -285,3 +361,8 @@ function removeLogo() {
 
 /* -------------------- 7. INIT -------------------- */
 window.addEventListener('DOMContentLoaded', loadCompanyInfo);
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadCompanyInfo();
+  loadInvoiceForEdit(); // <-- load invoice data when editing
+});
