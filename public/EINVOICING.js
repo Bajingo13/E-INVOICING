@@ -181,6 +181,14 @@ async function loadInvoiceForEdit() {
     const data = await res.json();
 
     console.log("📦 Editing invoice data:", data);
+    
+    // Debug: Log date values from backend
+    console.log("🗓️ Backend date values:", {
+      mainDate: data.date,
+      payDate: data.payment?.pay_date,
+      footerAtpDate: data.footer?.atp_date,
+      footerBirDate: data.footer?.bir_date
+    });
 
     // --- Fill basic info ---
     document.querySelector('input[name="billTo"]').value = data.bill_to || "";
@@ -240,10 +248,6 @@ async function loadInvoiceForEdit() {
 
     // --- Fill payment section ---
     document.querySelector('input[name="cash"]').checked = !!data.payment.cash;
-    const payDateInput = document.querySelector('input[name="payDate"]');
-    if (payDateInput) {
-      payDateInput.value = dateToYYYYMMDD(data.payment?.pay_date);
-    }
     document.querySelector('input[name="checkNo"]').value = data.payment.check_no || "";
     document.querySelector('input[name="bank"]').value = data.payment.bank || "";
     document.querySelector('input[name="payDate"]').value = dateToYYYYMMDD(data.payment?.pay_date);
@@ -261,9 +265,9 @@ async function loadInvoiceForEdit() {
 
     // --- Footer ---
     document.querySelector('input[name="footerAtpNo"]').value = data.footer?.atp_no || "";
-    document.querySelector('input[name="footerAtpDate"]').value = data.footer?.atp_date || "";
+    document.querySelector('input[name="footerAtpDate"]').value = dateToYYYYMMDD(data.footer?.atp_date);
     document.querySelector('input[name="footerBirPermit"]').value = data.footer?.bir_permit_no || "";
-    document.querySelector('input[name="footerBirDate"]').value = data.footer?.bir_date || "";
+    document.querySelector('input[name="footerBirDate"]').value = dateToYYYYMMDD(data.footer?.bir_date);
     document.querySelector('input[name="footerSerialNos"]').value = data.footer?.serial_nos || "";
 
     // --- Logo ---
