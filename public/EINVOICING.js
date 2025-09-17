@@ -3,7 +3,19 @@ console.log("✅ EINVOICING.js loaded");
 /* Utility: Convert date string to YYYY-MM-DD for <input type="date"> */
 function dateToYYYYMMDD(dateValue) {
   if (!dateValue) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
+  
+  // Check if already in YYYY-MM-DD format and validate it
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    const d = new Date(dateValue + 'T00:00:00Z'); // Parse as UTC to avoid timezone issues
+    if (isNaN(d.getTime())) return ""; // Invalid date
+    // Verify the parsed date matches the input (catches invalid dates like 2025-13-45)
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const reconstructed = `${year}-${month}-${day}`;
+    return reconstructed === dateValue ? dateValue : "";
+  }
+  
   const d = new Date(dateValue);
   if (isNaN(d.getTime())) return "";
   // Use UTC methods to guarantee correct day for <input type="date">
