@@ -4,7 +4,7 @@ const mysql = require('mysql2/promise');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
-
+ 
 const app = express();
 app.use(express.json());
 
@@ -198,14 +198,25 @@ app.post('/api/invoices', async (req, res) => {
     return res.status(400).json({ error: 'Missing required invoice fields or items' });
   }
 
+  // Determine extra columns for this invoice (not the 4 defaults)
+  const defaultItemCols = ["description", "quantity", "unit_price", "amount"];
+  let extraColumns = [];
+  invoiceData.items.forEach(item => {
+    Object.keys(item).forEach(key => {
+      if (!defaultItemCols.includes(key) && !extraColumns.includes(key)) {
+        extraColumns.push(key);
+      }
+    });
+  });
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
     const [invoiceResult] = await conn.execute(
       `INSERT INTO invoices
-        (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due, logo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due, logo, extra_columns)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceData.invoice_no,
         invoiceData.bill_to,
@@ -215,7 +226,8 @@ app.post('/api/invoices', async (req, res) => {
         invoiceData.terms,
         invoiceData.date,
         invoiceData.total_amount_due,
-        invoiceData.logo || null
+        invoiceData.logo || null,
+        JSON.stringify(extraColumns)
       ]
     );
     const invoiceId = invoiceResult.insertId;
@@ -299,6 +311,17 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const invoiceData = req.body;
 
+  // Determine extra columns for this invoice (not the 4 defaults)
+  const defaultItemCols = ["description", "quantity", "unit_price", "amount"];
+  let extraColumns = [];
+  invoiceData.items.forEach(item => {
+    Object.keys(item).forEach(key => {
+      if (!defaultItemCols.includes(key) && !extraColumns.includes(key)) {
+        extraColumns.push(key);
+      }
+    });
+  });
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -315,7 +338,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
 
     await conn.execute(
       `UPDATE invoices
-       SET bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?
+       SET bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?
        WHERE id=?`,
       [
         invoiceData.bill_to,
@@ -326,6 +349,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
         invoiceData.date,
         invoiceData.total_amount_due,
         invoiceData.logo || null,
+        JSON.stringify(extraColumns),
         invoiceId
       ]
     );
@@ -441,10 +465,17 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
 
     const [companyRows] = await conn.query(`SELECT * FROM company_info LIMIT 1`);
 
+    // Parse extra_columns JSON
+    let extra_columns = [];
+    try {
+      extra_columns = invoice.extra_columns ? JSON.parse(invoice.extra_columns) : [];
+    } catch (e) {}
+
     invoice.items = items;
     invoice.payment = paymentRows[0] || {};
     invoice.footer = footerRows[0] || {};
     invoice.company = companyRows[0] || {};
+    invoice.extra_columns = extra_columns; // <-- Attach to response
 
     res.json(invoice);
   } catch (err) {

@@ -1,5 +1,17 @@
 console.log("✅ EINVOICING.js loaded");
 
+/* Utility: Convert date string to YYYY-MM-DD for <input type="date"> */
+function dateToYYYYMMDD(dateValue) {
+  if (!dateValue) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
+  const d = new Date(dateValue);
+  if (isNaN(d.getTime())) return "";
+  // Use UTC methods to guarantee correct day for <input type="date">
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 /* -------------------- 1. AUTO LOAD COMPANY INFO -------------------- */
 async function loadCompanyInfo() {
   try {
@@ -158,9 +170,8 @@ async function saveToDatabase() {
 /* -------------------- LOAD INVOICE FOR EDITING -------------------- */
 async function loadInvoiceForEdit() {
   const params = new URLSearchParams(window.location.search);
-const invoiceNo = params.get("invoice_no");
-const isEdit = params.get("edit") === "true";
-
+  const invoiceNo = params.get("invoice_no");
+  const isEdit = params.get("edit") === "true";
 
   if (!invoiceNo || !isEdit) return; // only run in edit mode
 
@@ -178,28 +189,64 @@ const isEdit = params.get("edit") === "true";
     document.querySelector('input[name="tin"]').value = data.tin || "";
     document.querySelector('input[name="terms"]').value = data.terms || "";
     document.querySelector('input[name="invoiceNo"]').value = data.invoice_no || "";
-    document.querySelector('input[name="date"]').value = data.date ? data.date.split("T")[0] : "";
+    const dateInput = document.querySelector('input[name="date"]');
+    if (dateInput) {
+      dateInput.value = dateToYYYYMMDD(data.date);
+    }
+
+    // --- Dynamic Columns: Use only extra_columns from backend ---
+    const defaultCols = [
+      { label: "Description", key: "description" },
+      { label: "Qty", key: "quantity" },
+      { label: "Rate", key: "unit_price" },
+      { label: "Amt", key: "amount" }
+    ];
+    const extraColKeys = Array.isArray(data.extra_columns) ? data.extra_columns : [];
+
+    // --- Rebuild table header with defaults and extras ---
+    const theadRow = document.querySelector("#items-table thead tr");
+    theadRow.innerHTML = "";
+    defaultCols.forEach(col => {
+      const th = document.createElement("th");
+      th.textContent = col.label;
+      theadRow.appendChild(th);
+    });
+    extraColKeys.forEach(colKey => {
+      const th = document.createElement("th");
+      th.textContent = colKey.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+      theadRow.appendChild(th);
+    });
 
     // --- Fill items ---
     const tbody = document.getElementById("items-body");
     tbody.innerHTML = ""; // clear existing
-    data.items.forEach(item => {
+    (data.items || []).forEach(item => {
       const row = document.createElement("tr");
+      // Default columns
       row.innerHTML = `
         <td><input type="text" class="input-full" name="desc[]" value="${item.description || ""}"></td>
         <td><input type="number" class="input-short" name="qty[]" value="${item.quantity || 0}" oninput="updateAmount(this)"></td>
         <td><input type="number" class="input-short" name="rate[]" value="${item.unit_price || 0}" oninput="updateAmount(this)"></td>
         <td><input type="number" class="input-short" name="amt[]" value="${item.amount || 0}" readonly></td>
       `;
+      // Extra columns
+      extraColKeys.forEach(colKey => {
+        const td = document.createElement("td");
+        td.innerHTML = `<input type="text" name="${colKey}[]" value="${item[colKey] || ""}">`;
+        row.appendChild(td);
+      });
       tbody.appendChild(row);
     });
 
     // --- Fill payment section ---
     document.querySelector('input[name="cash"]').checked = !!data.payment.cash;
-    document.querySelector('input[name="check"]').checked = !!data.payment.check_payment;
+    const payDateInput = document.querySelector('input[name="payDate"]');
+    if (payDateInput) {
+      payDateInput.value = dateToYYYYMMDD(data.payment?.pay_date);
+    }
     document.querySelector('input[name="checkNo"]').value = data.payment.check_no || "";
     document.querySelector('input[name="bank"]').value = data.payment.bank || "";
-    document.querySelector('input[name="payDate"]').value = data.payment.pay_date ? data.payment.pay_date.split("T")[0] : "";
+    document.querySelector('input[name="payDate"]').value = dateToYYYYMMDD(data.payment?.pay_date);
 
     document.querySelector('input[name="vatableSales"]').value = data.payment.vatable_sales || 0;
     document.querySelector('input[name="vatExempt"]').value = data.payment.vat_exempt || 0;
@@ -226,11 +273,12 @@ const isEdit = params.get("edit") === "true";
       logoEl.style.display = "block";
     }
 
+    adjustColumnWidths(); // Make sure columns are adjusted
+
   } catch (err) {
     console.error("❌ Error loading invoice for edit:", err);
   }
 }
-
 
 
 /* -------------------- 3. ROW & COLUMN FUNCTIONS -------------------- */
