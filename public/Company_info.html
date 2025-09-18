@@ -3,20 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <title>Company Setup</title>
-  <link rel="stylesheet" href="EINVOICING.css">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .form-container { max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 10px; background: #f9f9f9; }
-    h2 { text-align: center; margin-bottom: 20px; }
-    label { font-weight: bold; display: block; margin-top: 10px; }
-    input, textarea { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
-    button { margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    #uploaded-logo { max-height: 60px; display: none; margin-top: 10px; }
-    #remove-logo-btn { display: none; margin: 5px 0; font-size: 12px; padding: 2px 6px; cursor: pointer; }
-  </style>
+  <link rel="stylesheet" href="company_info.css">
 </head>
 <body>
+  <header>
+    <h1>Invoice List</h1>
+    <nav>
+      <a href="/dashboard" class="btn">Dashboard</a>
+      <a href="/invoice" class="btn">Create Invoice</a>
+      <a href="/invoice-list.html" class="btn">View Invoices</a>
+      <a href="/" class="btn logout">Logout</a>
+    </nav>
+  </header>
+  
   <div class="form-container">
     <h2>Company Information Setup</h2>
     <form id="companyForm" enctype="multipart/form-data">
@@ -37,7 +36,9 @@
       <img id="uploaded-logo" src="" alt="Logo Preview">
       <button type="button" id="remove-logo-btn">Remove Logo</button>
 
-      <button type="submit">💾 Save Company Info</button>
+      <div style="text-align: right;">
+        <button type="submit">💾 Save Company Info</button>
+      </div>
     </form>
   </div>
 <script src="dashboard.js"></script>
@@ -66,20 +67,22 @@
     });
 
     document.getElementById("companyForm").addEventListener("submit", async function(e){
-      e.preventDefault();
-      const formData = new FormData(this);
-      try {
-        const res = await fetch("http://localhost:3000/save-company-info", {
-          method: "POST",
-          body: formData
-        });
-        const result = await res.json();
-        alert(result.message);
-      } catch (err) {
-        alert("Error saving company info.");
-        console.error(err);
-      }
+  e.preventDefault();
+  const formData = new FormData(this);
+  try {
+    const res = await fetch("http://localhost:3000/save-company-info", {
+      method: "POST",
+      body: formData
     });
+    const result = await res.json();
+    alert(result.message);
+    // Redirect to dashboard after saving
+    window.location.href = "/dashboard";
+  } catch (err) {
+    alert("Error saving company info.");
+    console.error(err);
+  }
+});
 
     // Auto-load existing company info
     window.addEventListener('DOMContentLoaded', async () => {

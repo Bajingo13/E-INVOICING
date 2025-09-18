@@ -1,16 +1,13 @@
 console.log("✅ EINVOICING.js loaded");
 
-/* Utility: Convert date string to YYYY-MM-DD for <input type="date"> */
 function dateToYYYYMMDD(dateValue) {
   if (!dateValue) return "";
+  // If already correct format
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
+  // Try parsing
   const d = new Date(dateValue);
   if (isNaN(d.getTime())) return "";
-  // Use UTC methods to guarantee correct day for <input type="date">
-  const year = d.getUTCFullYear();
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return d.toISOString().slice(0, 10);
 }
 /* -------------------- 1. AUTO LOAD COMPANY INFO -------------------- */
 async function loadCompanyInfo() {
@@ -48,7 +45,7 @@ async function loadCompanyInfo() {
 }
 
 
-/* -------------------- 2. SAVE INVOICE -------------------- */
+/* -------------------- 2. SAVE INVOICE (Handles both Create and Edit) -------------------- */
 async function saveToDatabase() {
   console.log("🟢 saveToDatabase called");
 
@@ -146,16 +143,30 @@ async function saveToDatabase() {
 
   console.log("📦 Invoice data prepared:", invoiceData);
 
+  // --------- Detect if editing or creating ---------
+  const params = new URLSearchParams(window.location.search);
+  const invoiceNoParam = params.get("invoice_no");
+  const isEdit = params.get("edit") === "true";
+  let method, url;
+
+  if (isEdit && invoiceNoParam) {
+    method = "PUT";
+    url = `/api/invoices/${encodeURIComponent(invoiceNoParam)}`;
+  } else {
+    method = "POST";
+    url = "/api/invoices";
+  }
+
   // Send to backend
   try {
-    const res = await fetch("/api/invoices", {
-      method: "POST",
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(invoiceData)
     });
     const result = await res.json();
     if (res.ok) {
-      alert("Invoice saved successfully!");
+      alert(isEdit ? "Invoice updated successfully!" : "Invoice saved successfully!");
       window.location.href = `/Replica.html?invoice_no=${invoiceData.invoice_no}`;
     } else {
       alert(`Error saving invoice: ${result.error || "Unknown error"}`);
@@ -179,6 +190,13 @@ async function loadInvoiceForEdit() {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
     if (!res.ok) throw new Error("Failed to fetch invoice");
     const data = await res.json();
+
+    document.querySelectorAll('input[name="footerAtpDate"]').forEach(input => {
+      input.value = dateToYYYYMMDD(data.footer?.atp_date);
+    });
+    document.querySelectorAll('input[name="footerBirDate"]').forEach(input => {
+      input.value = dateToYYYYMMDD(data.footer?.bir_date);
+    });
 
     console.log("📦 Editing invoice data:", data);
 
