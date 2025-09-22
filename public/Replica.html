@@ -8,22 +8,25 @@
   <link rel="stylesheet" href="InvoicePreviewToolbar.css" />
 </head>
 <body>
-  <!-- ===================== INVOICE PREVIEW TOOLBAR ===================== -->
-  <div class="invoice-toolbar-header no-print">
-    <span class="invoice-toolbar-title">
-      <button class="close-btn" onclick="closePreview()">&times;</button>
-      Invoice preview
-    </span>
-    <div class="invoice-toolbar-actions">
-      <button class="settings-btn" onclick="openInvoiceSettings()">
-        Invoice settings <span>🔗</span>
-      </button>
-      <button class="download-btn" onclick="downloadPDF()">
-        Download PDF <span>⬇️</span>
-      </button>
-      <button class="more-btn" onclick="showMoreOptions()">⋮</button>
+ <div class="invoice-toolbar-header no-print">
+  <span class="invoice-toolbar-title">
+    <button class="close-btn" onclick="closePreview()">&times;</button>
+    Invoice preview
+  </span>
+  <div class="invoice-toolbar-actions">
+    <button class="download-btn" onclick="downloadPDF()">
+      Download PDF <span>⬇️</span>
+    </button>
+    <div class="dropdown">
+      <button class="export-btn" onclick="toggleDropdown()">Export ▼</button>
+      <div id="exportDropdown" class="dropdown-content">
+        <a href="#" onclick="exportInvoice('json');return false;">Export as JSON</a>
+        <a href="#" onclick="exportInvoice('xml');return false;">Export as XML</a>
+        <a href="#" onclick="exportInvoice('excel');return false;">Export as Excel</a>
+      </div>
     </div>
   </div>
+</div>
 
   <div class="invoice-container">
 
@@ -41,8 +44,6 @@
         </p>
       </div>
       <div class="buttons no-print">
-        <button onclick="exportToJson()">📤 Export as JSON</button>
-        <button onclick="exportToXml()">📤 Export as XML</button>
         <button onclick="window.location.href='Dashboard.html'">🏠 Return to Dashboard</button>
       </div>
     </header>

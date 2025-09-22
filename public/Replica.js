@@ -192,3 +192,187 @@ window.onload = async function () {
     alert("Error loading invoice — showing empty template.");
   }
 };
+
+// ============================
+// EXPORT INVOICE DATA SCRIPT
+// ============================
+
+// Dropdown toggle for Export menu
+function toggleDropdown() {
+  document.querySelector('.dropdown').classList.toggle('show');
+}
+window.onclick = function(event) {
+  if (!event.target.matches('.export-btn')) {
+    document.querySelectorAll('.dropdown.show').forEach(drop => drop.classList.remove('show'));
+  }
+};
+
+// Main export handler
+function exportInvoice(type) {
+  const invoiceData = getInvoiceDataFromDOM();
+
+  if (type === 'json') {
+    const blob = new Blob([JSON.stringify(invoiceData, null, 2)], {type : 'application/json'});
+    downloadBlob(blob, 'invoice.json');
+  } else if (type === 'xml') {
+    const xml = objectToXml(invoiceData, 'invoice');
+    const blob = new Blob([xml], {type : 'application/xml'});
+    downloadBlob(blob, 'invoice.xml');
+  } else if (type === 'excel') {
+    // Generate CSV with UTF-8 BOM to preserve currency symbols in Excel
+    const csv = '\uFEFF' + objectToCSV(invoiceData); // Add BOM!
+    const blob = new Blob([csv], {type : 'text/csv'});
+    downloadBlob(blob, 'invoice.csv');
+  }
+}
+
+// Download helper
+function downloadBlob(blob, filename) {
+  const link = document.createElement('a');
+  link.href = window.URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// Extract invoice data from DOM
+function getInvoiceDataFromDOM() {
+  // Company Info
+  const companyName = document.getElementById('companyName')?.textContent.trim();
+  const companyAddress = document.getElementById('companyAddress')?.textContent.trim();
+  const companyTel = document.getElementById('companyTel')?.textContent.trim();
+  const companyTIN = document.getElementById('companyTIN')?.textContent.trim();
+  // Invoice Info
+  const billTo = document.getElementById('billTo')?.textContent.trim();
+  const address1 = document.getElementById('address1')?.textContent.trim();
+  const address2 = document.getElementById('address2')?.textContent.trim();
+  const tin = document.getElementById('tin')?.textContent.trim();
+  const invoiceNumber = document.getElementById('invoiceNumber')?.textContent.trim();
+  const invoiceDate = document.getElementById('invoiceDate')?.textContent.trim();
+  const terms = document.getElementById('terms')?.textContent.trim();
+
+  // Items Table (SKIP EMPTY ROWS)
+  const itemRows = [];
+  document.querySelectorAll('#itemRows tr').forEach(tr => {
+    const tds = tr.querySelectorAll('td');
+    if (tds.length) {
+      const item = {
+        description: tds[0]?.textContent.trim(),
+        quantity: tds[1]?.textContent.trim(),
+        unit_price: tds[2]?.textContent.trim(),
+        amount: tds[3]?.textContent.trim(),
+        one: tds[4]?.textContent.trim(),
+        two: tds[5]?.textContent.trim()
+      };
+      // Only include non-empty rows
+      if (Object.values(item).some(val => val !== "")) {
+        itemRows.push(item);
+      }
+    }
+  });
+
+  // Payment Table
+  function getText(id) {
+    return document.getElementById(id)?.textContent.trim();
+  }
+  const payment = {
+    cash: getText('cash'),
+    check: getText('check'),
+    checkNumber: getText('checkNumber'),
+    bank: getText('bank'),
+    paymentDate: getText('paymentDate'),
+    vatableSales: getText('vatableSales'),
+    totalWithVAT: getText('totalWithVAT'),
+    vatAmount: getText('vatAmount'),
+    lessVAT: getText('lessVAT'),
+    zeroRatedSales: getText('zeroRatedSales'),
+    netOfVAT: getText('netOfVAT'),
+    vatExemptSales: getText('vatExemptSales'),
+    total: getText('total'),
+    addVAT: getText('addVAT'),
+    withholdingTax: getText('withholdingTax'),
+    totalPayable: getText('totalPayable')
+  };
+
+  // Footer
+  const footer = {
+    atpNo: getText('footer-atp-no'),
+    atpDate: getText('footer-atp-date'),
+    birPermit: getText('footer-bir-permit'),
+    birDate: getText('footer-bir-date'),
+    serialNos: getText('footer-serial-nos')
+  };
+
+  return {
+    company: { companyName, companyAddress, companyTel, companyTIN },
+    invoice: { billTo, address1, address2, tin, invoiceNumber, invoiceDate, terms },
+    items: itemRows,
+    payment,
+    footer
+  };
+}
+
+// Object to XML (recursive, array support)
+function objectToXml(obj, rootName) {
+  let xml = `<${rootName}>`;
+  for (let key in obj) {
+    if (Array.isArray(obj[key])) {
+      xml += `<${key}>`;
+      obj[key].forEach(item => { xml += objectToXml(item, 'item'); });
+      xml += `</${key}>`;
+    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+      xml += objectToXml(obj[key], key);
+    } else {
+      xml += `<${key}>${escapeXml(obj[key] ?? '')}</${key}>`;
+    }
+  }
+  xml += `</${rootName}>`;
+  return xml;
+}
+function escapeXml(unsafe) {
+  return String(unsafe).replace(/[<>&'"]/g, function (c) {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '\'': return '&apos;';
+      case '"': return '&quot;';
+    }
+  });
+}
+
+// Object to CSV (for Excel) with UTF-8 BOM
+function objectToCSV(obj) {
+  let lines = [];
+  // Company
+  lines.push(['Company Name', obj.company.companyName]);
+  lines.push(['Company Address', obj.company.companyAddress]);
+  lines.push(['Company Tel', obj.company.companyTel]);
+  lines.push(['Company TIN', obj.company.companyTIN]);
+  // Invoice info
+  lines.push(['Bill To', obj.invoice.billTo]);
+  lines.push(['Address 1', obj.invoice.address1]);
+  lines.push(['Address 2', obj.invoice.address2]);
+  lines.push(['TIN', obj.invoice.tin]);
+  lines.push(['Invoice No', obj.invoice.invoiceNumber]);
+  lines.push(['Invoice Date', obj.invoice.invoiceDate]);
+  lines.push(['Terms', obj.invoice.terms]);
+  // Items
+  lines.push(['--- Items ---']);
+  lines.push(['Description','Quantity','Unit Price','Amount','One','Two']);
+  obj.items.forEach(item => {
+    lines.push([item.description, item.quantity, item.unit_price, item.amount, item.one, item.two]);
+  });
+  // Payment
+  lines.push(['--- Payment ---']);
+  for (const k in obj.payment) {
+    lines.push([k, obj.payment[k]]);
+  }
+  // Footer
+  lines.push(['--- Footer ---']);
+  for (const k in obj.footer) {
+    lines.push([k, obj.footer[k]]);
+  }
+  return lines.map(row => row.map(x => `"${(x??'').replace(/"/g, '""')}"`).join(',')).join('\n');
+}
