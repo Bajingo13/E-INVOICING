@@ -7,7 +7,7 @@ async function fetchDashboardData() {
 
     const data = await res.json();
     console.log("📊 Dashboard data:", data);
-
+ 
     animateNumber('totalInvoices', data.totalInvoices || 0);
     animateNumber('totalPayments', data.totalPayments || 0, true);
     animateNumber('pendingInvoices', data.pendingInvoices || 0);
@@ -35,13 +35,18 @@ function animateNumber(elementId, targetValue, isCurrency = false) {
   const interval = setInterval(() => {
     current += increment;
     if (current >= targetValue) {
-      current = targetValue;
       clearInterval(interval);
+      current = targetValue;
+      // Final update: always format properly
+      el.textContent = isCurrency
+        ? `₱${Number(current).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : Math.floor(current).toLocaleString();
+      return;
     }
 
     el.textContent = isCurrency
-      ? `₱${current.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      : current.toLocaleString();
+      ? `₱${Number(current).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : Math.floor(current).toLocaleString();
   }, intervalTime);
 }
 

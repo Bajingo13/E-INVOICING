@@ -28,8 +28,8 @@ function populateTable(invoices) {
       <td>${inv.invoice_no}</td>
       <td>${inv.bill_to}</td>
       <td>${inv.date ? new Date(inv.date).toLocaleDateString('en-PH') : ''}</td>
-      <td>₱${inv.total_amount_due?.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits:2}) || '0.00'}</td>
-      <td>${inv.total_amount_due > 0 ? 'Pending' : 'Paid'}</td>
+      <td>₱${Number(inv.total_amount_due).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits:2})}</td>
+      <td>${Number(inv.total_amount_due) > 0 ? 'Pending' : 'Paid'}</td>
       <td>
         <button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>
         <button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>
@@ -154,5 +154,10 @@ window.addEventListener("DOMContentLoaded", fetchInvoices);
 // HELPER: SETUP SELECT ALL (if needed)
 // ==========================
 function setupSelectAllCheckbox() {
-  // Optionally implement logic to update selectAll checkbox state
+  const selectAll = document.getElementById("selectAllInvoices");
+  const checkboxes = document.querySelectorAll(".select-invoice");
+
+  selectAll.addEventListener("change", function() {
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+  });
 }
