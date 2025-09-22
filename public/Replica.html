@@ -5,30 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Service Invoice</title>
   <link rel="stylesheet" href="Replica.css" />
+  <link rel="stylesheet" href="InvoicePreviewToolbar.css" />
 </head>
 <body>
+  <!-- ===================== INVOICE PREVIEW TOOLBAR ===================== -->
+  <div class="invoice-toolbar-header no-print">
+    <span class="invoice-toolbar-title">
+      <button class="close-btn" onclick="closePreview()">&times;</button>
+      Invoice preview
+    </span>
+    <div class="invoice-toolbar-actions">
+      <button class="settings-btn" onclick="openInvoiceSettings()">
+        Invoice settings <span>🔗</span>
+      </button>
+      <button class="download-btn" onclick="downloadPDF()">
+        Download PDF <span>⬇️</span>
+      </button>
+      <button class="more-btn" onclick="showMoreOptions()">⋮</button>
+    </div>
+  </div>
+
   <div class="invoice-container">
 
     <!-- ===================== HEADER ===================== -->
-<header class="header">
-  <div class="logo">
-    <img id="uploaded-logo" src="" alt="Logo" style="display:none; max-height:60px;" />
-  </div>
-  <div class="company-info">
-    <h1 id="companyName">COMPANY NAME HERE</h1>
-    <p>
-      <span id="companyAddress">Company address here</span><br>
-      Tel. No.: <span id="companyTel">________</span><br>
-      VAT Reg. TIN: <span id="companyTIN">________</span>
-    </p>
-  </div>
-  <div class="buttons no-print">
-    <button onclick="exportToJson()">📤 Export as JSON</button>
-    <button onclick="exportToXml()">📤 Export as XML</button>
-  </div>
-</header>
-
-
+    <header class="header">
+      <div class="logo">
+        <img id="uploaded-logo" src="" alt="Logo" style="display:none; max-height:60px;" />
+      </div>
+      <div class="company-info">
+        <h1 id="companyName">COMPANY NAME HERE</h1>
+        <p>
+          <span id="companyAddress">Company address here</span><br>
+          Tel. No.: <span id="companyTel">________</span><br>
+          VAT Reg. TIN: <span id="companyTIN">________</span>
+        </p>
+      </div>
+      <div class="buttons no-print">
+        <button onclick="exportToJson()">📤 Export as JSON</button>
+        <button onclick="exportToXml()">📤 Export as XML</button>
+        <button onclick="window.location.href='Dashboard.html'">🏠 Return to Dashboard</button>
+      </div>
     </header>
 
     <!-- ===================== INVOICE INFO ===================== -->
@@ -85,7 +101,6 @@
         <tr>
           <td>Check</td><td id="check"></td>
           <td>VAT</td><td id="vatAmount"></td>
-          
           <td>Less: VAT</td><td id="lessVAT"></td>
         </tr>
         <tr>
@@ -97,14 +112,11 @@
           <td>Bank</td><td id="bank"></td>
           <td>VAT-Exempt Sales</td><td id="vatExemptSales"></td>
           <td>Less Discount: (SC/PWD/NAAC/MOV/SP)</td><td id="  "></td>
-          
         </tr>
         <tr>
           <td>Date</td><td id="paymentDate"></td>
           <td>Total</td><td id="total"></td>
           <td>Add: VAT</td><td id="addVAT"></td>
-          
-          
         </tr>
         <tr>
           <td></td><td></td>
@@ -119,27 +131,43 @@
       </tbody>
     </table>
 
-
-
-   <!-- ===================== FOOTER ===================== -->
-<footer class="footer-info">
-  <div class="left-footer">
-    <small>
-      ATP No.: <span id="footer-atp-no"></span><br>
-      Date Issued: <span id="footer-atp-date"></span>
-    </small>
+    <!-- ===================== FOOTER ===================== -->
+    <footer class="footer-info">
+      <div class="left-footer">
+        <small>
+          ATP No.: <span id="footer-atp-no"></span><br>
+          Date Issued: <span id="footer-atp-date"></span>
+        </small>
+      </div>
+      <div class="right-footer">
+        <small>
+          BIR Permit No.: <span id="footer-bir-permit"></span><br>
+          Date Issued: <span id="footer-bir-date"></span><br>
+          Approved Inclusive Serial Nos.: <span id="footer-serial-nos"></span>
+        </small>
+      </div>
+    </footer>
   </div>
-  <div class="right-footer">
-    <small>
-      BIR Permit No.: <span id="footer-bir-permit"></span><br>
-      Date Issued: <span id="footer-bir-date"></span><br>
-      Approved Inclusive Serial Nos.: <span id="footer-serial-nos"></span>
-    </small>
-  </div>
-</footer>
 
   <!-- ===================== SCRIPT ===================== -->
   <script src="Replica.js"></script>
-
+  <script>
+    function closePreview() {
+      // Hide or close the invoice preview (example: redirect to dashboard)
+      window.location.href = 'Dashboard.html';
+    }
+    function openInvoiceSettings() {
+      // Open invoice settings page (replace with your actual settings page)
+      window.open('InvoiceSettings.html', '_blank');
+    }
+    function downloadPDF() {
+      // Download PDF (replace with actual PDF path or generate on backend)
+      window.open('/invoices/sample-invoice.pdf', '_blank');
+    }
+    function showMoreOptions() {
+      // Show extra menu or options
+      alert('More options coming soon!');
+    }
+  </script>
 </body>
 </html>
