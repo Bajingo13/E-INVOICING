@@ -531,6 +531,41 @@ app.delete('/api/invoices/:invoiceNo', async (req, res) => {
   }
 });
 
+// --------------------- EIS INTEGRATION ROUTES ---------------------
+app.post('/api/send-invoice/:invoiceNo', async (req, res) => {
+  const invoiceNo = req.params.invoiceNo;
+  const conn = await pool.getConnection();
+  try {
+    const [rows] = await conn.query(`SELECT * FROM invoices WHERE invoice_no=? LIMIT 1`, [invoiceNo]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+
+    const invoice = rows[0];
+    // You might also need to fetch items, payment, footer like in your GET invoice API
+    const result = await eis.sendInvoiceToEIS(invoice);
+
+    res.json({ success: true, response: result });
+  } catch (err) {
+    console.error("❌ Send to EIS failed:", err.message);
+    res.status(500).json({ error: "Failed to send invoice to EIS" });
+  } finally {
+    conn.release();
+  }
+});
+
+// Check status route
+app.get('/api/check-status/:submissionId', async (req, res) => {
+  try {
+    const submissionId = req.params.submissionId;
+    const status = await eis.checkInvoiceStatus(submissionId);
+    res.json({ success: true, status });
+  } catch (err) {
+    console.error("❌ Check status failed:", err.message);
+    res.status(500).json({ error: "Failed to check status" });
+  }
+});
+
+
+
 // --------------------- START SERVER ---------------------
 const PORT = 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));

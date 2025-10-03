@@ -282,6 +282,10 @@ input[type="number"] {
    PRINT MEDIA RULES
 ============================== */
 @media print {
+  header, header * {
+    display: none !important;
+    visibility: hidden !important;
+  }
   body {
     margin: 0;
     font-size: 12px;

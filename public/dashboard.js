@@ -17,7 +17,7 @@ async function fetchDashboardData() {
   }
 }
 
-/**
+/** 
  * Animates a number counting up
  * @param {string} elementId - ID of the element to update
  * @param {number} targetValue - final number
@@ -52,3 +52,23 @@ function animateNumber(elementId, targetValue, isCurrency = false) {
 
 // Fetch data on page load
 window.addEventListener('DOMContentLoaded', fetchDashboardData);
+
+document.addEventListener('DOMContentLoaded', function() {
+  const btn = document.getElementById('createInvoiceBtn');
+  const menu = document.getElementById('invoiceDropdown');
+
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function() {
+    menu.style.display = 'none';
+  });
+
+  // Prevent closing when clicking inside dropdown
+  menu.addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+});

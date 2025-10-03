@@ -15,37 +15,40 @@
   </style>
 </head>
 <body>
-<header>
-    <h1>Create Invoice</h1>
-    <nav>
-      <a href="/dashboard" class="btn">Dashboard</a>
-      <a href="/company-setup" class="btn">Company Info</a>
-      <a href="/invoice-list.html" class="btn">View Invoices</a>
-      <a href="/" class="btn logout">Logout</a>
-    </nav>
+<header class="no-print">
+  <h1>Create Invoice</h1>
+  <nav>
+    <a href="/dashboard" class="btn">Dashboard</a>
+    <a href="/company-setup" class="btn">Company Info</a>
+    <a href="/invoice-list.html" class="btn">View Invoices</a>
+    <a href="/" class="btn logout">Logout</a>
+  </nav>
   </header>
 
-  <div class="invoice-container">
+  <div class="invoice-container no-print">
    
-    <!-- === BUTTONS === -->
-    <div class="buttons">
-      <button type="button" onclick="saveToDatabase()">💾 Save & Preview</button>
-    </div>
+  <!-- === BUTTONS === -->
+  <div style="display: flex; align-items: center; margin-bottom: 10px;">
+    <button type="button" onclick="window.history.back()" style="margin-right: 10px;">⬅️ Back</button>
+  </div>
+  <div class="buttons">
+    <button type="button" onclick="saveToDatabase()">💾 Save & Preview</button>
+  </div>
 
-    <div class="header">
+  <div class="header">
   <div class="logo">
-    <img id="invoice-logo" alt="Company Logo" style="max-height:60px;" />
+  <img id="invoice-logo" alt="Company Logo" style="max-height:60px;" />
   </div>
 
   <div class="company-info" style="text-align:center; flex:1;">
-    <strong id="company-name"></strong><br />
-    <span id="company-address"></span><br />
-    Tel. No.: <span id="company-tel"></span><br />
-    VAT Reg. TIN: <span id="company-tin"></span>
+  <strong id="company-name"></strong><br />
+  <span id="company-address"></span><br />
+  Tel. No.: <span id="company-tel"></span><br />
+  VAT Reg. TIN: <span id="company-tin"></span>
   </div>
 
   <div class="invoice-no">
-    No <input type="text" name="invoiceNo" class="input-small" />
+  No <input type="text" name="invoiceNo" class="input-small" />
   </div>
 </div>
 
