@@ -25,18 +25,29 @@ async function setInvoiceTitleFromURL() {
 
   const invoiceTitle = typeMap[type] || 'SERVICE INVOICE';
 
-  // Update the visible invoice title
+  // --- 1. Update the visible invoice title ---
   const titleEl = document.querySelector('.invoice-title');
-  if (titleEl) {
-    titleEl.textContent = invoiceTitle;
+  if (titleEl) titleEl.textContent = invoiceTitle;
+
+  // --- 2. Save it locally for later use ---
+  localStorage.setItem('selectedInvoiceType', invoiceTitle);
+
+  // --- 3. Try to detect invoice number (only present when editing existing invoice) ---
+  const invoiceNoEl = document.querySelector('#invoice_no');
+  const invoiceNo = invoiceNoEl ? invoiceNoEl.value.trim() : '';
+
+  // --- 4. Skip backend save if invoice number doesn't exist ---
+  if (!invoiceNo) {
+    console.warn("⚠️ No invoice number yet — stored locally only.");
+    return;
   }
 
-  // Optionally save this title in backend to MySQL
+  // --- 5. Sync with backend if invoice already exists ---
   try {
     const res = await fetch('/api/invoice/save-type', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invoiceTitle })
+      body: JSON.stringify({ invoiceNo, invoiceTitle })
     });
     const result = await res.json();
     console.log("🟢 Invoice title synced with backend:", result);
@@ -65,17 +76,23 @@ async function loadCompanyInfo() {
     document.getElementById('company-tel').textContent = company.tel_no || '';
     document.getElementById('company-tin').textContent = company.vat_tin || '';
 
-    // Update logo
-    const logoEl = document.getElementById('invoice-logo');
-    const previewLogoEl = document.getElementById('uploaded-logo');
-    const removeBtn = document.getElementById('remove-logo-btn');
+    // -------------------- Update Logo --------------------
+const logoEl = document.getElementById('invoice-logo');
+const previewLogoEl = document.getElementById('uploaded-logo');
+const removeBtn = document.getElementById('remove-logo-btn');
 
-    if (company.logo_path) {
-      logoEl.src = company.logo_path;
-      previewLogoEl.src = company.logo_path;
-      previewLogoEl.style.display = 'block';
-      removeBtn.style.display = 'inline-block';
-    }
+if (company.logo_path) {
+  if (logoEl) logoEl.src = company.logo_path;
+  if (previewLogoEl) {
+    previewLogoEl.src = company.logo_path;
+    previewLogoEl.style.display = 'block';
+  }
+  if (removeBtn) removeBtn.style.display = 'inline-block';
+} else {
+  // Optional: hide preview if no logo
+  if (previewLogoEl) previewLogoEl.style.display = 'none';
+  if (removeBtn) removeBtn.style.display = 'none';
+}
   } catch (err) {
     console.warn('Failed to load company info:', err);
   }
@@ -161,6 +178,13 @@ async function saveToDatabase() {
       else console.warn("Logo upload failed:", uploadData.error || uploadData);
     } catch (err) { console.warn("Logo upload error:", err); }
   }
+
+  // --- Ensure invoice title is defined before use ---
+const titleEl = document.querySelector('.invoice-title');
+const invoiceTitle = titleEl
+  ? titleEl.textContent.trim()
+  : (localStorage.getItem('selectedInvoiceType') || 'SERVICE INVOICE');
+
 
   // Build invoice object
   const invoiceData = {

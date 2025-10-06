@@ -60,6 +60,7 @@ app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
   }
 });
 
+
 // --------------------- LOGIN ROUTE ---------------------
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
@@ -131,6 +132,7 @@ app.get('/api/dashboard', async (req, res) => {
   }
 });
 
+
 // --------------------- COMPANY INFO ROUTES ---------------------
 const companyUpload = multer({ 
   storage: multer.diskStorage({
@@ -190,6 +192,33 @@ app.get('/get-company-info', async (req, res) => {
     res.status(500).json({ message: "❌ Error fetching company info" });
   }
 });
+
+// --------------------- SAVE INVOICE TYPE ---------------------
+app.post('/api/invoice/save-type', async (req, res) => {
+  try {
+    const { invoiceTitle, invoiceNo } = req.body;
+    if (!invoiceTitle || !invoiceNo) {
+      return res.status(400).json({ error: 'Missing invoiceTitle or invoiceNo' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.execute(
+        'UPDATE invoices SET invoice_type = ? WHERE invoice_no = ?',
+        [invoiceTitle, invoiceNo]
+      );
+      res.json({ message: '✅ Invoice type updated successfully', invoiceTitle });
+    } finally {
+      conn.release();
+    }
+  } catch (err) {
+    console.error('❌ Error saving invoice type:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+
+
 
 // --------------------- CREATE INVOICE ---------------------
 app.post('/api/invoices', async (req, res) => {
@@ -342,7 +371,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
 
     await conn.execute(
       `UPDATE invoices
-       SET bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?
+       SET invoice_type=?,bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?
        WHERE id=?`,
       [
         invoiceData.bill_to,
@@ -489,6 +518,7 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
     conn.release();
   }
 });
+
 
 // --------------------- GET ALL INVOICES ---------------------
 app.get('/api/invoices', async (req, res) => {
