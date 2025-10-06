@@ -67,6 +67,8 @@ header nav a.logout:hover {
 }
 
 
+
+
 /* ==============================
    GENERAL PAGE STYLES
 ============================== */
@@ -167,6 +169,7 @@ button.delete-btn:hover {
   text-decoration: underline;
   margin: 10px 0;
 }
+
 
 /* ==============================
    TABLES & FORMS

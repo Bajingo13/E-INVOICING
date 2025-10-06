@@ -17,11 +17,12 @@
     Create Invoice ▼
   </button>
   <div class="dropdown-menu" id="invoiceDropdown">
-    <a href="/invoice" class="dropdown-item">Standard Invoice</a>
-    <a href="/invoice?type=proforma" class="dropdown-item">Proforma Invoice</a>
-    <a href="/invoice?type=credit" class="dropdown-item">Credit Invoice</a>
-    <!-- Add more choices here -->
-  </div>
+  <a href="/invoice?type=service" class="dropdown-item" data-title="SERVICE INVOICE">Service Invoice</a>
+  <a href="/invoice?type=sales" class="dropdown-item" data-title="SALES INVOICE">Sales Invoice</a>
+  <a href="/invoice?type=commercial" class="dropdown-item" data-title="COMMERCIAL INVOICE">Commercial Invoice</a>
+  <a href="/invoice?type=credit" class="dropdown-item" data-title="CREDIT MEMO">Credit Memo</a>
+  <a href="/invoice?type=debit" class="dropdown-item" data-title="DEBIT MEMO">Debit Memo</a>
+</div>
 </div>
       <a href="/invoice-list.html" class="btn">View Invoices</a>
       <a href="/" class="btn logout">Logout</a>

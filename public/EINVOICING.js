@@ -9,6 +9,43 @@ function dateToYYYYMMDD(dateValue) {
   if (isNaN(d.getTime())) return "";
   return d.toISOString().slice(0, 10);
 }
+
+/* -------------------- 2. DYNAMIC INVOICE TITLE (from URL) -------------------- */
+async function setInvoiceTitleFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const type = params.get('type');
+
+  // Map URL parameter to proper title
+  const typeMap = {
+    sales: 'SALES INVOICE',
+    commercial: 'COMMERCIAL INVOICE',
+    credit: 'CREDIT MEMO',
+    debit: 'DEBIT MEMO'
+  };
+
+  const invoiceTitle = typeMap[type] || 'SERVICE INVOICE';
+
+  // Update the visible invoice title
+  const titleEl = document.querySelector('.invoice-title');
+  if (titleEl) {
+    titleEl.textContent = invoiceTitle;
+  }
+
+  // Optionally save this title in backend to MySQL
+  try {
+    const res = await fetch('/api/invoice/save-type', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoiceTitle })
+    });
+    const result = await res.json();
+    console.log("🟢 Invoice title synced with backend:", result);
+  } catch (err) {
+    console.warn("⚠️ Failed to save invoice title:", err);
+  }
+}
+
+
 /* -------------------- 1. AUTO LOAD COMPANY INFO -------------------- */
 async function loadCompanyInfo() {
   try {
@@ -128,6 +165,7 @@ async function saveToDatabase() {
   // Build invoice object
   const invoiceData = {
     invoice_no: invoiceNo,
+    invoice_type: invoiceTitle,
     bill_to: billTo,
     address1: document.querySelector('input[name="address1"]')?.value.trim() || "",
     address2: document.querySelector('input[name="address2"]')?.value.trim() || "",
@@ -135,9 +173,10 @@ async function saveToDatabase() {
     terms: document.querySelector('input[name="terms"]')?.value.trim() || "",
     date,
     total_amount_due: payment.payable || 0,
+    invoice_title: titleEl ? titleEl.textContent.trim() : "SERVICE INVOICE",
     items,
     payment,
-    footer,   // <-- footer included here
+    footer,   
     logo: logoPath
   };
 
@@ -184,7 +223,7 @@ async function loadInvoiceForEdit() {
   const invoiceNo = params.get("invoice_no");
   const isEdit = params.get("edit") === "true";
 
-  if (!invoiceNo || !isEdit) return; // only run in edit mode
+  if (!invoiceNo || !isEdit) return; 
 
   try {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
@@ -210,6 +249,12 @@ async function loadInvoiceForEdit() {
     const dateInput = document.querySelector('input[name="date"]');
     if (dateInput) {
       dateInput.value = dateToYYYYMMDD(data.date);
+    }
+
+    // Update invoice title
+    const titleEl = document.querySelector('.invoice-title');
+    if (titleEl && data.invoice_title) {
+      titleEl.textContent = data.invoice_title;
     }
 
     // --- Dynamic Columns: Use only extra_columns from backend ---
@@ -430,5 +475,6 @@ window.addEventListener('DOMContentLoaded', loadCompanyInfo);
 
 window.addEventListener('DOMContentLoaded', () => {
   loadCompanyInfo();
+  setInvoiceTitleFromURL(); // <-- set title based on URL param
   loadInvoiceForEdit(); // <-- load invoice data when editing
 });

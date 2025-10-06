@@ -217,10 +217,12 @@ app.post('/api/invoices', async (req, res) => {
 
     const [invoiceResult] = await conn.execute(
       `INSERT INTO invoices
-        (invoice_no, bill_to, address1, address2, tin, terms, date, total_amount_due, logo, extra_columns)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, total_amount_due, logo, extra_columns)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`,
       [
         invoiceData.invoice_no,
+        invoiceData.invoice_type,
         invoiceData.bill_to,
         invoiceData.address1,
         invoiceData.address2,
