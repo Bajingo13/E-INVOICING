@@ -1,48 +1,85 @@
-console.log("✅ EINVOICING.js loaded");
+// ✅ EINVOICING.js loaded
 
+// -------------------- 0. UTILITY FUNCTIONS --------------------
+
+// Converts various date formats to YYYY-MM-DD for consistency
 function dateToYYYYMMDD(dateValue) {
   if (!dateValue) return "";
-  // If already correct format
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
-  // Try parsing
   const d = new Date(dateValue);
   if (isNaN(d.getTime())) return "";
   return d.toISOString().slice(0, 10);
 }
 
-/* -------------------- 2. DYNAMIC INVOICE TITLE (from URL) -------------------- */
+// -------------------- 1. COMPANY INFO LOAD --------------------
+
+// Loads company info from backend and updates form/header/logo
+async function loadCompanyInfo() {
+  try {
+    const res = await fetch('/get-company-info');
+    const company = await res.json();
+    if (!company) return;
+
+    // Fill form fields
+    document.querySelector('input[name="billTo"]').value = company.company_name || '';
+    document.querySelector('input[name="address1"]').value = company.company_address || '';
+    document.querySelector('input[name="address2"]').value = '';
+    document.querySelector('input[name="tin"]').value = company.vat_tin || '';
+
+    // Fill header
+    document.getElementById('company-name').textContent = company.company_name || '';
+    document.getElementById('company-address').textContent = company.company_address || '';
+    document.getElementById('company-tel').textContent = company.tel_no || '';
+    document.getElementById('company-tin').textContent = company.vat_tin || '';
+
+    // Handle logo preview
+    const logoEl = document.getElementById('invoice-logo');
+    const previewLogoEl = document.getElementById('uploaded-logo');
+    const removeBtn = document.getElementById('remove-logo-btn');
+    if (company.logo_path) {
+      if (logoEl) logoEl.src = company.logo_path;
+      if (previewLogoEl) {
+        previewLogoEl.src = company.logo_path;
+        previewLogoEl.style.display = 'block';
+      }
+      if (removeBtn) removeBtn.style.display = 'inline-block';
+    } else {
+      if (previewLogoEl) previewLogoEl.style.display = 'none';
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
+  } catch (err) {
+    console.warn('Failed to load company info:', err);
+  }
+}
+
+// -------------------- 2. DYNAMIC INVOICE TITLE (from URL) --------------------
+
+// Sets invoice title based on URL param and syncs with backend if editing
 async function setInvoiceTitleFromURL() {
   const params = new URLSearchParams(window.location.search);
   const type = params.get('type');
-
-  // Map URL parameter to proper title
   const typeMap = {
     sales: 'SALES INVOICE',
     commercial: 'COMMERCIAL INVOICE',
     credit: 'CREDIT MEMO',
     debit: 'DEBIT MEMO'
   };
-
   const invoiceTitle = typeMap[type] || 'SERVICE INVOICE';
 
-  // --- 1. Update the visible invoice title ---
+  // Update visible title
   const titleEl = document.querySelector('.invoice-title');
   if (titleEl) titleEl.textContent = invoiceTitle;
 
-  // --- 2. Save it locally for later use ---
+  // Store locally
   localStorage.setItem('selectedInvoiceType', invoiceTitle);
 
-  // --- 3. Try to detect invoice number (only present when editing existing invoice) ---
+  // Only sync with backend if editing (invoice number exists)
   const invoiceNoEl = document.querySelector('#invoice_no');
   const invoiceNo = invoiceNoEl ? invoiceNoEl.value.trim() : '';
-
-  // --- 4. Skip backend save if invoice number doesn't exist ---
   if (!invoiceNo) {
     console.warn("⚠️ No invoice number yet — stored locally only.");
     return;
   }
-
-  // --- 5. Sync with backend if invoice already exists ---
   try {
     const res = await fetch('/api/invoice/save-type', {
       method: 'POST',
@@ -56,63 +93,136 @@ async function setInvoiceTitleFromURL() {
   }
 }
 
+// -------------------- 3. LOAD INVOICE FOR EDITING --------------------
 
-/* -------------------- 1. AUTO LOAD COMPANY INFO -------------------- */
-async function loadCompanyInfo() {
+// Loads invoice data for editing and fills all fields/tables
+async function loadInvoiceForEdit() {
+  const params = new URLSearchParams(window.location.search);
+  const invoiceNo = params.get("invoice_no");
+  const isEdit = params.get("edit") === "true";
+  if (!invoiceNo || !isEdit) return;
+
   try {
-    const res = await fetch('/get-company-info'); // your existing route
-    const company = await res.json();
-    if (!company) return;
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
+    if (!res.ok) throw new Error("Failed to fetch invoice");
+    const data = await res.json();
 
-    // Update form fields
-    document.querySelector('input[name="billTo"]').value = company.company_name || '';
-    document.querySelector('input[name="address1"]').value = company.company_address || '';
-    document.querySelector('input[name="address2"]').value = '';
-    document.querySelector('input[name="tin"]').value = company.vat_tin || '';
+    // Fill footer dates
+    document.querySelectorAll('input[name="footerAtpDate"]').forEach(input => {
+      input.value = dateToYYYYMMDD(data.footer?.atp_date);
+    });
+    document.querySelectorAll('input[name="footerBirDate"]').forEach(input => {
+      input.value = dateToYYYYMMDD(data.footer?.bir_date);
+    });
 
-    // Update header dynamically
-    document.getElementById('company-name').textContent = company.company_name || '';
-    document.getElementById('company-address').textContent = company.company_address || '';
-    document.getElementById('company-tel').textContent = company.tel_no || '';
-    document.getElementById('company-tin').textContent = company.vat_tin || '';
+    // Fill basic info
+    document.querySelector('input[name="billTo"]').value = data.bill_to || "";
+    document.querySelector('input[name="address1"]').value = data.address1 || "";
+    document.querySelector('input[name="address2"]').value = data.address2 || "";
+    document.querySelector('input[name="tin"]').value = data.tin || "";
+    document.querySelector('input[name="terms"]').value = data.terms || "";
+    document.querySelector('input[name="invoiceNo"]').value = data.invoice_no || "";
+    const dateInput = document.querySelector('input[name="date"]');
+    if (dateInput) dateInput.value = dateToYYYYMMDD(data.date);
 
-    // -------------------- Update Logo --------------------
-const logoEl = document.getElementById('invoice-logo');
-const previewLogoEl = document.getElementById('uploaded-logo');
-const removeBtn = document.getElementById('remove-logo-btn');
+    // Update invoice title
+    const titleEl = document.querySelector('.invoice-title');
+    if (titleEl && data.invoice_title) titleEl.textContent = data.invoice_title;
 
-if (company.logo_path) {
-  if (logoEl) logoEl.src = company.logo_path;
-  if (previewLogoEl) {
-    previewLogoEl.src = company.logo_path;
-    previewLogoEl.style.display = 'block';
-  }
-  if (removeBtn) removeBtn.style.display = 'inline-block';
-} else {
-  // Optional: hide preview if no logo
-  if (previewLogoEl) previewLogoEl.style.display = 'none';
-  if (removeBtn) removeBtn.style.display = 'none';
-}
+    // Dynamic columns
+    const defaultCols = [
+      { label: "Description", key: "description" },
+      { label: "Qty", key: "quantity" },
+      { label: "Rate", key: "unit_price" },
+      { label: "Amt", key: "amount" }
+    ];
+    const extraColKeys = Array.isArray(data.extra_columns) ? data.extra_columns : [];
+    const theadRow = document.querySelector("#items-table thead tr");
+    theadRow.innerHTML = "";
+    defaultCols.forEach(col => {
+      const th = document.createElement("th");
+      th.textContent = col.label;
+      theadRow.appendChild(th);
+    });
+    extraColKeys.forEach(colKey => {
+      const th = document.createElement("th");
+      th.textContent = colKey.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+      theadRow.appendChild(th);
+    });
+
+    // Fill items table
+    const tbody = document.getElementById("items-body");
+    tbody.innerHTML = "";
+    (data.items || []).forEach(item => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><input type="text" class="input-full" name="desc[]" value="${item.description || ""}"></td>
+        <td><input type="number" class="input-short" name="qty[]" value="${item.quantity || 0}" oninput="updateAmount(this)"></td>
+        <td><input type="number" class="input-short" name="rate[]" value="${item.unit_price || 0}" oninput="updateAmount(this)"></td>
+        <td><input type="number" class="input-short" name="amt[]" value="${item.amount || 0}" readonly></td>
+      `;
+      extraColKeys.forEach(colKey => {
+        const td = document.createElement("td");
+        td.innerHTML = `<input type="text" name="${colKey}[]" value="${item[colKey] || ""}">`;
+        row.appendChild(td);
+      });
+      tbody.appendChild(row);
+    });
+
+    // Fill payment section
+    document.querySelector('input[name="cash"]').checked = !!data.payment.cash;
+    const payDateInput = document.querySelector('input[name="payDate"]');
+    if (payDateInput) payDateInput.value = dateToYYYYMMDD(data.payment?.pay_date);
+    document.querySelector('input[name="checkNo"]').value = data.payment.check_no || "";
+    document.querySelector('input[name="bank"]').value = data.payment.bank || "";
+    document.querySelector('input[name="payDate"]').value = dateToYYYYMMDD(data.payment?.pay_date);
+    document.querySelector('input[name="vatableSales"]').value = data.payment.vatable_sales || 0;
+    document.querySelector('input[name="vatExempt"]').value = data.payment.vat_exempt || 0;
+    document.querySelector('input[name="zeroRated"]').value = data.payment.zero_rated || 0;
+    document.querySelector('input[name="vatAmount"]').value = data.payment.vat_amount || 0;
+    document.querySelector('input[name="lessVat"]').value = data.payment.less_vat || 0;
+    document.querySelector('input[name="netVat"]').value = data.payment.net_vat || 0;
+    document.querySelector('input[name="withholding"]').value = data.payment.withholding || 0;
+    document.querySelector('input[name="total"]').value = data.payment.total || 0;
+    document.querySelector('input[name="due"]').value = data.payment.due || 0;
+    document.querySelector('input[name="payable"]').value = data.payment.payable || 0;
+
+    // Fill footer
+    document.querySelector('input[name="footerAtpNo"]').value = data.footer?.atp_no || "";
+    document.querySelector('input[name="footerAtpDate"]').value = data.footer?.atp_date || "";
+    document.querySelector('input[name="footerBirPermit"]').value = data.footer?.bir_permit_no || "";
+    document.querySelector('input[name="footerBirDate"]').value = data.footer?.bir_date || "";
+    document.querySelector('input[name="footerSerialNos"]').value = data.footer?.serial_nos || "";
+
+    // Fill logo
+    if (data.logo) {
+      const logoEl = document.getElementById("uploaded-logo");
+      logoEl.src = data.logo;
+      logoEl.style.display = "block";
+    }
+
+    adjustColumnWidths();
   } catch (err) {
-    console.warn('Failed to load company info:', err);
+    console.error("❌ Error loading invoice for edit:", err);
   }
 }
 
+// -------------------- 4. SAVE INVOICE (Create/Edit) --------------------
 
-/* -------------------- 2. SAVE INVOICE (Handles both Create and Edit) -------------------- */
+// Gathers all form data and sends to backend (handles both create and edit)
 async function saveToDatabase() {
   console.log("🟢 saveToDatabase called");
 
+  // Gather required fields
   const billTo = document.querySelector('input[name="billTo"]')?.value.trim();
   const invoiceNo = document.querySelector('input[name="invoiceNo"]')?.value.trim();
   const date = document.querySelector('input[name="date"]')?.value.trim();
-
   if (!billTo || !invoiceNo || !date) {
     alert("Please fill in required fields: Bill To, Invoice No, and Date.");
     return;
   }
 
-  calculateTotals();
+  calculateTotals(); // Ensure totals are up to date
 
   // Gather dynamic columns
   const allThs = document.querySelectorAll("#items-table thead th");
@@ -135,7 +245,7 @@ async function saveToDatabase() {
     return item;
   });
 
-  // Payment info
+  // Gather payment info
   const payment = {
     cash: document.querySelector('input[name="cash"]')?.checked || false,
     check_payment: document.querySelector('input[name="check"]')?.checked || false,
@@ -164,7 +274,7 @@ async function saveToDatabase() {
     serial_nos: document.querySelector('input[name="footerSerialNos"]')?.value.trim() || ""
   };
 
-  // Upload logo if new file selected
+  // Handle logo upload if new file selected
   let logoPath = document.getElementById('uploaded-logo')?.src || '';
   const logoFile = document.getElementById('logo-upload')?.files?.[0];
   if (logoFile) {
@@ -179,12 +289,11 @@ async function saveToDatabase() {
     } catch (err) { console.warn("Logo upload error:", err); }
   }
 
-  // --- Ensure invoice title is defined before use ---
-const titleEl = document.querySelector('.invoice-title');
-const invoiceTitle = titleEl
-  ? titleEl.textContent.trim()
-  : (localStorage.getItem('selectedInvoiceType') || 'SERVICE INVOICE');
-
+  // Get invoice title
+  const titleEl = document.querySelector('.invoice-title');
+  const invoiceTitle = titleEl
+    ? titleEl.textContent.trim()
+    : (localStorage.getItem('selectedInvoiceType') || 'SERVICE INVOICE');
 
   // Build invoice object
   const invoiceData = {
@@ -200,18 +309,17 @@ const invoiceTitle = titleEl
     invoice_title: titleEl ? titleEl.textContent.trim() : "SERVICE INVOICE",
     items,
     payment,
-    footer,   
+    footer,
     logo: logoPath
   };
 
   console.log("📦 Invoice data prepared:", invoiceData);
 
-  // --------- Detect if editing or creating ---------
+  // Detect if editing or creating
   const params = new URLSearchParams(window.location.search);
   const invoiceNoParam = params.get("invoice_no");
   const isEdit = params.get("edit") === "true";
   let method, url;
-
   if (isEdit && invoiceNoParam) {
     method = "PUT";
     url = `/api/invoices/${encodeURIComponent(invoiceNoParam)}`;
@@ -241,157 +349,30 @@ const invoiceTitle = titleEl
   }
 }
 
-/* -------------------- LOAD INVOICE FOR EDITING -------------------- */
-async function loadInvoiceForEdit() {
-  const params = new URLSearchParams(window.location.search);
-  const invoiceNo = params.get("invoice_no");
-  const isEdit = params.get("edit") === "true";
+// -------------------- 5. ROW & COLUMN FUNCTIONS --------------------
 
-  if (!invoiceNo || !isEdit) return; 
-
-  try {
-    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
-    if (!res.ok) throw new Error("Failed to fetch invoice");
-    const data = await res.json();
-
-    document.querySelectorAll('input[name="footerAtpDate"]').forEach(input => {
-      input.value = dateToYYYYMMDD(data.footer?.atp_date);
-    });
-    document.querySelectorAll('input[name="footerBirDate"]').forEach(input => {
-      input.value = dateToYYYYMMDD(data.footer?.bir_date);
-    });
-
-    console.log("📦 Editing invoice data:", data);
-
-    // --- Fill basic info ---
-    document.querySelector('input[name="billTo"]').value = data.bill_to || "";
-    document.querySelector('input[name="address1"]').value = data.address1 || "";
-    document.querySelector('input[name="address2"]').value = data.address2 || "";
-    document.querySelector('input[name="tin"]').value = data.tin || "";
-    document.querySelector('input[name="terms"]').value = data.terms || "";
-    document.querySelector('input[name="invoiceNo"]').value = data.invoice_no || "";
-    const dateInput = document.querySelector('input[name="date"]');
-    if (dateInput) {
-      dateInput.value = dateToYYYYMMDD(data.date);
-    }
-
-    // Update invoice title
-    const titleEl = document.querySelector('.invoice-title');
-    if (titleEl && data.invoice_title) {
-      titleEl.textContent = data.invoice_title;
-    }
-
-    // --- Dynamic Columns: Use only extra_columns from backend ---
-    const defaultCols = [
-      { label: "Description", key: "description" },
-      { label: "Qty", key: "quantity" },
-      { label: "Rate", key: "unit_price" },
-      { label: "Amt", key: "amount" }
-    ];
-    const extraColKeys = Array.isArray(data.extra_columns) ? data.extra_columns : [];
-
-    // --- Rebuild table header with defaults and extras ---
-    const theadRow = document.querySelector("#items-table thead tr");
-    theadRow.innerHTML = "";
-    defaultCols.forEach(col => {
-      const th = document.createElement("th");
-      th.textContent = col.label;
-      theadRow.appendChild(th);
-    });
-    extraColKeys.forEach(colKey => {
-      const th = document.createElement("th");
-      th.textContent = colKey.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-      theadRow.appendChild(th);
-    });
-
-    // --- Fill items ---
-    const tbody = document.getElementById("items-body");
-    tbody.innerHTML = ""; // clear existing
-    (data.items || []).forEach(item => {
-      const row = document.createElement("tr");
-      // Default columns
-      row.innerHTML = `
-        <td><input type="text" class="input-full" name="desc[]" value="${item.description || ""}"></td>
-        <td><input type="number" class="input-short" name="qty[]" value="${item.quantity || 0}" oninput="updateAmount(this)"></td>
-        <td><input type="number" class="input-short" name="rate[]" value="${item.unit_price || 0}" oninput="updateAmount(this)"></td>
-        <td><input type="number" class="input-short" name="amt[]" value="${item.amount || 0}" readonly></td>
-      `;
-      // Extra columns
-      extraColKeys.forEach(colKey => {
-        const td = document.createElement("td");
-        td.innerHTML = `<input type="text" name="${colKey}[]" value="${item[colKey] || ""}">`;
-        row.appendChild(td);
-      });
-      tbody.appendChild(row);
-    });
-
-    // --- Fill payment section ---
-    document.querySelector('input[name="cash"]').checked = !!data.payment.cash;
-    const payDateInput = document.querySelector('input[name="payDate"]');
-    if (payDateInput) {
-      payDateInput.value = dateToYYYYMMDD(data.payment?.pay_date);
-    }
-    document.querySelector('input[name="checkNo"]').value = data.payment.check_no || "";
-    document.querySelector('input[name="bank"]').value = data.payment.bank || "";
-    document.querySelector('input[name="payDate"]').value = dateToYYYYMMDD(data.payment?.pay_date);
-
-    document.querySelector('input[name="vatableSales"]').value = data.payment.vatable_sales || 0;
-    document.querySelector('input[name="vatExempt"]').value = data.payment.vat_exempt || 0;
-    document.querySelector('input[name="zeroRated"]').value = data.payment.zero_rated || 0;
-    document.querySelector('input[name="vatAmount"]').value = data.payment.vat_amount || 0;
-    document.querySelector('input[name="lessVat"]').value = data.payment.less_vat || 0;
-    document.querySelector('input[name="netVat"]').value = data.payment.net_vat || 0;
-    document.querySelector('input[name="withholding"]').value = data.payment.withholding || 0;
-    document.querySelector('input[name="total"]').value = data.payment.total || 0;
-    document.querySelector('input[name="due"]').value = data.payment.due || 0;
-    document.querySelector('input[name="payable"]').value = data.payment.payable || 0;
-
-    // --- Footer ---
-    document.querySelector('input[name="footerAtpNo"]').value = data.footer?.atp_no || "";
-    document.querySelector('input[name="footerAtpDate"]').value = data.footer?.atp_date || "";
-    document.querySelector('input[name="footerBirPermit"]').value = data.footer?.bir_permit_no || "";
-    document.querySelector('input[name="footerBirDate"]').value = data.footer?.bir_date || "";
-    document.querySelector('input[name="footerSerialNos"]').value = data.footer?.serial_nos || "";
-
-    // --- Logo ---
-    if (data.logo) {
-      const logoEl = document.getElementById("uploaded-logo");
-      logoEl.src = data.logo;
-      logoEl.style.display = "block";
-    }
-
-    adjustColumnWidths(); // Make sure columns are adjusted
-
-  } catch (err) {
-    console.error("❌ Error loading invoice for edit:", err);
-  }
-}
-
-
-/* -------------------- 3. ROW & COLUMN FUNCTIONS -------------------- */
+// Adds a new row to the items table
 function addRow() {
   const tbody = document.getElementById("items-body");
   const headerCols = document.querySelectorAll("#items-table thead th");
   const row = document.createElement("tr");
-
   row.innerHTML = `
     <td><input type="text" class="input-full" name="desc[]"></td>
     <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)"></td>
     <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)"></td>
     <td><input type="number" class="input-short" name="amt[]" readonly></td>
   `;
-
   for (let i = 4; i < headerCols.length; i++) {
     const colKey = headerCols[i].textContent.trim().toLowerCase().replace(/\s+/g, "_");
     const td = document.createElement("td");
     td.innerHTML = `<input type="text" name="${colKey}[]">`;
     row.appendChild(td);
   }
-
   tbody.appendChild(row);
   adjustColumnWidths();
 }
 
+// Removes a row from the items table (asks user for row number)
 function removeRow() {
   const tbody = document.getElementById("items-body");
   if (tbody.rows.length <= 1) return alert("At least one row must remain.");
@@ -402,6 +383,7 @@ function removeRow() {
   adjustColumnWidths();
 }
 
+// Adds a new column to the items table
 function addColumn() {
   const name = prompt("Enter new column name:");
   if (!name) return;
@@ -409,7 +391,6 @@ function addColumn() {
   const newTh = document.createElement("th");
   newTh.textContent = name;
   theadRow.appendChild(newTh);
-
   const colKey = name.toLowerCase().replace(/\s+/g, "_");
   document.querySelectorAll("#items-table tbody tr").forEach(row => {
     const td = document.createElement("td");
@@ -419,6 +400,7 @@ function addColumn() {
   adjustColumnWidths();
 }
 
+// Removes a column from the items table (asks user for column name)
 function removeColumn() {
   const name = prompt("Enter exact column name to remove:");
   if (!name) return;
@@ -432,7 +414,9 @@ function removeColumn() {
   adjustColumnWidths();
 }
 
-/* -------------------- 4. CALCULATIONS -------------------- */
+// -------------------- 6. CALCULATIONS --------------------
+
+// Updates the amount for a row when qty or rate changes
 function updateAmount(el) {
   const row = el.closest("tr");
   const qty = parseFloat(row.querySelector('input[name="qty[]"]')?.value) || 0;
@@ -441,6 +425,7 @@ function updateAmount(el) {
   calculateTotals();
 }
 
+// Calculates totals, VAT, net, due, etc.
 function calculateTotals() {
   let totalSales = 0;
   document.querySelectorAll('input[name="amt[]"]').forEach(input => totalSales += parseFloat(input.value) || 0);
@@ -459,7 +444,9 @@ function calculateTotals() {
   document.querySelector('input[name="due"]').value = due.toFixed(2);
 }
 
-/* -------------------- 5. UI ADJUSTMENTS -------------------- */
+// -------------------- 7. UI ADJUSTMENTS --------------------
+
+// Adjusts column widths for table consistency
 function adjustColumnWidths() {
   const table = document.getElementById("items-table");
   const ths = table.querySelectorAll("thead th");
@@ -469,7 +456,9 @@ function adjustColumnWidths() {
   table.querySelectorAll("tbody tr").forEach(row => row.querySelectorAll("td").forEach(td => td.style.width = colWidth));
 }
 
-/* -------------------- 6. LOGO FUNCTIONS -------------------- */
+// -------------------- 8. LOGO FUNCTIONS --------------------
+
+// Previews logo image when user selects a file
 function previewLogo(event) {
   const img = document.getElementById("uploaded-logo");
   const btn = document.getElementById("remove-logo-btn");
@@ -484,6 +473,7 @@ function previewLogo(event) {
   }
 }
 
+// Removes the uploaded logo preview
 function removeLogo() {
   const img = document.getElementById("uploaded-logo");
   const btn = document.getElementById("remove-logo-btn");
@@ -494,11 +484,11 @@ function removeLogo() {
   input.value = "";
 }
 
-/* -------------------- 7. INIT -------------------- */
-window.addEventListener('DOMContentLoaded', loadCompanyInfo);
+// -------------------- 9. INIT --------------------
 
+// On DOM ready, load company info, set invoice title, and load invoice for edit if needed
 window.addEventListener('DOMContentLoaded', () => {
   loadCompanyInfo();
-  setInvoiceTitleFromURL(); // <-- set title based on URL param
-  loadInvoiceForEdit(); // <-- load invoice data when editing
+  setInvoiceTitleFromURL();
+  loadInvoiceForEdit();
 });

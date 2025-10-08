@@ -1,4 +1,6 @@
 // ================== server.js ==================
+
+// ----------- IMPORTS AND INITIAL SETUP -----------
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
@@ -6,23 +8,20 @@ const multer = require('multer');
 const fs = require('fs');
 const eis = require("./middleware/eis");
 
- 
 const app = express();
 app.use(express.json());
 
-// --------------------- HTML ROUTES ---------------------
+// ----------- HTML ROUTES -----------
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Login.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Dashboard.html')));
 app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
-app.get('/invoice-list', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'invoice-list.html'));
-});
+app.get('/invoice-list', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice-list.html')));
 
-// --------------------- STATIC ASSETS ---------------------
+// ----------- STATIC ASSETS -----------
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --------------------- MYSQL POOL ---------------------
+// ----------- MYSQL POOL SETUP -----------
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
@@ -33,7 +32,7 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
-// --------------------- LOGO UPLOAD FOR INVOICES ---------------------
+// ----------- LOGO UPLOAD FOR INVOICES -----------
 const invoiceLogoUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -49,6 +48,7 @@ const invoiceLogoUpload = multer({
   })
 });
 
+// ----------- LOGO UPLOAD ENDPOINT -----------
 app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -60,11 +60,11 @@ app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
   }
 });
 
+// ----------- USER AUTHENTICATION -----------
 
-// --------------------- LOGIN ROUTE ---------------------
+// LOGIN
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-
   if (!username || !password) 
     return res.json({ success: false, message: "Username and password required" });
 
@@ -75,7 +75,6 @@ app.post('/api/login', async (req, res) => {
         'SELECT * FROM users WHERE username = ? AND password = ?', 
         [username, password]
       );
-
       if (rows.length > 0) {
         res.json({ success: true });
       } else {
@@ -85,15 +84,14 @@ app.post('/api/login', async (req, res) => {
       conn.release();
     }
   } catch (err) {
-    console.error(err);
+    console.error("Login error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-// --------------------- CREATE ACCOUNT ---------------------
+// CREATE ACCOUNT
 app.post('/api/create-account', async (req, res) => {
   const { username, password } = req.body;
-
   if (!username || !password) return res.json({ success: false, message: "Username and password required" });
 
   const conn = await pool.getConnection();
@@ -104,14 +102,14 @@ app.post('/api/create-account', async (req, res) => {
     await conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', [username, password]);
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error("Create account error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   } finally {
     conn.release();
   }
 });
 
-// --------------------- DASHBOARD API ---------------------
+// ----------- DASHBOARD API -----------
 app.get('/api/dashboard', async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -125,15 +123,16 @@ app.get('/api/dashboard', async (req, res) => {
       pendingInvoices: pending[0].total
     });
   } catch (err) {
-    console.error(err);
+    console.error("Dashboard error:", err);
     res.status(500).json({});
   } finally {
     conn.release();
   }
 });
 
+// ----------- COMPANY INFO ROUTES -----------
 
-// --------------------- COMPANY INFO ROUTES ---------------------
+// Company logo upload config
 const companyUpload = multer({ 
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -148,6 +147,7 @@ const companyUpload = multer({
   })
 });
 
+// SAVE COMPANY INFO
 app.post('/save-company-info', companyUpload.single('logo'), async (req, res) => {
   try {
     const { company_name, company_address, tel_no, vat_tin } = req.body;
@@ -173,11 +173,12 @@ app.post('/save-company-info', companyUpload.single('logo'), async (req, res) =>
       conn.release();
     }
   } catch (error) {
-    console.error(error);
+    console.error("Save company info error:", error);
     res.status(500).json({ message: "❌ Error saving company info" });
   }
 });
 
+// GET COMPANY INFO
 app.get('/get-company-info', async (req, res) => {
   try {
     const conn = await pool.getConnection();
@@ -188,12 +189,12 @@ app.get('/get-company-info', async (req, res) => {
       conn.release();
     }
   } catch (error) {
-    console.error(error);
+    console.error("Get company info error:", error);
     res.status(500).json({ message: "❌ Error fetching company info" });
   }
 });
 
-// --------------------- SAVE INVOICE TYPE ---------------------
+// ----------- INVOICE TYPE ROUTE -----------
 app.post('/api/invoice/save-type', async (req, res) => {
   try {
     const { invoiceTitle, invoiceNo } = req.body;
@@ -217,19 +218,19 @@ app.post('/api/invoice/save-type', async (req, res) => {
   }
 });
 
+// ----------- INVOICE CRUD ROUTES -----------
 
-
-
-// --------------------- CREATE INVOICE ---------------------
+// CREATE INVOICE
 app.post('/api/invoices', async (req, res) => {
   const invoiceData = req.body;
 
+  // Validate required fields
   if (!invoiceData.invoice_no || !invoiceData.bill_to || !invoiceData.date ||
       !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
     return res.status(400).json({ error: 'Missing required invoice fields or items' });
   }
 
-  // Determine extra columns for this invoice (not the 4 defaults)
+  // Find extra columns in items
   const defaultItemCols = ["description", "quantity", "unit_price", "amount"];
   let extraColumns = [];
   invoiceData.items.forEach(item => {
@@ -244,11 +245,11 @@ app.post('/api/invoices', async (req, res) => {
   try {
     await conn.beginTransaction();
 
+    // Insert invoice
     const [invoiceResult] = await conn.execute(
       `INSERT INTO invoices
-  (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, total_amount_due, logo, extra_columns)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`,
+        (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, total_amount_due, logo, extra_columns)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceData.invoice_no,
         invoiceData.invoice_type,
@@ -265,6 +266,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     );
     const invoiceId = invoiceResult.insertId;
 
+    // Insert invoice items, add columns if needed
     for (const item of invoiceData.items) {
       const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
       const existingCols = cols.map(c => c.Field);
@@ -274,7 +276,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       const placeholders = ["?", "?", "?", "?", "?"];
 
       for (const [key, val] of Object.entries(item)) {
-        if (["description","quantity","unit_price","amount"].includes(key)) continue;
+        if (defaultItemCols.includes(key)) continue;
         if (!existingCols.includes(key)) {
           await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
           existingCols.push(key);
@@ -288,6 +290,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       await conn.execute(sql, values);
     }
 
+    // Insert payment if present
     if (invoiceData.payment) {
       const p = invoiceData.payment;
       await conn.execute(
@@ -318,6 +321,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       );
     }
 
+    // Insert footer if present
     if (invoiceData.footer) {
       const f = invoiceData.footer;
       await conn.execute(
@@ -339,12 +343,12 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   }
 });
 
-// --------------------- UPDATE INVOICE ---------------------
+// UPDATE INVOICE
 app.put('/api/invoices/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const invoiceData = req.body;
 
-  // Determine extra columns for this invoice (not the 4 defaults)
+  // Find extra columns in items
   const defaultItemCols = ["description", "quantity", "unit_price", "amount"];
   let extraColumns = [];
   invoiceData.items.forEach(item => {
@@ -359,6 +363,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
   try {
     await conn.beginTransaction();
 
+    // Get invoice ID
     const [invoiceRows] = await conn.query(
       `SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1`,
       [invoiceNo]
@@ -369,6 +374,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
     }
     const invoiceId = invoiceRows[0].id;
 
+    // Update invoice
     await conn.execute(
       `UPDATE invoices
        SET invoice_type=?,bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?
@@ -387,6 +393,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
       ]
     );
 
+    // Remove old items, insert new
     await conn.execute(`DELETE FROM invoice_items WHERE invoice_id=?`, [invoiceId]);
     for (const item of invoiceData.items) {
       const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
@@ -397,7 +404,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
       const placeholders = ["?", "?", "?", "?", "?"];
 
       for (const [key, val] of Object.entries(item)) {
-        if (["description","quantity","unit_price","amount"].includes(key)) continue;
+        if (defaultItemCols.includes(key)) continue;
         if (!existingCols.includes(key)) {
           await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
           existingCols.push(key);
@@ -413,6 +420,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
       );
     }
 
+    // Remove old payment/footer, insert new if present
     await conn.execute(`DELETE FROM payments WHERE invoice_id=?`, [invoiceId]);
     if (invoiceData.payment) {
       const p = invoiceData.payment;
@@ -466,7 +474,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
   }
 });
 
-// --------------------- GET INVOICE BY NUMBER ---------------------
+// GET INVOICE BY NUMBER
 app.get('/api/invoices/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const conn = await pool.getConnection();
@@ -508,7 +516,7 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
     invoice.payment = paymentRows[0] || {};
     invoice.footer = footerRows[0] || {};
     invoice.company = companyRows[0] || {};
-    invoice.extra_columns = extra_columns; // <-- Attach to response
+    invoice.extra_columns = extra_columns; // Attach to response
 
     res.json(invoice);
   } catch (err) {
@@ -519,8 +527,7 @@ app.get('/api/invoices/:invoiceNo', async (req, res) => {
   }
 });
 
-
-// --------------------- GET ALL INVOICES ---------------------
+// GET ALL INVOICES
 app.get('/api/invoices', async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -539,7 +546,7 @@ app.get('/api/invoices', async (req, res) => {
   }
 });
 
-// --------------------- DELETE INVOICE ---------------------
+// DELETE INVOICE
 app.delete('/api/invoices/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const conn = await pool.getConnection();
@@ -563,7 +570,9 @@ app.delete('/api/invoices/:invoiceNo', async (req, res) => {
   }
 });
 
-// --------------------- EIS INTEGRATION ROUTES ---------------------
+// ----------- EIS INTEGRATION ROUTES -----------
+
+// SEND INVOICE TO EIS
 app.post('/api/send-invoice/:invoiceNo', async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const conn = await pool.getConnection();
@@ -584,7 +593,7 @@ app.post('/api/send-invoice/:invoiceNo', async (req, res) => {
   }
 });
 
-// Check status route
+// CHECK EIS STATUS
 app.get('/api/check-status/:submissionId', async (req, res) => {
   try {
     const submissionId = req.params.submissionId;
@@ -596,8 +605,6 @@ app.get('/api/check-status/:submissionId', async (req, res) => {
   }
 });
 
-
-
-// --------------------- START SERVER ---------------------
+// ----------- START SERVER -----------
 const PORT = 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));

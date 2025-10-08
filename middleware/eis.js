@@ -1,6 +1,13 @@
 // ===============================
 // EIS Middleware (middleware/eis.js)
 // ===============================
+
+/**
+ * This middleware handles authentication, invoice formatting,
+ * sending invoices, and checking invoice status with the BIR EIS API.
+ * Debug comments are added for easier tracing.
+ */
+
 const axios = require("axios");
 const crypto = require("crypto");
 
@@ -15,12 +22,19 @@ let authToken = null;
 let tokenExpiry = null;
 
 // ------------------ 1. AUTHENTICATION ------------------
+/**
+ * Get or refresh the EIS authentication token.
+ * @returns {Promise<string>} Auth token
+ */
 async function getAuthToken() {
+  // Reuse valid token if not expired
   if (authToken && tokenExpiry && Date.now() < tokenExpiry) {
-    return authToken; // Reuse valid token
+    console.log("[DEBUG] Using cached EIS token");
+    return authToken;
   }
 
   try {
+    console.log("[DEBUG] Requesting new EIS token...");
     const response = await axios.post(`${EIS_BASE_URL}/authentication`, {
       accreditation_id: ACCREDITATION_ID,
       app_id: APP_ID,
@@ -29,7 +43,7 @@ async function getAuthToken() {
 
     authToken = response.data.token;
     tokenExpiry = Date.now() + 5 * 60 * 60 * 1000; // 5 hrs valid
-    console.log("✅ EIS Auth Token acquired");
+    console.log("✅ EIS Auth Token acquired:", authToken);
     return authToken;
   } catch (err) {
     console.error("❌ Failed to get Auth Token:", err.response?.data || err.message);
@@ -38,7 +52,13 @@ async function getAuthToken() {
 }
 
 // ------------------ 2. FORMAT INVOICE ------------------
+/**
+ * Format invoice data to match BIR EIS JSON schema.
+ * @param {Object} invoiceData
+ * @returns {Object} Formatted invoice
+ */
 function formatInvoiceForEIS(invoiceData) {
+  console.log("[DEBUG] Formatting invoice for EIS:", invoiceData.invoice_no);
   // This is a placeholder structure - must match BIR JSON schema!
   return {
     invoice_no: invoiceData.invoice_no,
@@ -59,6 +79,11 @@ function formatInvoiceForEIS(invoiceData) {
 }
 
 // ------------------ 3. SEND INVOICE ------------------
+/**
+ * Send formatted invoice to EIS.
+ * @param {Object} invoiceData
+ * @returns {Promise<Object>} EIS response
+ */
 async function sendInvoiceToEIS(invoiceData) {
   const token = await getAuthToken();
   const eisInvoice = formatInvoiceForEIS(invoiceData);
@@ -66,6 +91,7 @@ async function sendInvoiceToEIS(invoiceData) {
   // Encryption/Signing should be added here (RSA, AES, JWS)
   // For now: send plain JSON (stub for dev/testing)
   try {
+    console.log("[DEBUG] Sending invoice to EIS:", eisInvoice.invoice_no);
     const response = await axios.post(
       `${EIS_BASE_URL}/invoices`,
       eisInvoice,
@@ -81,9 +107,15 @@ async function sendInvoiceToEIS(invoiceData) {
 }
 
 // ------------------ 4. CHECK STATUS ------------------
+/**
+ * Check the status of a submitted invoice.
+ * @param {string} submissionId
+ * @returns {Promise<Object>} Status response
+ */
 async function checkInvoiceStatus(submissionId) {
   const token = await getAuthToken();
   try {
+    console.log("[DEBUG] Checking invoice status for:", submissionId);
     const response = await axios.get(
       `${EIS_BASE_URL}/inquiry-result/${submissionId}`,
       { headers: { Authorization: `Bearer ${token}` } }
@@ -97,6 +129,7 @@ async function checkInvoiceStatus(submissionId) {
   }
 }
 
+// ------------------ EXPORTS ------------------
 module.exports = {
   getAuthToken,
   formatInvoiceForEIS,
