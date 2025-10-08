@@ -1,6 +1,14 @@
+// ===============================
+// REPLICA.js — Invoice Renderer & Exporter
+// ===============================
+
 console.log("✅ REPLICA.js loaded");
 
+// -------------------------------
+// MAIN: On window load
+// -------------------------------
 window.onload = async function () {
+  // --- Parse invoice number from URL ---
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get("invoice_no");
 
@@ -9,7 +17,58 @@ window.onload = async function () {
     return;
   }
 
-  // ---------- Helpers ----------
+  // --------------------------------------
+  // LOAD INVOICE TITLE (from DB, fallback to localStorage/URL)
+  // --------------------------------------
+  async function loadInvoiceTitle() {
+    const titleEl = document.querySelector(".service-invoice-title");
+    const htmlTitle = document.querySelector("title");
+
+    if (!titleEl) {
+      console.warn("⚠️ No element with class '.service-invoice-title' found in printable form.");
+      return;
+    }
+
+    let invoiceTitle = "";
+
+    try {
+      // 1️⃣ Try to get from backend first
+      const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.invoice_type) invoiceTitle = data.invoice_type;
+      }
+    } catch (err) {
+      console.warn("⚠️ Could not fetch invoice type from backend:", err);
+    }
+
+    // 2️⃣ If not found in DB, fallback to localStorage
+    if (!invoiceTitle) invoiceTitle = localStorage.getItem("selectedInvoiceType");
+
+    // 3️⃣ If still missing, fallback to URL or default
+    if (!invoiceTitle) {
+      const type = params.get("type");
+      const typeMap = {
+        sales: "SALES INVOICE",
+        commercial: "COMMERCIAL INVOICE",
+        credit: "CREDIT MEMO",
+        debit: "DEBIT MEMO",
+      };
+      invoiceTitle = typeMap[type] || "SERVICE INVOICE";
+    }
+
+    // 4️⃣ Apply title to page
+    titleEl.textContent = invoiceTitle;
+    if (htmlTitle) htmlTitle.textContent = invoiceTitle;
+
+    console.log(`🟢 Invoice title loaded: ${invoiceTitle}`);
+  }
+
+  await loadInvoiceTitle();
+
+  // -------------------------------
+  // Helpers
+  // -------------------------------
   const formatCurrency = (value) => {
     const num = parseFloat(value);
     return isNaN(num)
@@ -38,17 +97,20 @@ window.onload = async function () {
     if (el) el.textContent = value || "";
   };
 
-  // ---------- Build Items Table ----------
+  // -------------------------------
+  // Build Items Table
+  // -------------------------------
   const buildTable = (items) => {
     const theadRow = document.getElementById("replica-thead-row");
     const colgroup = document.getElementById("invoice-colgroup");
     const tbody = document.getElementById("itemRows");
 
+    if (!theadRow || !colgroup || !tbody) return;
+
     theadRow.innerHTML = "";
     colgroup.innerHTML = "";
     tbody.innerHTML = "";
 
-    // Detect extra fields dynamically
     let extraFieldsSet = new Set();
     items.forEach((it) => {
       Object.keys(it || {}).forEach((k) => {
@@ -65,7 +127,6 @@ window.onload = async function () {
     });
     const extraFields = Array.from(extraFieldsSet);
 
-    // Headers
     const headers = [
       "Item Description / Nature of Service",
       "Quantity",
@@ -79,7 +140,6 @@ window.onload = async function () {
       theadRow.appendChild(th);
     });
 
-    // Column widths
     const baseWidths = ["40%", "10%", "15%", "15%"];
     baseWidths.forEach((width) => {
       const col = document.createElement("col");
@@ -95,7 +155,6 @@ window.onload = async function () {
       });
     }
 
-    // Fixed 20 rows
     const TOTAL_ROWS = 20;
     for (let i = 0; i < TOTAL_ROWS; i++) {
       const row = document.createElement("tr");
@@ -112,7 +171,9 @@ window.onload = async function () {
     }
   };
 
-  // ---------- Main Fetch ----------
+  // -------------------------------
+  // MAIN FETCH: Load invoice data
+  // -------------------------------
   try {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
     if (!res.ok) {
@@ -130,16 +191,18 @@ window.onload = async function () {
       fillById("companyTIN", data.company.vat_tin);
 
       if (data.company.logo_path) {
-        const logoEl = document.getElementById("uploaded-logo");
-        logoEl.src = data.company.logo_path;
-        logoEl.style.display = "block";
+        const logoEl = document.getElementById("invoice-logo");
+        if (logoEl) {
+          logoEl.src = data.company.logo_path;
+          logoEl.style.display = "block";
+        }
       }
     }
 
     // --- Items Table ---
     buildTable(Array.isArray(data.items) ? data.items : []);
 
-    // --- Invoice Header Info ---
+    // --- Invoice Info ---
     fillLine("BILL TO", data.bill_to);
     fillLine("ADDRESS", `${data.address1 || ""} ${data.address2 || ""}`.trim());
     fillLine("N", data.invoice_no);
@@ -192,6 +255,12 @@ window.onload = async function () {
     alert("Error loading invoice — showing empty template.");
   }
 };
+
+// ===============================
+// EXPORT INVOICE DATA SCRIPT
+// ===============================
+// (keep your existing export functions if you have them)
+
 
 // ============================
 // EXPORT INVOICE DATA SCRIPT
