@@ -1,8 +1,5 @@
-// ===============================
 // EIS Middleware (middleware/eis.js)
-// ===============================
-
-/**
+/*
  * This middleware handles authentication, invoice formatting,
  * sending invoices, and checking invoice status with the BIR EIS API.
  * Debug comments are added for easier tracing.
@@ -17,7 +14,7 @@ const ACCREDITATION_ID = "YOUR_ACCREDITATION_ID";
 const APP_ID = "YOUR_APP_ID";
 const APP_SECRET = "YOUR_APP_SECRET";
 
-// Store token in memory (you may also save in DB/Redis)
+// Store token in memory (you may also save in DB)
 let authToken = null;
 let tokenExpiry = null;
 
