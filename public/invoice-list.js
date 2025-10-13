@@ -1,11 +1,9 @@
-// ==========================
 // INVOICE LIST JS
-// ==========================
+
 console.log("✅ Invoice-list.js loaded");
 
-// ==========================
 // FETCH & POPULATE INVOICES
-// ==========================
+
 async function fetchInvoices() {
   try {
     const res = await fetch('/api/invoices');
@@ -23,12 +21,17 @@ function populateTable(invoices) {
 
   invoices.forEach(inv => {
     const tr = document.createElement("tr");
+
     tr.innerHTML = `
       <td><input type="checkbox" class="select-invoice" data-invoice="${inv.invoice_no}"></td>
       <td>${inv.invoice_no}</td>
       <td>${inv.bill_to}</td>
       <td>${inv.date ? new Date(inv.date).toLocaleDateString('en-PH') : ''}</td>
-      <td>₱${Number(inv.total_amount_due).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits:2})}</td>
+      <td>${inv.due_date ? new Date(inv.due_date).toLocaleDateString('en-PH') : ''}</td>
+      <td>₱${Number(inv.total_amount_due).toLocaleString('en-PH', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })}</td> <!-- ✅ Total Amount column -->
       <td>${Number(inv.total_amount_due) > 0 ? 'Pending' : 'Paid'}</td>
       <td>
         <button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>
@@ -36,15 +39,15 @@ function populateTable(invoices) {
         <button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>
       </td>
     `;
+
     tbody.appendChild(tr);
   });
 
   setupSelectAllCheckbox();
 }
 
-// ==========================
+
 // INVOICE ACTION BUTTONS
-// ==========================
 function viewInvoice(invoiceNo) {
   window.location.href = `/replica.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
 }
@@ -71,9 +74,8 @@ async function deleteInvoice(invoiceNo) {
   }
 }
 
-// ==========================
+
 // BULK DELETE (API ENDPOINT)
-// ==========================
 document.getElementById("bulkDeleteBtn")?.addEventListener("click", async () => {
   const selected = [...document.querySelectorAll(".select-invoice:checked")].map(cb => cb.dataset.invoice);
   if (!selected.length) return alert("No invoices selected for deletion.");
@@ -98,9 +100,8 @@ document.getElementById("bulkDeleteBtn")?.addEventListener("click", async () => 
   }
 });
 
-// ==========================
+
 // BULK DELETE (LOOP METHOD)
-// ==========================
 document.getElementById("deleteSelectedBtn").addEventListener("click", async () => {
   const selected = Array.from(document.querySelectorAll(".select-invoice:checked"))
                         .map(cb => cb.dataset.invoice);
@@ -124,18 +125,15 @@ document.getElementById("deleteSelectedBtn").addEventListener("click", async () 
   }
 });
 
-// ==========================
+
 // SELECT ALL CHECKBOX
-// ==========================
 const selectAll = document.getElementById("selectAllInvoices");
 selectAll.addEventListener("change", function() {
   const checkboxes = document.querySelectorAll(".select-invoice");
   checkboxes.forEach(cb => cb.checked = selectAll.checked);
 });
 
-// ==========================
 // SEARCH FILTER
-// ==========================
 document.getElementById("searchInput").addEventListener("input", function() {
   const filter = this.value.toLowerCase();
   const rows = document.querySelectorAll("#invoiceTable tbody tr");
@@ -145,14 +143,12 @@ document.getElementById("searchInput").addEventListener("input", function() {
   });
 });
 
-// ==========================
+
 // INITIAL LOAD
-// ==========================
 window.addEventListener("DOMContentLoaded", fetchInvoices);
 
-// ==========================
+
 // HELPER: SETUP SELECT ALL (if needed)
-// ==========================
 function setupSelectAllCheckbox() {
   const selectAll = document.getElementById("selectAllInvoices");
   const checkboxes = document.querySelectorAll(".select-invoice");

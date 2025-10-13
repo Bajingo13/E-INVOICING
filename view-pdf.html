@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice Preview | E-Invoicing</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      background: #222;
+      color: #fff;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    iframe {
+      flex: 1;
+      border: none;
+      width: 100%;
+      height: calc(100vh - 50px);
+    }
+    button {
+      background: #ff6b6b;
+      border: none;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #ff4b4b;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>Invoice Preview</h2>
+    <button onclick="window.history.back()">← Back</button>
+  </header>
+
+  <iframe id="invoiceFrame"></iframe>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const invoiceNo = params.get("invoice_no");
+    if (invoiceNo) {
+      // Load your existing printable invoice (Replica.html)
+      document.getElementById("invoiceFrame").src = `/PRINTABLE/Replica.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
+    } else {
+      document.body.innerHTML = "<h2 style='padding:20px;'>No invoice number provided.</h2>";
+    }
+  </script>
+</body>
+</html>
