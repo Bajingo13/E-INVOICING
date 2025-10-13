@@ -21,15 +21,14 @@ app.get('/invoice-list', (req, res) => res.sendFile(path.join(__dirname, 'public
 // ----------- STATIC ASSETS -----------
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ----------- MYSQL POOL SETUP -----------
+// FIX: Keep MySQL dates as plain strings (no timezone shift)
 const pool = mysql.createPool({
   host: 'localhost',
   user: 'root',
   password: 'Bsu2025!@',
   database: 'invoice_system',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+  timezone: '+08:00',  // ✅ Match your local timezone (Philippines)
+  dateStrings: true,   // ✅ Return DATE/DATETIME as strings
 });
 
 // ----------- LOGO UPLOAD FOR INVOICES -----------
