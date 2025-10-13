@@ -25,6 +25,15 @@
     </nav>
   </header>
 
+  <div class="invoice-header-dates">
+  <label for="issueDate"><strong>Issue Date:</strong></label>
+  <input type="date" id="issueDate" name="issueDate" onchange="populateDates()">
+
+  <label for="dueDate" style="margin-left: 20px;"><strong>Due Date:</strong></label>
+  <input type="date" id="dueDate" name="dueDate" onchange="updateDueDate()">
+</div>
+
+
   <div class="invoice-container">
    
     <!-- === BUTTONS === -->
@@ -84,11 +93,11 @@
         <td><strong>DATE:</strong> <input type="date" name="date" /></td>
       </tr>
       <tr>
-  <td><strong>ADDRESS 1:</strong> <input type="text" name="address1" class="input-long" /></td>
+  <td><strong>ADDRESS :</strong> <input type="text" name="address1" class="input-long" /></td>
   <td><strong>VAT Reg. TIN:</strong> <input type="text" name="tin" /></td>
 </tr>
 <tr>
-  <td><strong>ADDRESS 2:</strong> <input type="text" name="address2" class="input-long" /></td>
+  <td><strong>:</strong> <input type="text" name="address2" class="input-long" /></td>
   <td><strong>TERMS:</strong> <input type="text" name="terms" /></td>
 </tr>
 

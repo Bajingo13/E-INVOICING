@@ -22,16 +22,24 @@ function populateTable(invoices) {
   invoices.forEach(inv => {
     const tr = document.createElement("tr");
 
+    // 🔹 Determine the correct keys
+    const issueDate = inv.date || inv.invoice_date || ''; // fallback
+    const dueDate = inv.due_date || inv.dueDate || '';
+
+    // 🔹 Format dates safely
+    const issueDateFormatted = issueDate ? new Date(issueDate).toLocaleDateString('en-PH') : '';
+    const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString('en-PH') : '';
+
     tr.innerHTML = `
       <td><input type="checkbox" class="select-invoice" data-invoice="${inv.invoice_no}"></td>
       <td>${inv.invoice_no}</td>
       <td>${inv.bill_to}</td>
-      <td>${inv.date ? new Date(inv.date).toLocaleDateString('en-PH') : ''}</td>
-      <td>${inv.due_date ? new Date(inv.due_date).toLocaleDateString('en-PH') : ''}</td>
+      <td>${issueDateFormatted}</td>
+      <td>${dueDateFormatted}</td>
       <td>₱${Number(inv.total_amount_due).toLocaleString('en-PH', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-      })}</td> <!-- ✅ Total Amount column -->
+      })}</td>
       <td>${Number(inv.total_amount_due) > 0 ? 'Pending' : 'Paid'}</td>
       <td>
         <button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>

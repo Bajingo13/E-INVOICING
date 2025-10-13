@@ -247,8 +247,8 @@ app.post('/api/invoices', async (req, res) => {
     // Insert invoice
     const [invoiceResult] = await conn.execute(
       `INSERT INTO invoices
-        (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, total_amount_due, logo, extra_columns)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, due_date, total_amount_due, logo, extra_columns)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceData.invoice_no,
         invoiceData.invoice_type,
@@ -258,6 +258,7 @@ app.post('/api/invoices', async (req, res) => {
         invoiceData.tin,
         invoiceData.terms,
         invoiceData.date,
+        invoiceData.dueDate,
         invoiceData.total_amount_due,
         invoiceData.logo || null,
         JSON.stringify(extraColumns)

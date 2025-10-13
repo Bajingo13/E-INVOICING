@@ -16,6 +16,26 @@ function dateToYYYYMMDD(dateValue) {
   return `${year}-${month}-${day}`;
 }
 
+function populateDates() {
+    const issueDate = document.getElementById('issueDate').value;
+
+    // 1. Billing info table
+    const billingDateInput = document.querySelector('input[name="date"]');
+    if (billingDateInput) billingDateInput.value = issueDate;
+
+    // 2. Payment section
+    const payDateInput = document.querySelector('input[name="payDate"]');
+    if (payDateInput) payDateInput.value = issueDate;
+
+    // 3. Footer ATP/BIR dates
+    const footerAtpDateInput = document.querySelector('input[name="footerAtpDate"]');
+    if (footerAtpDateInput) footerAtpDateInput.value = issueDate;
+
+    const footerBirDateInput = document.querySelector('input[name="footerBirDate"]');
+    if (footerBirDateInput) footerBirDateInput.value = issueDate;
+}
+
+
 // -------------------- 1. COMPANY INFO LOAD --------------------
 
 // Loads company info from backend and updates form/header/logo
@@ -222,6 +242,8 @@ async function saveToDatabase() {
   const billTo = document.querySelector('input[name="billTo"]')?.value.trim();
   const invoiceNo = document.querySelector('input[name="invoiceNo"]')?.value.trim();
   const date = document.querySelector('input[name="date"]')?.value.trim();
+  const dueDate = document.querySelector('input[name="dueDate"]')?.value.trim();
+
   if (!billTo || !invoiceNo || !date) {
     alert("Please fill in required fields: Bill To, Invoice No, and Date.");
     return;
@@ -310,6 +332,7 @@ async function saveToDatabase() {
     tin: document.querySelector('input[name="tin"]')?.value.trim() || "",
     terms: document.querySelector('input[name="terms"]')?.value.trim() || "",
     date,
+    dueDate,
     total_amount_due: payment.payable || 0,
     invoice_title: titleEl ? titleEl.textContent.trim() : "SERVICE INVOICE",
     items,

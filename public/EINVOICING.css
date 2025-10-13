@@ -67,6 +67,17 @@ header nav a.logout:hover {
 }
 
 
+.invoice-header-dates {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 20px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  margin-bottom: 15px;
+  border-radius: 6px;
+}
 
 
 /* ==============================
