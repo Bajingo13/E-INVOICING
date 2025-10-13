@@ -82,16 +82,6 @@ body {
   background: #0056b3;
 }
 
-/* ---------------- CREATE ACCOUNT BUTTON ---------------- */
-.create-btn {
-  margin-top: 15px;
-  background: #28a745;
-}
-
-.create-btn:hover {
-  background: #1e7e34;
-}
-
 /* ---------------- ERROR MESSAGE ---------------- */
 #errorMsg {
   color: red;

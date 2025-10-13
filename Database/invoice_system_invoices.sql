@@ -2,7 +2,7 @@
 --
 -- Host: localhost    Database: invoice_system
 -- ------------------------------------------------------
--- Server version	8.0.42
+-- Server version	8.0.43
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -33,8 +33,11 @@ CREATE TABLE `invoices` (
   `date` date DEFAULT NULL,
   `total_amount_due` decimal(12,2) DEFAULT NULL,
   `logo` varchar(255) DEFAULT NULL,
+  `columns` text,
+  `extra_columns` text,
+  `invoice_type` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=99 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=152 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -43,7 +46,7 @@ CREATE TABLE `invoices` (
 
 LOCK TABLES `invoices` WRITE;
 /*!40000 ALTER TABLE `invoices` DISABLE KEYS */;
-INSERT INTO `invoices` VALUES (87,'001','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL),(88,'073','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL),(89,'073','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL),(90,'074','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL),(91,'077','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL),(95,'2','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL),(96,'3','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL),(97,'5','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL),(98,'2','Jade Jordan','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1123','7 DAYS','2025-08-04',39000.00,NULL);
+INSERT INTO `invoices` VALUES (132,'000001','Alas Oplas Co, CPAs','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','111100022220000','3 Days','2025-09-18',66487.00,NULL,NULL,'[\"one\",\"two\"]',NULL),(149,'000002','Alas Oplas Co, CPAs','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','111100022220000','4 Days','2025-10-06',3300.00,NULL,NULL,'[\"for\"]','SALES INVOICE'),(150,'000003','Alas Oplas Co, CPAs','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','1111000222200001','2 Days','2025-10-06',3500.00,NULL,NULL,'[\"to_add\"]','COMMERCIAL INVOICE'),(151,'000004','Alas Oplas Co, CPAs','30th Floor MDC 100 Bldg. E Rodriguez Jr. Ave., cor Eastwood Ave., Quezon City','','111100022220000','4 Days','2025-10-08',1500.00,NULL,NULL,'[\"credit\"]','CREDIT MEMO');
 /*!40000 ALTER TABLE `invoices` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -56,4 +59,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-09-08 18:05:12
+-- Dump completed on 2025-10-13 10:06:44
