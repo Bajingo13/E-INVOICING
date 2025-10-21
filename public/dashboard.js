@@ -1,90 +1,111 @@
-// ✅ Dashboard.js loaded
+// ===================== Dashboard.js =====================
+
 console.log("✅ Dashboard.js loaded");
 
-// ==============================
-// Fetch Dashboard Data from API
-// ==============================
+// ===================== Fetch Dashboard Data =====================
 async function fetchDashboardData() {
   try {
-    // Fetch data from backend API
     const res = await fetch('/api/dashboard');
     if (!res.ok) throw new Error("Failed to fetch dashboard data");
 
-    // Parse JSON response
     const data = await res.json();
     console.log("📊 Dashboard data:", data);
 
-    // Animate dashboard numbers
     animateNumber('totalInvoices', data.totalInvoices || 0);
     animateNumber('totalPayments', data.totalPayments || 0, true);
     animateNumber('pendingInvoices', data.pendingInvoices || 0);
 
   } catch (err) {
-    // Log errors for debugging
     console.error("❌ Error loading dashboard data:", err);
   }
 }
 
 /**
- * Animates a number counting up in a DOM element
- * @param {string} elementId - ID of the element to update
- * @param {number} targetValue - Final number to display
- * @param {boolean} isCurrency - Format as PHP currency if true
+ * Animate number counting up
+ * @param {string} elementId
+ * @param {number} targetValue
+ * @param {boolean} isCurrency
  */
 function animateNumber(elementId, targetValue, isCurrency = false) {
   const el = document.getElementById(elementId);
-  if (!el) return; // Exit if element not found
+  if (!el) return;
 
   let current = 0;
-  const increment = targetValue / 100; // Number of animation steps (100 frames)
-  const duration = 2000; // Animation duration in ms (2 seconds)
-  const intervalTime = duration / 100; // Time per frame
+  const steps = 100;
+  const increment = targetValue / steps;
+  const duration = 2000;
+  const intervalTime = duration / steps;
 
-  // Interval for animation
   const interval = setInterval(() => {
     current += increment;
     if (current >= targetValue) {
       clearInterval(interval);
       current = targetValue;
-      // Final update: always format properly
-      el.textContent = isCurrency
-        ? `₱${Number(current).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : Math.floor(current).toLocaleString();
-      return;
     }
 
-    // Update element text during animation
     el.textContent = isCurrency
       ? `₱${Number(current).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : Math.floor(current).toLocaleString();
   }, intervalTime);
 }
 
-// ==============================
-// Initialize Dashboard on Page Load
-// ==============================
-window.addEventListener('DOMContentLoaded', fetchDashboardData);
+// ===================== DOM Ready =====================
+window.addEventListener('DOMContentLoaded', () => {
+  // Fetch dashboard data
+  fetchDashboardData();
 
-// ==============================
-// Invoice Dropdown Menu Handling
-// ==============================
-document.addEventListener('DOMContentLoaded', function() {
+  // ---------------- Dropdown Menu ----------------
   const btn = document.getElementById('createInvoiceBtn');
   const menu = document.getElementById('invoiceDropdown');
 
-  // Toggle dropdown menu on button click
-  btn.addEventListener('click', function(e) {
-    e.stopPropagation(); // Prevent event bubbling
+  btn?.addEventListener('click', (e) => {
+    e.stopPropagation();
     menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
   });
 
-  // Close dropdown when clicking outside
-  document.addEventListener('click', function() {
+  document.addEventListener('click', () => {
     menu.style.display = 'none';
   });
 
-  // Prevent closing when clicking inside dropdown
-  menu.addEventListener('click', function(e) {
-    e.stopPropagation();
-  });
+  menu?.addEventListener('click', e => e.stopPropagation());
+
+  // ---------------- Modal ----------------
+  const modal = document.getElementById('recurringModal');
+  const standardBtn = document.getElementById('standardBtn');
+  const recurringBtn = document.getElementById('recurringBtn');
+  const closeModal = document.getElementById('closeModal');
+
+  if (modal && standardBtn && recurringBtn && closeModal) {
+    document.querySelectorAll('#invoiceDropdown .dropdown-item').forEach(link => {
+      link.addEventListener('click', function(e) {
+        const type = new URL(link.href, location.origin).searchParams.get('type');
+        // Exclude Credit and Debit Memo
+        if (type === 'credit' || type === 'debit') return;
+        e.preventDefault();
+
+        // Show modal
+        modal.style.display = 'flex';
+
+        // Save href for later use
+        modal.dataset.href = link.href;
+      });
+    });
+
+    standardBtn.addEventListener('click', () => {
+      window.location.href = modal.dataset.href + '&invoiceMode=standard';
+    });
+
+    recurringBtn.addEventListener('click', () => {
+      window.location.href = modal.dataset.href + '&invoiceMode=recurring';
+    });
+
+    closeModal.addEventListener('click', () => {
+      modal.style.display = 'none';
+    });
+
+    // Close modal if clicking outside content
+    window.addEventListener('click', (e) => {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+  }
 });

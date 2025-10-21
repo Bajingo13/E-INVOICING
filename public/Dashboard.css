@@ -215,3 +215,52 @@ a.btn {
   vertical-align: middle;
   display: inline-block;
 }
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  justify-content: center; align-items: center;
+}
+.modal-content {
+  background: #fff;
+  padding: 25px 30px;
+  border-radius: 12px;
+  width: 350px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+}
+.modal h3 {
+  margin-top: 0;
+  font-size: 20px;
+  color: #333;
+}
+.modal p {
+  margin: 15px 0;
+  font-size: 16px;
+  color: #555;
+}
+.modal-buttons button {
+  margin: 8px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+#standardBtn { background-color: #4CAF50; color: white; }
+#recurringBtn { background-color: #2196F3; color: white; }
+#closeModal {
+  background: #f44336;
+  color: white;
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 18px;
+  padding: 2px 10px;
+}
+#closeModal:hover { opacity: 0.8; }
