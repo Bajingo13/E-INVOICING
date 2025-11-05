@@ -361,3 +361,78 @@ input[type="number"] {
 .footer-section-large .input-footer:last-child {
   width: 180px;
 }
+
+/* ================================
+   RECURRING INVOICE STYLES
+================================= */
+#recurringOptions {
+  display: none;
+  margin-top: 25px;
+}
+
+.recurring-box {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 18px;
+  background: #f9f9f9;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+
+.recurring-box h3 {
+  margin-top: 0;
+  color: #007bff;
+  font-size: 1.2rem;
+}
+
+.recurring-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 15px;
+}
+
+.recurring-field {
+  flex: 1 1 220px;
+}
+
+.recurring-field label {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.recurring-field input,
+.recurring-field select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 0.95rem;
+}
+
+.recurring-notes {
+  margin-top: 20px;
+}
+
+.recurring-notes label {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.recurring-notes textarea {
+  width: 100%;
+  height: 80px;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  resize: vertical;
+  font-size: 0.95rem;
+}
+
+.recurring-footer {
+  margin-top: 20px;
+  text-align: right;
+  font-size: 0.9rem;
+  color: #555;
+}

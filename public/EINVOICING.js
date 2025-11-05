@@ -14,7 +14,7 @@ function dateToYYYYMMDD(dateValue) {
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
+} 
 
 function populateDates() {
     const issueDate = document.getElementById('issueDate').value;
@@ -33,6 +33,16 @@ function populateDates() {
 
     const footerBirDateInput = document.querySelector('input[name="footerBirDate"]');
     if (footerBirDateInput) footerBirDateInput.value = issueDate;
+}
+function updateDueDate() {
+  const start = document.getElementById("start_date")?.value;
+  const due = document.getElementById("due_date");
+  if (start && due) {
+    // Set due date 30 days after start date (adjust as needed)
+    const s = new Date(start);
+    s.setDate(s.getDate() + 30);
+    due.value = s.toISOString().split("T")[0];
+  }
 }
 
 
@@ -232,9 +242,7 @@ async function loadInvoiceForEdit() {
   }
 }
 
-// -------------------- 4. SAVE INVOICE (Create/Edit) --------------------
-
-// Gathers all form data and sends to backend (handles both create and edit)
+// -------------------- 4. SAVE INVOICE (Create/Edit + Recurring) --------------------
 async function saveToDatabase() {
   console.log("🟢 saveToDatabase called");
 
@@ -341,21 +349,31 @@ async function saveToDatabase() {
     logo: logoPath
   };
 
+  //  Detect if Recurring Invoice
+const isRecurring = document.getElementById('recurringOptions')?.style.display === 'block';
+if (isRecurring) {
+  invoiceData.recurrence_type = document.getElementById('recurrenceType')?.value || null;
+  invoiceData.recurrence_start_date = document.getElementById('recurrenceStart')?.value || null;
+  invoiceData.recurrence_end_date = document.getElementById('recurrenceEnd')?.value || null;
+  invoiceData.recurrence_status = 'active';
+}
+
   console.log("📦 Invoice data prepared:", invoiceData);
 
   // Detect if editing or creating
   const params = new URLSearchParams(window.location.search);
   const invoiceNoParam = params.get("invoice_no");
   const isEdit = params.get("edit") === "true";
-  let method, url;
-  if (isEdit && invoiceNoParam) {
-    method = "PUT";
-    url = `/api/invoices/${encodeURIComponent(invoiceNoParam)}`;
-  } else {
-    method = "POST";
-    url = "/api/invoices";
-  }
 
+ // ✅ Unified save route for both standard & recurring
+let method, url;
+if (isEdit && invoiceNoParam) {
+  method = "PUT";
+  url = `/api/invoices/${encodeURIComponent(invoiceNoParam)}`;
+} else {
+  method = "POST";
+  url = "/api/invoices";
+}
   // Send to backend
   try {
     const res = await fetch(url, {
@@ -365,7 +383,9 @@ async function saveToDatabase() {
     });
     const result = await res.json();
     if (res.ok) {
-      alert(isEdit ? "Invoice updated successfully!" : "Invoice saved successfully!");
+      alert(isRecurring ? "Recurring invoice saved successfully!" :
+            isEdit ? "Invoice updated successfully!" :
+            "Invoice saved successfully!");
       window.location.href = `/Replica.html?invoice_no=${invoiceData.invoice_no}`;
     } else {
       alert(`Error saving invoice: ${result.error || "Unknown error"}`);
@@ -374,6 +394,9 @@ async function saveToDatabase() {
   } catch (err) {
     alert("Error saving invoice. Check console.");
     console.error(err);
+  } finally {
+    const loader = document.getElementById('loader');
+    if (loader) loader.style.display = 'none';
   }
 }
 
@@ -520,3 +543,22 @@ window.addEventListener('DOMContentLoaded', () => {
   setInvoiceTitleFromURL();
   loadInvoiceForEdit();
 });
+
+// ==================== Detect Recurring Mode ====================
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const invoiceMode = params.get('invoiceMode');
+  const recurringSection = document.getElementById('recurringOptions');
+
+  if (!recurringSection) return; // just in case it's not found
+
+  if (invoiceMode === 'recurring') {
+    recurringSection.style.display = 'block';
+    console.log("🔁 Recurring invoice mode activated");
+  } else {
+    recurringSection.style.display = 'none';
+    console.log("📄 Standard invoice mode activated");
+  }
+});
+
+

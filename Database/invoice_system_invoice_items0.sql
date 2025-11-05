@@ -33,8 +33,12 @@ CREATE TABLE `invoice_items` (
   `taxes` varchar(255) DEFAULT NULL,
   `one` varchar(255) DEFAULT NULL,
   `two` varchar(255) DEFAULT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  `for` varchar(255) DEFAULT NULL,
+  `to_add` varchar(255) DEFAULT NULL,
+  `credit` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=73 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -43,7 +47,7 @@ CREATE TABLE `invoice_items` (
 
 LOCK TABLES `invoice_items` WRITE;
 /*!40000 ALTER TABLE `invoice_items` DISABLE KEYS */;
-INSERT INTO `invoice_items` VALUES (25,132,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',2,14567.00,29134.00,NULL,NULL,'two','four'),(26,132,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',3,12451.00,37353.00,NULL,NULL,'three','five'),(27,132,'',0,0.00,0.00,NULL,NULL,'four','six');
+INSERT INTO `invoice_items` VALUES (25,132,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',2,14567.00,29134.00,NULL,NULL,'two','four',NULL,NULL,NULL,NULL),(26,132,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',3,12451.00,37353.00,NULL,NULL,'three','five',NULL,NULL,NULL,NULL),(27,132,'',0,0.00,0.00,NULL,NULL,'four','six',NULL,NULL,NULL,NULL),(64,149,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',1,500.00,500.00,NULL,NULL,NULL,NULL,NULL,'5',NULL,NULL),(65,149,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',2,600.00,1200.00,NULL,NULL,NULL,NULL,NULL,'5',NULL,NULL),(66,149,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',2,800.00,1600.00,NULL,NULL,NULL,NULL,NULL,'5',NULL,NULL),(67,150,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',2,1000.00,2000.00,NULL,NULL,NULL,NULL,NULL,NULL,'1',NULL),(68,150,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',3,500.00,1500.00,NULL,NULL,NULL,NULL,NULL,NULL,'1',NULL),(69,151,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',1,1500.00,1500.00,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'500'),(70,151,'',0,0.00,0.00,NULL,NULL,NULL,NULL,NULL,NULL,NULL,''),(71,152,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',2,1600.00,3200.00,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),(72,153,'This to bill you for processing amended articles related to reduction of directors from 5 to 4',3,1680.00,5040.00,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `invoice_items` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -56,4 +60,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-09-22  9:35:16
+-- Dump completed on 2025-11-03 15:27:59

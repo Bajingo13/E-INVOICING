@@ -40,7 +40,7 @@ CREATE TABLE `company_info` (
 
 LOCK TABLES `company_info` WRITE;
 /*!40000 ALTER TABLE `company_info` DISABLE KEYS */;
-INSERT INTO `company_info` VALUES (1,'Business Set Up and Compliance, Inc.','Unit 101, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San Antonio,\r\n1203 City of Makati, NCR, Fourth District, Philippines','09214567122','0000111088912000','/uploads/company_logo.jpg','2025-09-09 06:30:05');
+INSERT INTO `company_info` VALUES (1,'Business Set Up and Compliance, Inc.','Unit 101, Philippine AXA Life Center, Sen. Gil Puyat Avenue, San Antonio,\r\n1203 City of Makati, NCR, Fourth District, Philippines','09214567122','0000111088912000','/uploads/company_logo.png','2025-09-29 09:59:05');
 /*!40000 ALTER TABLE `company_info` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -53,4 +53,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-09-22  9:35:16
+-- Dump completed on 2025-11-03 15:27:59

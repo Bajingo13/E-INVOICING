@@ -13,7 +13,7 @@
       gap: 10px;
     }
   </style>
-</head>
+</head> 
 <body>
 <header>
     <h1>Create Invoice</h1>
@@ -32,6 +32,47 @@
   <label for="dueDate" style="margin-left: 20px;"><strong>Due Date:</strong></label>
   <input type="date" id="dueDate" name="dueDate" onchange="updateDueDate()">
 </div>
+
+<!-- ====== RECURRING OPTIONS ====== -->
+<div id="recurringOptions">
+  <div class="recurring-box">
+    <h3>🔁 Recurring Invoice Options</h3>
+
+    <div class="recurring-row">
+      <div class="recurring-field">
+        <label for="recurrenceType">Repeat Every:</label>
+        <select id="recurrenceType" name="recurrenceType">
+          <option value="">-- Select Frequency --</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+      </div>
+
+      <div class="recurring-field">
+        <label for="recurrenceStart">Start Date:</label>
+        <input type="date" id="recurrenceStart" name="recurrenceStart">
+      </div>
+
+      <div class="recurring-field">
+        <label for="recurrenceEnd">End Date:</label>
+        <input type="date" id="recurrenceEnd" name="recurrenceEnd">
+      </div>
+    </div>
+
+    <div class="recurring-notes">
+      <label for="recurrenceNotes">Notes (Optional):</label>
+      <textarea id="recurrenceNotes" name="recurrenceNotes"
+        placeholder="Add any notes or reminders about this recurring schedule..."></textarea>
+    </div>
+
+    <div class="recurring-footer">
+      <span>💡 This invoice will automatically regenerate based on your recurrence settings.</span>
+    </div>
+  </div>
+</div>
+
 
 
   <div class="invoice-container">
@@ -219,6 +260,41 @@
   </div>
 </div>
 
+
+<!-- ====== SAVING LOADER ====== -->
+<div id="loader" style="
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 9999;
+  color: white;
+  font-size: 18px;
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  font-family: Arial, sans-serif;
+">
+  <div style="background: rgba(0,0,0,0.6); padding: 25px 40px; border-radius: 8px;">
+    <div class="spinner" style="
+      width: 30px;
+      height: 30px;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      margin: 0 auto 10px;
+      animation: spin 1s linear infinite;
+    "></div>
+    <div>Please wait... Saving invoice</div>
+  </div>
+</div>
+
+<style>
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+</style>
 
 
   <!-- === SCRIPTS === -->

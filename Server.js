@@ -7,6 +7,7 @@ const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
 const eis = require("./middleware/eis");
+const cron = require('node-cron');
 
 const app = express();
 app.use(express.json());
@@ -27,8 +28,8 @@ const pool = mysql.createPool({
   user: 'root',
   password: 'Bsu2025!@',
   database: 'invoice_system',
-  timezone: '+08:00',  // ✅ Match your local timezone (Philippines)
-  dateStrings: true,   // ✅ Return DATE/DATETIME as strings
+  timezone: '+08:00',  //  Match your local timezone (Philippines)
+  dateStrings: true,   //  Return DATE/DATETIME as strings
 });
 
 // ----------- LOGO UPLOAD FOR INVOICES -----------
@@ -46,6 +47,88 @@ const invoiceLogoUpload = multer({
     }
   })
 });
+
+//  RECURRING INVOICE CRON JOB
+cron.schedule('0 0 * * *', async () => { // ⏰ runs once daily at midnight
+  console.log('🕐 Running recurring invoice check at', new Date().toLocaleTimeString());
+
+  const conn = await pool.getConnection();
+  try {
+    const [recurringList] = await conn.execute(`
+  SELECT * FROM invoices
+  WHERE recurrence_status='active'
+  AND recurrence_type IS NOT NULL
+  AND recurrence_start_date <= CURDATE()
+  AND recurrence_end_date >= CURDATE()
+`);
+
+
+    console.log(`📦 Found ${recurringList.length} active recurring invoice(s)`);
+
+    for (const r of recurringList) {
+      console.log(`🔍 Checking ${r.bill_to} | Last generated: ${r.last_generated || 'None'}`);
+      if (isInvoiceDue(r)) {
+        await generateInvoiceFromRecurring(conn, r);
+      } else {
+        console.log(`⏳ Not due yet for ${r.bill_to}`);
+      }
+    }
+
+    // Mark recurring invoices as ended if past end date
+      await conn.execute(`
+  UPDATE invoices
+  SET recurrence_status='ended'
+  WHERE recurrence_end_date < CURDATE()
+`);
+
+  } catch (err) {
+    console.error('❌ Error running recurring job:', err);
+  } finally {
+    conn.release();
+  }
+});
+
+
+// --------------- Helper Functions ----------------
+function isInvoiceDue(r) {
+  const now = new Date();
+  const last = r.last_generated ? new Date(r.last_generated) : new Date(r.recurrence_start_date);
+
+  // 🧭 Compare in days (since now we run daily)
+  const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+
+  // Generate once per day (you can adjust to weekly/monthly later)
+  return diffDays >= 1;
+}
+
+async function generateInvoiceFromRecurring(conn, recurring) {
+  const [result] = await conn.execute(`
+    INSERT INTO invoices 
+    (bill_to, address1, total_amount_due, recurrence_type, terms, date, due_date, recurrence_status)
+    VALUES (?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'active')
+  `, [
+    recurring.bill_to,
+    recurring.address1,
+    recurring.total_amount_due,
+    recurring.recurrence_type,
+    recurring.terms
+  ]);
+
+  // ✅ Generate invoice number
+  const newId = result.insertId;
+  const newInvoiceNo = `INV-${String(newId).padStart(6, '0')}`;
+  await conn.execute('UPDATE invoices SET invoice_no = ? WHERE id = ?', [newInvoiceNo, newId]);
+
+  // ✅ Update last_generated
+  await conn.execute(`
+    UPDATE invoices 
+    SET last_generated = CURDATE() 
+    WHERE id = ?
+  `, [recurring.id]);
+
+  console.log(`✅ Generated recurring invoice for ${recurring.bill_to}: ${newInvoiceNo}`);
+}
+
 
 // ----------- LOGO UPLOAD ENDPOINT -----------
 app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
@@ -113,7 +196,7 @@ app.get('/api/dashboard', async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const [invoices] = await conn.execute('SELECT COUNT(*) AS total FROM invoices');
-    const [payments] = await conn.execute('SELECT SUM(total_amount_due) AS total FROM invoices');
+    const [payments] = await conn.execute('SELECT SUM(total) AS total FROM payments;');
     const [pending] = await conn.execute('SELECT COUNT(*) AS total FROM invoices WHERE total_amount_due > 0');
 
     res.json({
@@ -244,26 +327,31 @@ app.post('/api/invoices', async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Insert invoice
-    const [invoiceResult] = await conn.execute(
-      `INSERT INTO invoices
-        (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, due_date, total_amount_due, logo, extra_columns)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        invoiceData.invoice_no,
-        invoiceData.invoice_type,
-        invoiceData.bill_to,
-        invoiceData.address1,
-        invoiceData.address2,
-        invoiceData.tin,
-        invoiceData.terms,
-        invoiceData.date,
-        invoiceData.dueDate,
-        invoiceData.total_amount_due,
-        invoiceData.logo || null,
-        JSON.stringify(extraColumns)
-      ]
-    );
+    // Insert invoice (handles both standard & recurring)
+const [invoiceResult] = await conn.execute(
+  `INSERT INTO invoices
+    (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
+     recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  [
+    invoiceData.invoice_no,
+    invoiceData.invoice_type,
+    invoiceData.bill_to,
+    invoiceData.address1,
+    invoiceData.address2,
+    invoiceData.tin,
+    invoiceData.terms,
+    invoiceData.date,
+    invoiceData.due_Date,
+    invoiceData.total_amount_due,
+    invoiceData.logo || null,
+    JSON.stringify(extraColumns || []),
+    invoiceData.recurrence_type || null,
+    invoiceData.recurrence_start_date || null,
+    invoiceData.recurrence_end_date || null,
+    invoiceData.recurrence_type ? 'active' : null
+  ]
+);
     const invoiceId = invoiceResult.insertId;
 
     // Insert invoice items, add columns if needed
@@ -380,17 +468,18 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
        SET invoice_type=?,bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?
        WHERE id=?`,
       [
-        invoiceData.bill_to,
-        invoiceData.address1,
-        invoiceData.address2,
-        invoiceData.tin,
-        invoiceData.terms,
-        invoiceData.date,
-        invoiceData.total_amount_due,
-        invoiceData.logo || null,
-        JSON.stringify(extraColumns),
-        invoiceId
-      ]
+  invoiceData.invoice_type,
+  invoiceData.bill_to,
+  invoiceData.address1,
+  invoiceData.address2,
+  invoiceData.tin,
+  invoiceData.terms,
+  invoiceData.date,
+  invoiceData.total_amount_due,
+  invoiceData.logo || null,
+  JSON.stringify(extraColumns),
+  invoiceId
+]
     );
 
     // Remove old items, insert new
@@ -604,6 +693,9 @@ app.get('/api/check-status/:submissionId', async (req, res) => {
     res.status(500).json({ error: "Failed to check status" });
   }
 });
+
+
+
 
 // ----------- START SERVER -----------
 const PORT = 3000;
