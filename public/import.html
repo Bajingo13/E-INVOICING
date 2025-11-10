@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Import File</title>
+  <link rel="stylesheet" href="import.css" />
+</head>
+<body>
+  <main class="import-container">
+    <h1>Import Files</h1>
+
+    <div id="drop-zone" class="drop-zone">
+      <p>Drag & drop a file here, or</p>
+      <label class="btn">
+        Choose file
+        <input id="file-input" type="file" accept=".xlsx,.xls,.csv" />
+      </label>
+    </div>
+
+    <div id="preview" class="preview" hidden>
+      <h2>Preview</h2>
+      <pre id="preview-json"></pre>
+      <button id="upload-btn" class="btn primary">Upload to server</button>
+    </div>
+
+    <div id="status" class="status" aria-live="polite"></div>
+  </main>
+
+  <script src="import.js"></script>
+</body>
+</html>
