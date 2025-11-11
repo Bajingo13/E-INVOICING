@@ -17,14 +17,16 @@ header h1 {
 
 header nav a {
   color: #fff;
+  font-size: 15px;
   text-decoration: none;
-  margin-left: 1rem;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
+  padding: 8px 20px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
-
 header nav a:hover {
   background: #fff;
   color: #4e54c8;
