@@ -479,21 +479,52 @@ function updateAmount(el) {
 // Calculates totals, VAT, net, due, etc.
 function calculateTotals() {
   let totalSales = 0;
-  document.querySelectorAll('input[name="amt[]"]').forEach(input => totalSales += parseFloat(input.value) || 0);
-  const vatRate = 0.12;
-  const vatAmount = totalSales / (1 + vatRate) * vatRate;
-  const netVat = totalSales - vatAmount;
-  const withholding = parseFloat(document.querySelector('input[name="withholding"]')?.value) || 0;
-  const addVat = parseFloat(document.querySelector('input[name="addVat"]')?.value) || 0;
-  const payable = totalSales + addVat;
+
+  // Sum of all line item amounts
+  document.querySelectorAll('input[name="amt[]"]').forEach(input => {
+    totalSales += parseFloat(input.value) || 0;
+  });
+
+  // Get percentages from dropdowns
+  const vatRate = getFieldValue('vatExempt') / 100;
+  const lessVatRate = getFieldValue('lessVat') / 100;
+  const zeroRatedRate = getFieldValue('zeroRated') / 100;
+  const addVatRate = getFieldValue('addVat') / 100;
+
+  const withholding = getFieldValue('withholding'); // amount in currency
+
+  // Calculate VAT amounts
+  const vatAmount = totalSales * vatRate;
+  const lessVatAmount = totalSales * lessVatRate;
+  const zeroRatedAmount = totalSales * zeroRatedRate;
+  const addVatAmount = totalSales * addVatRate;
+
+  // Net VAT
+  const netVat = totalSales - vatAmount - lessVatAmount + addVatAmount;
+
+  // Total payable and due
+  const payable = netVat;
   const due = payable - withholding;
 
-  document.querySelector('input[name="totalSales"]').value = totalSales.toFixed(2);
-  document.querySelector('input[name="vatAmount"]').value = vatAmount.toFixed(2);
-  document.querySelector('input[name="netVat"]').value = netVat.toFixed(2);
-  document.querySelector('input[name="payable"]').value = payable.toFixed(2);
-  document.querySelector('input[name="due"]').value = due.toFixed(2);
+  // Update fields
+  setFieldValue('totalSales', totalSales.toFixed(2));
+  setFieldValue('vatAmount', vatAmount.toFixed(2));
+  setFieldValue('netVat', netVat.toFixed(2));
+  setFieldValue('due', due.toFixed(2));
+  setFieldValue('payable', payable.toFixed(2));
 }
+function getFieldValue(name) {
+  const el = document.querySelector(`input[name="${name}"], select[name="${name}"]`);
+  if (!el) return 0;
+  return parseFloat(el.value) || 0;
+}
+
+function setFieldValue(name, value) {
+  const el = document.querySelector(`input[name="${name}"], select[name="${name}"]`);
+  if (!el) return;
+  el.value = value;
+}
+
 
 // -------------------- 7. UI ADJUSTMENTS --------------------
 
@@ -544,21 +575,97 @@ window.addEventListener('DOMContentLoaded', () => {
   loadInvoiceForEdit();
 });
 
-// ==================== Detect Recurring Mode ====================
+// ==================== Detect Recurring Mode & Update Breadcrumb ====================
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
-  const invoiceMode = params.get('invoiceMode');
+  const invoiceMode = params.get('invoiceMode'); // "standard" or "recurring"
   const recurringSection = document.getElementById('recurringOptions');
+  const breadcrumbInvoice = document.getElementById('invoice-type'); // last breadcrumb <li>
 
-  if (!recurringSection) return; // just in case it's not found
+  if (!recurringSection || !breadcrumbInvoice) return; // safety check
 
   if (invoiceMode === 'recurring') {
     recurringSection.style.display = 'block';
+    breadcrumbInvoice.textContent = 'Recurring Invoice';
     console.log("🔁 Recurring invoice mode activated");
   } else {
     recurringSection.style.display = 'none';
+    breadcrumbInvoice.textContent = 'Standard Invoice';
     console.log("📄 Standard invoice mode activated");
   }
 });
 
+
+// Minimal JS to power the primary dropdown and accessible behavior
+
+document.addEventListener('click', (e) => {
+  // Close open dropdowns when clicking outside
+  if (!e.target.closest('[data-dropdown]')) {
+    document.querySelectorAll('[data-dropdown]').forEach(dd => {
+      dd.removeAttribute('open');
+      const btn = dd.querySelector('[data-dropdown-button]');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+});
+
+// Toggle dropdown when its button is clicked
+document.querySelectorAll('[data-dropdown-button]').forEach(button => {
+  button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const dropdown = button.closest('[data-dropdown]');
+    const isOpen = dropdown.hasAttribute('open');
+    // close others
+    document.querySelectorAll('[data-dropdown]').forEach(dd => {
+      if (dd !== dropdown) {
+        dd.removeAttribute('open');
+        const b = dd.querySelector('[data-dropdown-button]');
+        if (b) b.setAttribute('aria-expanded', 'false');
+      }
+    });
+    if (isOpen) {
+      dropdown.removeAttribute('open');
+      button.setAttribute('aria-expanded', 'false');
+    } else {
+      dropdown.setAttribute('open', '');
+      button.setAttribute('aria-expanded', 'true');
+      // move focus to first menu item for keyboard users
+      const firstItem = dropdown.querySelector('.dropdown-item');
+      if (firstItem) firstItem.focus();
+    }
+  });
+});
+
+// Close dropdowns with Escape, and allow keyboard navigation for simple cases
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('[data-dropdown]').forEach(dd => {
+      dd.removeAttribute('open');
+      const btn = dd.querySelector('[data-dropdown-button]');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+});
+
+
+window.setStatus = function(text) {
+  const el = document.getElementById('statusBadge');
+  if (el) el.textContent = text;
+};
+
+// Example: wire simple actions (replace with your app logic)
+document.getElementById('previewBtn').addEventListener('click', () => alert('Preview clicked'));
+document.getElementById('saveCloseBtn').addEventListener('click', () => alert('Save & close clicked'));
+document.querySelectorAll('.dropdown-item').forEach(item => {
+  item.addEventListener('click', (e) => {
+    alert('Action: ' + e.target.textContent.trim());
+    // close dropdown
+    const dd = e.target.closest('[data-dropdown]');
+    if (dd) {
+      dd.removeAttribute('open');
+      const btn = dd.querySelector('[data-dropdown-button]');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+});
 

@@ -15,15 +15,55 @@
   </style>
 </head> 
 <body>
-<header>
-    <h1>Create Invoice</h1>
-    <nav>
-      <a href="/dashboard" class="btn">Dashboard</a>
-      <a href="/company-setup" class="btn">Company Info</a>
-      <a href="/invoice-list.html" class="btn">View Invoices</a>
-      <a href="/" class="btn logout">Logout</a>
+<!-- Topbar / Main Navigation -->
+<header class="topbar">
+  <div class="brand">My Company</div>
+  <nav class="top-links" aria-label="Top">
+    <a href="/dashboard">Dashboard</a>
+    <a href="/company-setup">Company Info</a>
+    <a href="/invoice-list.html">View Invoices</a>
+    <a href="/" class="logout">Logout</a>
+  </nav>
+</header>
+
+<!-- Subheader -->
+<div class="subheader" role="region" aria-label="Page subheader">
+  <div class="subheader-left">
+    <nav aria-label="Breadcrumb" class="breadcrumb">
+      <ol>
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/dashboard">Create Invoice</a></li>
+        <li id="invoice-type">Create Invoice</li>
+      </ol>
     </nav>
-  </header>
+
+    <div class="page-title-row">
+      <h1 class="page-title">Create Invoice</h1>
+      <span class="status-badge" id="statusBadge">Draft</span>
+    </div>
+  </div>
+
+  <div class="subheader-right" aria-hidden="false">
+    <button class="btn btn-link" id="previewBtn" title="Preview">👁 Preview</button>
+
+    <div class="split-actions">
+      <button class="btn btn-outline" id="saveCloseBtn">Save &amp; close</button>
+
+      <div class="dropdown" data-dropdown>
+        <button class="btn btn-primary" aria-haspopup="true" aria-expanded="false" data-dropdown-button>
+          Approve &amp; email ▾
+        </button>
+        <ul class="dropdown-menu" role="menu" aria-label="Approve actions">
+          <li role="none"><button role="menuitem" class="dropdown-item">Approve &amp; email</button></li>
+          <li role="none"><button role="menuitem" class="dropdown-item">Approve only</button></li>
+        </ul>
+      </div>
+    </div>
+
+    <button class="btn icon-btn" aria-label="More actions" id="moreBtn">⋮</button>
+  </div>
+</div>
+
 
   <div class="invoice-header-dates">
   <label for="issueDate"><strong>Issue Date:</strong></label>
@@ -164,6 +204,7 @@
       <thead>
         <tr>
           <th class="desc-col">ITEM DESCRIPTION/ <br> NATURE OF SERVICE </th>
+          <th class="Acc-col">ACCOUNT</th>
           <th class="qty-col">QUANTITY</th>
           <th class="unit-col">UNIT PRICE</th>
           <th class="amt-col">AMOUNT</th>
@@ -172,6 +213,11 @@
       <tbody id="items-body">
         <tr>
           <td><input type="text" class="input-full" name="desc[]" /></td>
+          <td class="Acc-col">
+        <select name="account[]" class="input-full">
+          <option value="">+ Create New Account</option>
+        </select>
+      </td>
           <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)" /></td>
           <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)" /></td>
           <td><input type="number" class="input-short" name="amt[]" readonly /></td>
@@ -181,58 +227,96 @@
 
     <!-- === PAYMENT SECTION === -->
     <table class="form-payment">
-      <tr>
-      <td colspan="2">FORM OF PAYMENT</td>
-      <td>VATable Sales</td>
-      <td><input type="text" name="vatableSales" /></td>
-      <td>Total Sales (VAT Inclusive)</td>
-      <td><input type="text" name="totalSales" /></td>
-      </tr>
-      <tr>
-      <td>Cash</td>
-      <td><input type="checkbox" name="cash" /></td>
-      <td>VAT </td>
-      <td><input type="text" name="vatExempt" /></td>
-      <td>Less: VAT</td>
-      <td><input type="text" name="lessVat" /></td>
-      </tr>
-      <tr>
-      <td>Check</td>
-      <td><input type="checkbox" name="check" /></td>
-      <td>Zero-Rated Sales</td>
-      <td><input type="text" name="zeroRated" /></td>
-      <td>Amount Net of VAT</td>
-      <td><input type="text" name="netVat" /></td>
-      </tr>
-      <tr>
-      <td>Check No.</td>
-      <td><input type="text" name="checkNo" /></td>
-      <td>VAT-Exempt Sales</td>
-      <td><input type="text" name="vatAmount" /></td>
-      <td>Less: Discount <br> (SC/PWD/NAAC/MOV/SP)</td>
-      <td><input type="text" name="withholding" /></td>
-      </tr>
-      <tr>
-      <td>Bank</td>
-      <td><input type="text" name="bank" /></td>
-      <td>Total</td>
-      <td><input type="text" name="total" /></td>
-      <td>Add: VAT</td>
-      <td><input type="text" name="due" /></td>
-      </tr>
-      <tr>
-      <td>Date</td>
-      <td><input type="date" name="payDate" /></td>
-      <td></td>
-      <td></td>
-      <td>Less Witholding Tax</td>
-      <td><input type="text" name="payable" /></td>
-      </tr>
-      <tr>
-      <td colspan="5" style="text-align:right;"><strong>TOTAL AMOUNT DUE</strong></td>
-      <td><input type="text" name="totalAmountDue" /></td>
-      </tr>
-    </table>
+  <tr>
+    <td colspan="2">FORM OF PAYMENT</td>
+    <td>VATable Sales</td>
+    <td><input type="text" name="vatableSales" /></td>
+    <td>Total Sales (VAT Inclusive)</td>
+    <td><input type="text" name="totalSales" /></td>
+  </tr>
+  <tr>
+    <td>Cash</td>
+    <td><input type="checkbox" name="cash" /></td>
+    <td>VAT</td>
+    <td>
+      <select name="vatExempt" class="input-full" onchange="calculateTotals()">
+      <option value="0">0%</option>
+      <option value="5">5%</option>
+      <option value="12">12%</option>
+    </select>
+    </td>
+    <td>Less: VAT</td>
+    <td>
+      <select name="lessVat" class="input-full" onchange="calculateTotals()">
+      <option value="0">0%</option>
+      <option value="5">5%</option>
+      <option value="12">12%</option>
+    </select>
+    </td>
+  </tr>
+  <tr>
+    <td>Check</td>
+    <td><input type="checkbox" name="check" /></td>
+    <td>Zero-Rated Sales</td>
+    <td>
+      <select name="zeroRated" class="input-full" onchange="calculateTotals()">
+      <option value="0">0%</option>
+      <option value="5">5%</option>
+      <option value="12">12%</option>
+    </select>
+    </td>
+    <td>Amount Net of VAT</td>
+    <td><input type="text" name="netVat" /></td>
+  </tr>
+  <tr>
+    <td>Check No.</td>
+    <td><input type="text" name="checkNo" /></td>
+    <td>VAT-Exempt Sales</td>
+    <td>
+      <select name="vatAmount" class="input-full" onchange="calculateTotals()">
+        <option value="0">0%</option>
+        <option value="5">5%</option>
+        <option value="12">12%</option>
+      </select>
+    </td>
+    <td>Less: Discount <br> (SC/PWD/NAAC/MOV/SP)</td>
+    <td><input type="text" name="withholding" /></td>
+  </tr>
+  <tr>
+    <td>Bank</td>
+    <td><input type="text" name="bank" /></td>
+    <td>Total</td>
+    <td><input type="text" name="total" /></td>
+    <td>Add: VAT</td>
+    <td>
+      <select name="addVat" class="input-full" onchange="calculateTotals()">
+      <option value="0">0%</option>
+      <option value="5">5%</option>
+      <option value="12">12%</option>
+    </select>
+    </td>
+  </tr>
+  <tr>
+    <td>Date</td>
+    <td><input type="date" name="payDate" /></td>
+    <td></td>
+    <td></td>
+    <td>Less Withholding Tax</td>
+    <td>
+      <select name="payable">
+        <option value="0">0%</option>
+        <option value="1">1%</option>
+        <option value="2">2%</option>
+        <option value="5">5%</option>
+      </select>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="5" style="text-align:right;"><strong>TOTAL AMOUNT DUE</strong></td>
+    <td><input type="text" name="totalAmountDue" /></td>
+  </tr>
+</table>
+
 
     
 
