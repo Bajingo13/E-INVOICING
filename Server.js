@@ -196,12 +196,12 @@ app.get('/api/dashboard', async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const [invoices] = await conn.execute('SELECT COUNT(*) AS total FROM invoices');
-    const [payments] = await conn.execute('SELECT SUM(total) AS total FROM payments;');
+    const [totalAmountDue] = await conn.execute('SELECT SUM(total_amount_due) AS total FROM invoices');
     const [pending] = await conn.execute('SELECT COUNT(*) AS total FROM invoices WHERE total_amount_due > 0');
 
     res.json({
       totalInvoices: invoices[0].total,
-      totalPayments: payments[0].total || 0,
+      totalPayments: totalAmountDue[0].total || 0,
       pendingInvoices: pending[0].total
     });
   } catch (err) {

@@ -1,4 +1,4 @@
-/* General Reset */
+/* ---------------- General Reset ---------------- */
 * {
   margin: 0;
   padding: 0;
@@ -12,6 +12,7 @@ body {
   min-height: 100vh;
 }
 
+/* ---------------- Header / Navbar ---------------- */
 header {
   background: linear-gradient(90deg, #4e54c8, #8f94fb);
   color: #fff;
@@ -27,22 +28,31 @@ header h1 {
   font-weight: 700;
 }
 
-header nav a {
+header nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+header nav a.btn {
+  background: #a3aaff;
   color: #fff;
+  padding: 8px 24px;
+  border-radius: 10px;
+  font-size: 15px;
+  transition: background 0.2s;
   text-decoration: none;
-  margin-left: 1rem;
-  padding: 0.5rem 1rem;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-header nav a:hover {
-  background: #fff;
-  color: #4e54c8;
-  font-weight: 600;
+header nav a.btn:hover {
+  background: #8793e6;
 }
 
+/* Logout button */
 header nav a.logout {
   background: #ff4d4f;
 }
@@ -52,11 +62,81 @@ header nav a.logout:hover {
   color: #fff;
 }
 
+/* ---------------- Dropdown ---------------- */
+header nav .dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+header nav .dropdown-toggle {
+  background: #a3aaff;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 24px;
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+header nav .dropdown-toggle:hover {
+  background: #8793e6;
+}
+
+header nav .dropdown-toggle::after {
+  content: " ▼";
+  font-size: 13px;
+  margin-left: 6px;
+}
+
+/* Dropdown menu */
+header nav .dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 110%;
+  left: 0;
+  min-width: 160px;
+  background: #a3aaff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: opacity 0.3s ease;
+  opacity: 0;
+  z-index: 1000;
+}
+
+header nav .dropdown-menu.show {
+  display: block;
+  opacity: 1;
+}
+
+/* Dropdown items */
+header nav .dropdown-item {
+  display: block;
+  padding: 10px 20px;
+  color: #fff;
+  text-decoration: none;
+  font-size: 15px;
+  border-bottom: 1px solid #c0c8f0;
+  transition: background 0.2s;
+}
+
+header nav .dropdown-item:hover {
+  background: #8793e6;
+}
+
+header nav .dropdown-menu .dropdown-item:last-child {
+  border-bottom: none;
+}
+
+/* ---------------- Main ---------------- */
 main {
   padding: 2rem;
 }
 
-/* Cards */
+/* ---------------- Cards ---------------- */
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -104,7 +184,7 @@ main {
   font-weight: 700;
 }
 
-/* Recent Activity */
+/* ---------------- Recent Activity ---------------- */
 .recent-activity {
   background: #fff;
   padding: 1.5rem;
@@ -121,16 +201,16 @@ main {
   color: #555;
 }
 
-/* Button Bar Styling */
+/* ---------------- Button Bar ---------------- */
 .button-bar {
   display: flex;
-  gap: 16px; /* spacing between buttons */
+  gap: 16px;
   align-items: center;
   justify-content: center;
   margin: 16px 0;
 }
 
-/* Match the button style */
+/* Buttons */
 .btn, .dropdown-toggle {
   background: #a3aaff;
   color: #fff;
@@ -141,14 +221,16 @@ main {
   font-family: inherit;
   cursor: pointer;
   transition: background 0.2s;
-  box-shadow: none;
-  outline: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 120px;
   min-height: 36px;
   text-align: center;
+}
+
+.btn:hover, .dropdown-toggle:hover {
+  background: #8793e6;
 }
 
 a.btn {
@@ -158,126 +240,7 @@ a.btn {
   justify-content: center;
 }
 
-.btn:hover, .dropdown-toggle:hover {
-  background: #8793e6;
-}
-
-/* Dropdown container */
-.dropdown {
-  position: relative;
-  display: inline-block;
-  margin: 0;
-  padding: 0;
-}
-
-/* Dropdown menu styling */
-.dropdown-menu {
-  display: none;
-  position: absolute;
-  left: 0;
-  top: 110%;
-  min-width: 120px;
-  background: #a3aaff;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  z-index: 1000;
-}
-
-.dropdown-item {
-  color: #fff;
-  text-decoration: none;
-  display: block;
-  padding: 8px 24px;
-  border-bottom: 1px solid #c0c8f0;
-  font-size: 15px;
-  background: transparent;
-  transition: background 0.2s;
-}
-
-.dropdown-item:hover {
-  background: #8793e6;
-}
-
-.dropdown-menu .dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.dropdown-toggle {
-  appearance: none;
-  position: relative;
-}
-
-/* Custom dropdown arrow for consistency and alignment */
-.dropdown-toggle::after {
-  font-size: 13px;
-  margin-left: 8px;
-  color: #fff;
-  vertical-align: middle;
-  display: inline-block;
-}
-
-.modal {
-  display: none;
-  position: fixed;
-  z-index: 1000;
-  left: 0; top: 0;
-  width: 100%; height: 100%;
-  background-color: rgba(0,0,0,0.5);
-  justify-content: center; align-items: center;
-}
-.modal-content {
-  background: #fff;
-  padding: 25px 30px;
-  border-radius: 12px;
-  width: 350px;
-  text-align: center;
-  position: relative;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-}
-.modal h3 {
-  margin-top: 0;
-  font-size: 20px;
-  color: #333;
-}
-.modal p {
-  margin: 15px 0;
-  font-size: 16px;
-  color: #555;
-}
-.modal-buttons button {
-  margin: 8px;
-  padding: 10px 18px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-#standardBtn { background-color: #4CAF50; color: white; }
-#recurringBtn { background-color: #2196F3; color: white; }
-#closeModal {
-  background: #f44336;
-  color: white;
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  font-size: 18px;
-  padding: 2px 10px;
-}
-#closeModal:hover { opacity: 0.8; }
-/* ---------------- Dropdown Fade ---------------- */
-#invoiceDropdown {
-  display: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-/* Visible state */
-#invoiceDropdown.show {
-  display: block;
-  opacity: 1;
-}
-
-/* ---------------- Modal Fade ---------------- */
+/* ---------------- Modal ---------------- */
 .modal {
   display: none;
   opacity: 0;
@@ -296,7 +259,6 @@ a.btn {
   opacity: 1;
 }
 
-/* Keep modal content styling */
 .modal-content {
   background: #fff;
   padding: 25px 30px;
@@ -312,3 +274,37 @@ a.btn {
 .modal.show .modal-content {
   transform: translateY(0);
 }
+
+.modal h3 {
+  margin-top: 0;
+  font-size: 20px;
+  color: #333;
+}
+
+.modal p {
+  margin: 15px 0;
+  font-size: 16px;
+  color: #555;
+}
+
+.modal-buttons button {
+  margin: 8px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+#standardBtn { background-color: #4CAF50; color: white; }
+#recurringBtn { background-color: #2196F3; color: white; }
+#closeModal {
+  background: #f44336;
+  color: white;
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 18px;
+  padding: 2px 10px;
+}
+#closeModal:hover { opacity: 0.8; }

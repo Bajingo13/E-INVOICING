@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sales Tax Summary — Classic Layout</title>
+  <link rel="stylesheet" href="reports.css" />
+</head>
+<body>
+  <header class="main-header">
+  <h1>Reports</h1>
+  <nav>
+    <a href="/dashboard" class="btn">Dashboard</a>
+    <a href="/import.html" class="btn">Import</a>
+    <a href="/" class="btn logout">Logout</a>
+  </nav>
+</header>
+    
+  <main class="classic-container">
+<section class="filter-panel filter-panel--flex" aria-label="Report Filters">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label class="filter-label" for="filterFrom">From:</label>
+      <input id="filterFrom" class="filter-date" type="date" />
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label" for="filterTo">To:</label>
+      <input id="filterTo" class="filter-date" type="date" />
+    </div>
+
+    <div class="filter-action">
+      <button id="filterUpdate" class="btn-update">Update</button>
+    </div>
+  </div>
+
+  <div class="filter-checkbox-row">
+    <label><input id="showByRate" type="checkbox" /> Show by Tax Rate</label>
+    <label><input id="showByComponent" type="checkbox" checked /> Show by Tax Component</label>
+    <label><input id="showByAccount" type="checkbox" /> Show by Account Type</label>
+  </div>
+</section>
+<br />
+    <header class="classic-header">
+      <h1>Sales Tax Summary</h1>
+      <div class="classic-subtitle">
+        <div>Business Set Up &amp; Compliance, Inc</div>
+        <div>For the period 1 November 2023 to 31 October 2025</div>
+      </div>
+    </header>
+
+    
+    <section class="meta-table">
+      <table>
+        <tbody>
+          <tr>
+            <td class="meta-key">VAT REG TIN</td>
+            <td class="meta-val">008-640-850-00000</td>
+          </tr>
+          <tr>
+            <td class="meta-key">Tax Basis</td>
+            <td class="meta-val">Accrual Basis</td>
+          </tr>
+          <tr>
+            <td class="meta-key">Tax Period covered</td>
+            <td class="meta-val">Custom</td>
+          </tr>
+          <tr>
+            <td class="meta-key">From</td>
+            <td class="meta-val">1 Nov 2023</td>
+          </tr>
+          <tr>
+            <td class="meta-key">To</td>
+            <td class="meta-val">31 Oct 2025</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- main tax table -->
+    <section class="classic-table-wrap">
+      <table class="classic-tax-table">
+        <thead>
+          <tr>
+            <th>Tax Component</th>
+            <th class="col-rate">Rate</th>
+            <th class="col-net">Net</th>
+            <th class="col-tax">Tax</th>
+          </tr>
+        </thead>
+
+        <tbody>
+            
+          <!-- Input VAT group -->
+          <tr class="group-header"><td colspan="4">Input VAT</td></tr>
+          <tr class="line">
+            <td class="indent">Tax on Purchases (12%)</td>
+            <td class="center">12.0%</td>
+            <td class="right">(25,452.36)</td>
+            <td class="right">(3,054.30)</td>
+          </tr>
+          <tr class="group-total">
+            <td colspan="2" class="bold">Total Input VAT</td>
+            <td class="right bold">(25,452.36)</td>
+            <td class="right bold">(3,054.30)</td>
+          </tr>
+
+          <!-- No Tax group -->
+          <tr class="group-header"><td colspan="4">No Tax</td></tr>
+          <tr class="line">
+            <td class="indent">Tax Exempt (0%)</td>
+            <td class="center">0.0%</td>
+            <td class="right">(92,310.21)</td>
+            <td class="right">0.00</td>
+          </tr>
+          <tr class="group-total">
+            <td colspan="2" class="bold">Total No Tax</td>
+            <td class="right bold">(92,310.21)</td>
+            <td class="right bold">0.00</td>
+          </tr>
+
+          <!-- Output VAT group -->
+          <tr class="group-header"><td colspan="4">Output VAT</td></tr>
+          <tr class="line">
+            <td class="indent">VAT (12%)</td>
+            <td class="center">12.0%</td>
+            <td class="right">2,053,879.19</td>
+            <td class="right">246,465.50</td>
+          </tr>
+          <tr class="group-total">
+            <td colspan="2" class="bold">Total Output VAT</td>
+            <td class="right bold">2,053,879.19</td>
+            <td class="right bold">246,465.50</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- blue action footer -->
+    <footer class="action-footer">
+      <div class="left-actions">
+        <button class="btn-blue">Save as Draft</button>
+      </div>
+      <div class="right-actions">
+        <button class="btn-green">Publish</button>
+        <button class="btn-outline">Print</button>
+        <button class="btn-outline">Export</button>
+      </div>
+    </footer>
+<script>
+  function syncHeaderPadding() {
+    const header = document.querySelector('.main-header');
+    if (!header) return;
+    const h = Math.ceil(header.getBoundingClientRect().height);
+    // set CSS var
+    document.documentElement.style.setProperty('--header-height', h + 'px');
+    // apply to page container(s)
+    const content = document.querySelector('main') || document.querySelector('.page-content') || document.querySelector('.container');
+    if (content) content.style.paddingTop = h + 'px';
+  }
+  window.addEventListener('load', syncHeaderPadding);
+  window.addEventListener('resize', syncHeaderPadding);
+</script>
+  </main>
+</body>
+</html>
