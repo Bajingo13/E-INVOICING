@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chart of Accounts | E-Invoicing</title>
+  <link rel="stylesheet" href="COA.css">
+</head>
+
+<body>
+
+<div class="coa-container">
+
+  <header>
+    <h1>Chart of Accounts</h1>
+  </header>
+
+  <!-- TOP BUTTONS -->
+  <div class="coa-buttons">
+    <button id="addBtn" class="btn">F2 Add</button>
+    <button id="editBtn" class="btn">F3 Edit</button>
+    <button id="deleteBtn" class="btn">F4 Delete</button>
+    <button class="btn">F6 Print</button>
+    <button class="btn exit">F10 Exit</button>
+  </div>
+
+  <!-- TABS LIKE THE SCREENSHOT -->
+  <div class="coa-tabs">
+    <button class="tab active">All Accounts</button>
+    <button class="tab">Assets</button>
+    <button class="tab">Liabilities</button>
+    <button class="tab">Equity</button>
+    <button class="tab">Expenses</button>
+    <button class="tab">Revenue</button>
+    <button class="tab">Archive</button>
+  </div>
+
+  <!-- SEARCH BAR ALIGN RIGHT -->
+  <div class="coa-search-row">
+    <input type="text" placeholder="Search account...">
+    <button class="btn mini">Search</button>
+  </div>
+
+  <!-- TABLE LIKE THE SCREENSHOT -->
+  <table class="coa-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Code</th>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Tax Rate</th>
+        <th>YTD</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      <tr>
+        <input type="text" id="codeInput">
+        <input type="date" id="dateInput">
+        <input type="text" id="titleInput">
+        <select id="classSelect">
+      </tr>
+
+    </tbody>
+  </table>
+
+  <!-- FORM SECTION (STAYS BELOW LIKE ADD/EDIT PANEL) -->
+  <form class="coa-form">
+    <div class="form-group">
+      <label>CODE</label>
+      <input type="text" />
+    </div>
+
+    <div class="form-group">
+      <label>DATE</label>
+      <input type="date" />
+    </div>
+
+    <div class="form-group">
+      <label>TITLE</label>
+      <input type="text" />
+    </div>
+
+    <div class="form-group">
+      <label>CLASS</label>
+      <select>
+        <option>ASSET</option>
+        <option>LIABILITY</option>
+        <option>EQUITY</option>
+        <option>REVENUE</option>
+        <option>EXPENSE</option>
+      </select>
+    </div>
+  </form>
+
+</div>
+
+<script src="COA.js"></script>
+</body>
+</html>

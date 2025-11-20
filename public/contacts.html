@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Contact Manager</title>
+  <link rel="stylesheet" href="contacts.css" />
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <h1>Contact Manager</h1>
+    </header>
+
+    <!-- TOP BUTTONS -->
+    <div class="top-buttons">
+      <button id="addBtn" class="btn">Add</button>
+      <button id="editBtn" class="btn">Edit</button>
+      <button id="deleteBtn" class="btn danger">Delete</button>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="search-row">
+      <input type="text" id="searchInput" placeholder="Search name, business, code..." />
+    </div>
+
+    <!-- TABLE -->
+    <table class="contact-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Type</th>
+          <th>Code</th>
+          <th>Name</th>
+          <th>Contact</th>
+          <th>Business</th>
+          <th>Address</th>
+          <th>VAT Reg</th>
+          <th>TIN</th>
+          <th>Email</th>
+        </tr>
+      </thead>
+      <tbody id="contactBody"></tbody>
+    </table>
+
+    <!-- FORM -->
+    <form id="contactForm" class="contact-form" onsubmit="return false;">
+      <h2>Contact Information</h2>
+
+      <!-- TYPE + CODE -->
+      <div class="form-row">
+        <div class="form-group">
+          <label for="typeInput">Type</label>
+          <select id="typeInput" disabled>
+            <option value="Customer">Customer</option>
+            <option value="Supplier">Supplier</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="codeInput">Code</label>
+          <input type="text" id="codeInput" disabled />
+        </div>
+      </div>
+
+      <!-- COMPANY -->
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="businessInput">Company Name</label>
+          <input type="text" id="businessInput" disabled />
+        </div>
+      </div>
+
+      <!-- ADDRESS -->
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="addressInput">Address</label>
+          <input type="text" id="addressInput" disabled />
+        </div>
+      </div>
+
+      <!-- VAT + TIN -->
+      <div class="form-row">
+        <div class="form-group">
+          <label for="VatRegistrationInput">Vat Registration</label>
+          <input type="text" id="VatRegistrationInput" disabled />
+        </div>
+
+        <div class="form-group">
+          <label for="TINInput">VAT REG TIN</label>
+          <input type="text" id="TINInput" disabled />
+        </div>
+      </div>
+
+      <!-- CONTACT PERSON + NUMBER -->
+      <div class="form-row">
+        <div class="form-group">
+          <label for="nameInput">Contact Person</label>
+          <input type="text" id="nameInput" disabled />
+        </div>
+
+        <div class="form-group">
+          <label for="phoneInput">Contact Number</label>
+          <input type="text" id="phoneInput" disabled />
+        </div>
+      </div>
+
+      <!-- EMAIL -->
+      <div class="form-row">
+        <div class="form-group full">
+          <label for="emailInput">Email Address</label>
+          <input type="email" id="emailInput" disabled />
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button id="saveBtn" class="btn save" disabled>Save</button>
+        <button id="cancelBtn" class="btn cancel" disabled>Cancel</button>
+      </div>
+
+    </form>
+
+  </div>
+
+  <script src="contacts.js"></script>
+</body>
+</html>

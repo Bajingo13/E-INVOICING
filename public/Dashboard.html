@@ -10,11 +10,26 @@
 <body>
   <header> 
     <h1>E-Invoicing Dashboard</h1>
-  
+
+    <!--- 
+  -->
+    
     <nav class="navbar">
   <div class="navbar-left">
     <a href="/company-setup" class="btn">Company Info</a>
     
+    <div class="dropdown">
+      <button class="btn dropdown-toggle" id="createInvoiceBtn">
+        Accounting <span class="arrow"></span>
+      </button>
+      <div class="dropdown-menu" id="invoiceDropdown">
+        <a href="/COA.HTML" class="dropdown-item">Chart of Accounts</a>
+        <a href="/invoice?type=sales" class="dropdown-item">Contacts</a>
+
+      </div>
+    </div>
+  </div>
+
     <div class="dropdown">
       <button class="btn dropdown-toggle" id="createInvoiceBtn">
         Create Invoice <span class="arrow"></span>
@@ -30,7 +45,7 @@
   </div>
 
   <div class="navbar-right">
-    <a href="/invoice-list.html" class="btn">View Invoices</a>
+    
     <a href="/reports.html" class="btn">Reports</a>
     <a href="/" class="btn logout">Logout</a>
   </div>

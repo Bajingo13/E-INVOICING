@@ -1,0 +1,94 @@
+/* Basic layout */
+body {
+  background: #f5f5f5;
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 980px;
+  margin: 30px auto;
+  padding: 24px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.07);
+}
+h1 { margin: 0 0 18px 0; font-size: 30px; }
+
+/* Top buttons */
+.top-buttons { margin-bottom: 14px; }
+.btn {
+  padding: 8px 14px;
+  margin-right: 8px;
+  background: #4a68f4;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn:hover { filter: brightness(0.95); }
+.danger { background: #d9534f; }
+
+/* Search row */
+.search-row { display:flex; justify-content:flex-end; margin-bottom: 12px; }
+.search-row input {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 300px;
+}
+
+/* Table */
+.contact-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 18px;
+}
+.contact-table th, .contact-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+  text-align: left;
+}
+.contact-table thead th { background:#fafafa; font-weight:700; }
+.contact-table tr.selected { background:#eef4ff }
+
+/* Form */
+.contact-form { margin-top: 8px; }
+.contact-form h2 { margin-top: 18px; margin-bottom:12px; font-size:22px; }
+
+.form-row { display:flex; gap:16px; margin-bottom:12px; }
+.form-group { display:flex; flex-direction:column; flex:1; }
+.form-group.full { flex: 1 1 100%; }
+.form-group label { font-weight:600; margin-bottom:6px; font-size:13px; }
+.form-group input, .form-group select {
+  padding:8px 10px;
+  border-radius:6px;
+  border:1px solid #cfcfcf;
+  font-size:14px;
+}
+.form-group input:disabled, .form-group select:disabled {
+  background:#efefef;
+  color:#666;
+}
+
+/* action buttons in form */
+.button-row { display:flex; gap:8px; margin-top:8px; }
+.btn.save { background:#28a745; }
+.btn.cancel { background:#6c757d; }
+.btn:disabled { opacity:0.55; cursor:not-allowed; }
+
+/* Fixed disabled override */
+.form-group input:disabled,
+.form-group select:disabled {
+  background: #efefef !important;
+  color: #555;
+}
+
+/* Ensure enabled fields look normal */
+.form-group input:not(:disabled),
+.form-group select:not(:disabled) {
+  background: white !important;
+  color: black;
+}

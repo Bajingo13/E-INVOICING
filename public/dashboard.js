@@ -54,8 +54,11 @@ window.addEventListener('DOMContentLoaded', () => {
   fetchDashboardData();
 
   // ---------------- Dropdown Menu ----------------
+  
   const btn = document.getElementById('createInvoiceBtn');
   const menu = document.getElementById('invoiceDropdown');
+
+
 
   btn?.addEventListener('click', (e) => {
     e.stopPropagation();
