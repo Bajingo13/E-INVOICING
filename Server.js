@@ -1,384 +1,314 @@
-// ================== server.js ==================
-
-// ----------- IMPORTS AND INITIAL SETUP -----------
+// ================== Server.js (Full Ready-to-Run) ==================
+require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
-const eis = require("./middleware/eis");
 const cron = require('node-cron');
+const morgan = require('morgan');
+//const eis = require('./middleware/eis');
 
 const app = express();
 app.use(express.json());
 
-// ----------- HTML ROUTES -----------
+// ----------------- Session Management -----------------
+const session = require('express-session');
+
+app.use(session({
+  secret: process.env.SESSION_SECRET,  
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 60 * 60 * 1000,   
+    secure: process.env.NODE_ENV === 'production',  
+    httpOnly: true,           
+    sameSite: 'lax'           
+  },
+  rolling: true             
+}));
+
+// ----------------- Routes: Auth -----------------
+const authRoutes = require('./route/auth.js');
+app.use('/auth', authRoutes);
+
+// ----------------- Configuration & Debug -----------------
+const DEBUG = process.env.DEBUG === 'true' || false;
+const PORT = process.env.PORT || 3000;
+function debugLog(...args) { if (DEBUG) console.debug('[DEBUG]', ...args); }
+function infoLog(...args) { console.log('[INFO]', ...args); }
+function errorLog(...args) { console.error('[ERROR]', ...args); }
+
+// ----------------- HTTP Request Logger -----------------
+app.use(morgan('dev'));
+
+// ----------------- MySQL Pool -----------------
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  timezone: '+08:00',
+  dateStrings: true,
+  waitForConnections: true,
+  connectionLimit: 10,
+});
+async function getConn() { try { return await pool.getConnection(); } catch (err) { errorLog('DB Connection Error:', err); throw err; } }
+
+// ----------------- Helpers -----------------
+const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+function safeJSONParse(str, fallback = []) { try { return JSON.parse(str); } catch { return fallback; } }
+function parseDecimal(v) { if (v === undefined || v === null || v === '' || isNaN(v)) return 0; return parseFloat(v); }
+
+async function generateInvoiceNo(conn) {
+  await conn.beginTransaction(); // start transaction
+  try {
+    
+    const [rows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1 FOR UPDATE');
+    if (!rows.length) throw new Error('Invoice counter not initialized');
+
+    const counter = rows[0];
+    const nextNumber = counter.last_number + 1;
+    const invoiceNo = `${counter.prefix}-${String(nextNumber).padStart(6, '0')}`;
+
+    await conn.execute('UPDATE invoice_counter SET last_number = ? WHERE id = ?', [nextNumber, counter.id]);
+    await conn.commit(); 
+
+    return invoiceNo;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  }
+}
+
+
+// ----------------- Static Routes -----------------
+app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Login.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Dashboard.html')));
-app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice.html')));
 app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
 app.get('/invoice-list', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice-list.html')));
 
-// ----------- STATIC ASSETS -----------
-app.use(express.static(path.join(__dirname, 'public')));
-
-// FIX: Keep MySQL dates as plain strings (no timezone shift)
-const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: 'Bsu2025!@',
-  database: 'invoice_system',
-  timezone: '+08:00',  //  Match your local timezone (Philippines)
-  dateStrings: true,   //  Return DATE/DATETIME as strings
-});
-
-// ----------- LOGO UPLOAD FOR INVOICES -----------
-const invoiceLogoUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const folder = path.join(__dirname, 'public', 'uploads');
-      if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
-      cb(null, folder);
-    },
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      const invoiceNo = req.body.invoice_no || Date.now();
-      cb(null, `invoice_${invoiceNo}${ext}`);
-    }
-  })
-});
-
-//  RECURRING INVOICE CRON JOB
-cron.schedule('0 0 * * *', async () => { // ⏰ runs once daily at midnight
-  console.log('🕐 Running recurring invoice check at', new Date().toLocaleTimeString());
-
-  const conn = await pool.getConnection();
+// ----------------- Routes: Next Invoice Number -----------------
+app.get('/api/next-invoice-no', asyncHandler(async (req, res) => {
+  const conn = await getConn();
   try {
-    const [recurringList] = await conn.execute(`
-  SELECT * FROM invoices
-  WHERE recurrence_status='active'
-  AND recurrence_type IS NOT NULL
-  AND recurrence_start_date <= CURDATE()
-  AND recurrence_end_date >= CURDATE()
-`);
+    const [rows] = await conn.query('SELECT * FROM invoice_counter LIMIT 1');
+    if (!rows.length) return res.status(500).json({ error: 'Invoice counter not initialized' });
 
+    const counter = rows[0];
+    const nextNumber = counter.last_number + 1;
+    const invoiceNo = `${counter.prefix}-${String(nextNumber).padStart(6, '0')}`;
 
-    console.log(`📦 Found ${recurringList.length} active recurring invoice(s)`);
-
-    for (const r of recurringList) {
-      console.log(`🔍 Checking ${r.bill_to} | Last generated: ${r.last_generated || 'None'}`);
-      if (isInvoiceDue(r)) {
-        await generateInvoiceFromRecurring(conn, r);
-      } else {
-        console.log(`⏳ Not due yet for ${r.bill_to}`);
-      }
-    }
-
-    // Mark recurring invoices as ended if past end date
-      await conn.execute(`
-  UPDATE invoices
-  SET recurrence_status='ended'
-  WHERE recurrence_end_date < CURDATE()
-`);
-
-  } catch (err) {
-    console.error('❌ Error running recurring job:', err);
+    res.json({ invoiceNo });
   } finally {
     conn.release();
   }
-});
+}));
 
 
-// --------------- Helper Functions ----------------
-function isInvoiceDue(r) {
-  const now = new Date();
-  const last = r.last_generated ? new Date(r.last_generated) : new Date(r.recurrence_start_date);
+// ----------------- Multer Upload -----------------
+function ensureUploadFolder() { const folder = path.join(__dirname, 'public', 'uploads'); if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true }); return folder; }
+function createStorage(filenameResolver) { return multer.diskStorage({ destination: (req, file, cb) => cb(null, ensureUploadFolder()), filename: (req, file, cb) => cb(null, filenameResolver(req, file)) }); }
+const invoiceLogoUpload = multer({ storage: createStorage((req, file) => `invoice_${req.body.invoice_no || Date.now()}${path.extname(file.originalname)}`) });
+const companyUpload = multer({ storage: createStorage((req, file) => `company_logo${path.extname(file.originalname)}`) });
 
-  // 🧭 Compare in days (since now we run daily)
-  const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
-
-  // Generate once per day (you can adjust to weekly/monthly later)
-  return diffDays >= 1;
-}
-
-async function generateInvoiceFromRecurring(conn, recurring) {
-  const [result] = await conn.execute(`
-    INSERT INTO invoices 
-    (bill_to, address1, total_amount_due, recurrence_type, terms, date, due_date, recurrence_status)
-    VALUES (?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'active')
-  `, [
-    recurring.bill_to,
-    recurring.address1,
-    recurring.total_amount_due,
-    recurring.recurrence_type,
-    recurring.terms
-  ]);
-
-  // ✅ Generate invoice number
-  const newId = result.insertId;
-  const newInvoiceNo = `INV-${String(newId).padStart(6, '0')}`;
-  await conn.execute('UPDATE invoices SET invoice_no = ? WHERE id = ?', [newInvoiceNo, newId]);
-
-  // ✅ Update last_generated
-  await conn.execute(`
-    UPDATE invoices 
-    SET last_generated = CURDATE() 
-    WHERE id = ?
-  `, [recurring.id]);
-
-  console.log(`✅ Generated recurring invoice for ${recurring.bill_to}: ${newInvoiceNo}`);
-}
+// ----------------- Recurring Invoice Helpers -----------------
+function isInvoiceDue(r) { const now = new Date(); const last = r.last_generated ? new Date(r.last_generated) : new Date(r.recurrence_start_date); return Math.floor((now - last) / (1000 * 60 * 60 * 24)) >= 1; }
 
 
-// ----------- LOGO UPLOAD ENDPOINT -----------
-app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-    const filePath = `/uploads/${req.file.filename}`;
-    res.json({ filename: filePath, message: "✅ Logo uploaded successfully!" });
-  } catch (err) {
-    console.error("Logo upload error:", err);
-    res.status(500).json({ error: "❌ Error uploading logo" });
-  }
-});
-
-// ----------- USER AUTHENTICATION -----------
-
-// LOGIN
-app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) 
-    return res.json({ success: false, message: "Username and password required" });
-
-  try {
-    const conn = await pool.getConnection();
+// ----------------- Schedule Recurring Job -----------------
+async function scheduleRecurringJob() {
+  cron.schedule('0 0 * * *', async () => {
+    infoLog('Running recurring invoice check at', new Date().toLocaleString());
+    const conn = await getConn();
     try {
-      const [rows] = await conn.execute(
-        'SELECT * FROM users WHERE username = ? AND password = ?', 
-        [username, password]
-      );
-      if (rows.length > 0) {
-        res.json({ success: true });
-      } else {
-        res.json({ success: false, message: "Invalid username or password" });
-      }
-    } finally {
-      conn.release();
-    }
-  } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
+      const [recurringList] = await conn.execute(`
+        SELECT * FROM invoices
+        WHERE recurrence_status='active' AND recurrence_type IS NOT NULL AND recurrence_start_date <= CURDATE() AND recurrence_end_date >= CURDATE()
+      `);
+      infoLog(`Found ${recurringList.length} active recurring invoice(s)`);
+      for (const r of recurringList) if (isInvoiceDue(r)) await generateInvoiceFromRecurring(conn, r);
+      await conn.execute(`UPDATE invoices SET recurrence_status='ended' WHERE recurrence_end_date < CURDATE()`);
+    } catch (err) { errorLog('Recurring job error:', err); } finally { conn.release(); }
+  }, { scheduled: true });
+}
+
+// ----------------- Routes: Upload -----------------
+app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  res.json({ filename: `/uploads/${req.file.filename}`, message: 'Logo uploaded successfully' });
 });
 
-// CREATE ACCOUNT
-app.post('/api/create-account', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.json({ success: false, message: "Username and password required" });
-
-  const conn = await pool.getConnection();
-  try {
-    const [rows] = await conn.execute('SELECT * FROM users WHERE username = ?', [username]);
-    if (rows.length > 0) return res.json({ success: false, message: "Username already exists" });
-
-    await conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', [username, password]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Create account error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
-  } finally {
-    conn.release();
-  }
-});
-
-// ----------- DASHBOARD API -----------
-app.get('/api/dashboard', async (req, res) => {
-  const conn = await pool.getConnection();
+// ----------------- Routes: Dashboard -----------------
+app.get('/api/dashboard', asyncHandler(async (req, res) => {
+  const conn = await getConn();
   try {
     const [invoices] = await conn.execute('SELECT COUNT(*) AS total FROM invoices');
     const [totalAmountDue] = await conn.execute('SELECT SUM(total_amount_due) AS total FROM invoices');
     const [pending] = await conn.execute('SELECT COUNT(*) AS total FROM invoices WHERE total_amount_due > 0');
+    res.json({ totalInvoices: invoices[0].total, totalPayments: totalAmountDue[0].total || 0, pendingInvoices: pending[0].total });
+  } finally { conn.release(); }
+}));
 
-    res.json({
-      totalInvoices: invoices[0].total,
-      totalPayments: totalAmountDue[0].total || 0,
-      pendingInvoices: pending[0].total
-    });
-  } catch (err) {
-    console.error("Dashboard error:", err);
-    res.status(500).json({});
-  } finally {
-    conn.release();
-  }
-});
-
-// ----------- COMPANY INFO ROUTES -----------
-
-// Company logo upload config
-const companyUpload = multer({ 
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const folder = path.join(__dirname, 'public', 'uploads');
-      if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
-      cb(null, folder);
-    },
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, `company_logo${ext}`);
-    }
-  })
-});
-
-// SAVE COMPANY INFO
-app.post('/save-company-info', companyUpload.single('logo'), async (req, res) => {
+// ----------------- Routes: Company Info -----------------
+app.post('/save-company-info', companyUpload.single('logo'), asyncHandler(async (req, res) => {
+  const { company_name, company_address, tel_no, vat_tin } = req.body;
+  const logo_path = req.file ? `/uploads/${req.file.filename}` : null;
+  const conn = await getConn();
   try {
-    const { company_name, company_address, tel_no, vat_tin } = req.body;
-    const logo_path = req.file ? `/uploads/${req.file.filename}` : null;
-
-    const conn = await pool.getConnection();
-    try {
-      const [rows] = await conn.execute(`SELECT * FROM company_info LIMIT 1`);
-      if (rows.length > 0) {
-        await conn.execute(
-          `UPDATE company_info SET company_name=?, company_address=?, tel_no=?, vat_tin=?, logo_path=? WHERE company_id=?`,
-          [company_name, company_address, tel_no, vat_tin, logo_path || rows[0].logo_path, rows[0].company_id]
-        );
-      } else {
-        await conn.execute(
-          `INSERT INTO company_info (company_name, company_address, tel_no, vat_tin, logo_path)
-           VALUES (?, ?, ?, ?, ?)`,
-          [company_name, company_address, tel_no, vat_tin, logo_path]
-        );
-      }
-      res.json({ message: "✅ Company info saved successfully!" });
-    } finally {
-      conn.release();
-    }
-  } catch (error) {
-    console.error("Save company info error:", error);
-    res.status(500).json({ message: "❌ Error saving company info" });
-  }
-});
-
-// GET COMPANY INFO
-app.get('/get-company-info', async (req, res) => {
-  try {
-    const conn = await pool.getConnection();
-    try {
-      const [rows] = await conn.execute(`SELECT * FROM company_info LIMIT 1`);
-      res.json(rows[0] || {});
-    } finally {
-      conn.release();
-    }
-  } catch (error) {
-    console.error("Get company info error:", error);
-    res.status(500).json({ message: "❌ Error fetching company info" });
-  }
-});
-
-// ----------- INVOICE TYPE ROUTE -----------
-app.post('/api/invoice/save-type', async (req, res) => {
-  try {
-    const { invoiceTitle, invoiceNo } = req.body;
-    if (!invoiceTitle || !invoiceNo) {
-      return res.status(400).json({ error: 'Missing invoiceTitle or invoiceNo' });
-    }
-
-    const conn = await pool.getConnection();
-    try {
+    const [rows] = await conn.execute('SELECT * FROM company_info LIMIT 1');
+    if (rows.length > 0) {
       await conn.execute(
-        'UPDATE invoices SET invoice_type = ? WHERE invoice_no = ?',
-        [invoiceTitle, invoiceNo]
+        `UPDATE company_info SET company_name=?, company_address=?, tel_no=?, vat_tin=?, logo_path=? WHERE company_id=?`,
+        [company_name, company_address, tel_no, vat_tin, logo_path || rows[0].logo_path, rows[0].company_id]
       );
-      res.json({ message: '✅ Invoice type updated successfully', invoiceTitle });
-    } finally {
-      conn.release();
+    } else {
+      await conn.execute(
+        `INSERT INTO company_info (company_name, company_address, tel_no, vat_tin, logo_path) VALUES (?, ?, ?, ?, ?)`,
+        [company_name, company_address, tel_no, vat_tin, logo_path]
+      );
     }
+    res.json({ message: 'Company info saved successfully' });
+  } finally { conn.release(); }
+}));
+app.get('/get-company-info', asyncHandler(async (req, res) => { const conn = await getConn(); try { const [rows] = await conn.execute('SELECT * FROM company_info LIMIT 1'); res.json(rows[0] || {}); } finally { conn.release(); } }));
+
+
+
+// ----------------- Routes: Invoice CRUD (Create, Update, Get, List, Delete) -----------------
+
+// ----------------- Helper: Generate recurring invoice safely -----------------
+async function generateInvoiceFromRecurring(conn, recurring) {
+  debugLog('Generating recurring invoice for', recurring.bill_to);
+
+  // Start transaction for safety
+  await conn.beginTransaction();
+  try {
+    // Generate consistent invoice number
+    const invoiceNo = await generateInvoiceNo(conn);
+
+    const [result] = await conn.execute(`
+      INSERT INTO invoices
+      (invoice_no, bill_to, address1, total_amount_due, recurrence_type, terms, date, due_date, recurrence_status)
+      VALUES (?, ?, ?, ?, ?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), 'active')
+    `, [invoiceNo, recurring.bill_to, recurring.address1, recurring.total_amount_due, recurring.recurrence_type, recurring.terms]);
+
+    const newInvoiceId = result.insertId;
+
+    // Mark last generated date
+    await conn.execute('UPDATE invoices SET last_generated = CURDATE() WHERE id = ?', [recurring.id]);
+
+    await conn.commit();
+    infoLog(`Generated recurring invoice ${invoiceNo} for ${recurring.bill_to}`);
+    return invoiceNo;
   } catch (err) {
-    console.error('❌ Error saving invoice type:', err);
-    res.status(500).json({ error: 'Database error' });
+    await conn.rollback();
+    errorLog('Error generating recurring invoice:', err);
+    throw err;
   }
-});
+}
 
-// ----------- INVOICE CRUD ROUTES -----------
 
-// CREATE INVOICE
-app.post('/api/invoices', async (req, res) => {
+// ----------------- POST /api/invoices -----------------
+app.post('/api/invoices', asyncHandler(async (req, res) => {
   const invoiceData = req.body;
 
-  // Validate required fields
-  if (!invoiceData.invoice_no || !invoiceData.bill_to || !invoiceData.date ||
+  if (!invoiceData.bill_to || !invoiceData.date ||
       !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
     return res.status(400).json({ error: 'Missing required invoice fields or items' });
   }
 
-  // Find extra columns in items
-  const defaultItemCols = ["description", "quantity", "unit_price", "amount"];
-  let extraColumns = [];
-  invoiceData.items.forEach(item => {
-    Object.keys(item).forEach(key => {
-      if (!defaultItemCols.includes(key) && !extraColumns.includes(key)) {
-        extraColumns.push(key);
-      }
-    });
-  });
-
-  const conn = await pool.getConnection();
+  const conn = await getConn();
   try {
     await conn.beginTransaction();
 
-    // Insert invoice (handles both standard & recurring)
-const [invoiceResult] = await conn.execute(
-  `INSERT INTO invoices
-    (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
-     recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  [
-    invoiceData.invoice_no,
-    invoiceData.invoice_type,
-    invoiceData.bill_to,
-    invoiceData.address1,
-    invoiceData.address2,
-    invoiceData.tin,
-    invoiceData.terms,
-    invoiceData.date,
-    invoiceData.due_Date,
-    invoiceData.total_amount_due,
-    invoiceData.logo || null,
-    JSON.stringify(extraColumns || []),
-    invoiceData.recurrence_type || null,
-    invoiceData.recurrence_start_date || null,
-    invoiceData.recurrence_end_date || null,
-    invoiceData.recurrence_type ? 'active' : null
-  ]
-);
+    // Generate invoice number safely
+    const invoiceNo = await generateInvoiceNo(conn);
+    invoiceData.invoice_no = invoiceNo;
+
+    const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount'];
+    let extraColumns = [];
+    invoiceData.items.forEach(item => {
+      Object.keys(item).forEach(key => {
+        if (!defaultItemCols.includes(key) && !extraColumns.includes(key)) extraColumns.push(key);
+      });
+    });
+
+    // Insert invoice (initial total_amount_due = 0, will update later)
+    const [invoiceResult] = await conn.execute(
+      `INSERT INTO invoices
+        (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
+         recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+      [
+        invoiceData.invoice_no,
+        invoiceData.invoice_type,
+        invoiceData.bill_to,
+        invoiceData.address1,
+        invoiceData.address2,
+        invoiceData.tin,
+        invoiceData.terms,
+        invoiceData.date,
+        invoiceData.due_date || null,
+        invoiceData.logo || null,
+        JSON.stringify(extraColumns || []),
+        invoiceData.recurrence_type || null,
+        invoiceData.recurrence_start_date || null,
+        invoiceData.recurrence_end_date || null,
+        invoiceData.recurrence_type ? 'active' : null
+      ]
+    );
+
     const invoiceId = invoiceResult.insertId;
 
-    // Insert invoice items, add columns if needed
+    // ------------------ Insert items and calculate total_amount_due ------------------
+    let totalAmountDue = 0;
     for (const item of invoiceData.items) {
-      const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
+      const [cols] = await conn.execute('SHOW COLUMNS FROM invoice_items');
       const existingCols = cols.map(c => c.Field);
 
-      const columns = ["invoice_id", "description", "quantity", "unit_price", "amount"];
-      const values = [invoiceId, item.description, item.quantity, item.unit_price, item.amount];
-      const placeholders = ["?", "?", "?", "?", "?"];
+      const columns = ['invoice_id', 'description', 'quantity', 'unit_price', 'amount'];
+      let quantity = parseDecimal(item.quantity);
+      let unit_price = parseDecimal(item.unit_price);
 
-      for (const [key, val] of Object.entries(item)) {
-        if (defaultItemCols.includes(key)) continue;
+      // Base item amount
+      let itemAmount = quantity * unit_price;
+
+      // Extra numeric columns
+      const extraCols = Object.keys(item).filter(k => !defaultItemCols.includes(k));
+      for (const key of extraCols) {
+        const val = parseDecimal(item[key]);
+        if (!isNaN(val)) itemAmount += val;
+
+        // Add extra column to table if missing
         if (!existingCols.includes(key)) {
           await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
           existingCols.push(key);
         }
-        columns.push("`" + key + "`");
-        values.push(val);
-        placeholders.push("?");
+        columns.push('`' + key + '`');
       }
 
-      const sql = `INSERT INTO invoice_items (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`;
-      await conn.execute(sql, values);
+      const values = [invoiceId, item.description || '', quantity, unit_price, itemAmount];
+      const placeholders = ['?', '?', '?', '?', '?'];
+
+      // Add extra column values
+      for (const key of extraCols) {
+        values.push(item[key] || null);
+        placeholders.push('?');
+      }
+
+      await conn.execute(`INSERT INTO invoice_items (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`, values);
+
+      // Add to invoice total
+      totalAmountDue += itemAmount;
     }
 
-    // Insert payment if present
+    // ------------------ Update invoice total_amount_due ------------------
+    await conn.execute('UPDATE invoices SET total_amount_due=? WHERE id=?', [totalAmountDue, invoiceId]);
+
+    // ------------------ Insert payment if exists ------------------
     if (invoiceData.payment) {
       const p = invoiceData.payment;
       await conn.execute(
@@ -387,6 +317,7 @@ const [invoiceResult] = await conn.execute(
            vat_exempt, less_vat, zero_rated, net_vat, vat_amount, withholding, total,
            due, pay_date, payable)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+
         [
           invoiceId,
           p.cash || false,
@@ -409,108 +340,122 @@ const [invoiceResult] = await conn.execute(
       );
     }
 
-    // Insert footer if present
+    // ------------------ Insert footer if exists ------------------
     if (invoiceData.footer) {
       const f = invoiceData.footer;
       await conn.execute(
-        `INSERT INTO invoice_footer 
-          (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO invoice_footer (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos) VALUES (?, ?, ?, ?, ?, ?)`,
         [invoiceId, f.atp_no, f.atp_date, f.bir_permit_no, f.bir_date, f.serial_nos]
       );
     }
 
     await conn.commit();
-    res.status(201).json({ success: true, invoiceId });
+    res.status(201).json({ success: true, invoiceId, invoiceNo, total_amount_due: totalAmountDue });
   } catch (err) {
     await conn.rollback();
-    console.error('❌ Database transaction error:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    errorLog('Create invoice transaction error:', err);
+    throw err;
   } finally {
     conn.release();
   }
-});
+}));
 
-// UPDATE INVOICE
-app.put('/api/invoices/:invoiceNo', async (req, res) => {
+
+
+// ----------------- UPDATE /api/invoices/:invoiceNo -----------------
+app.put('/api/invoices/:invoiceNo', asyncHandler(async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
   const invoiceData = req.body;
 
-  // Find extra columns in items
-  const defaultItemCols = ["description", "quantity", "unit_price", "amount"];
-  let extraColumns = [];
-  invoiceData.items.forEach(item => {
-    Object.keys(item).forEach(key => {
-      if (!defaultItemCols.includes(key) && !extraColumns.includes(key)) {
-        extraColumns.push(key);
-      }
-    });
-  });
+  if (!invoiceData.bill_to || !invoiceData.date ||
+      !Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
+    return res.status(400).json({ error: 'Missing required invoice fields or items' });
+  }
 
-  const conn = await pool.getConnection();
+  const conn = await getConn();
   try {
     await conn.beginTransaction();
 
-    // Get invoice ID
-    const [invoiceRows] = await conn.query(
-      `SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1`,
-      [invoiceNo]
-    );
+    // Get invoice id
+    const [invoiceRows] = await conn.execute('SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
     if (invoiceRows.length === 0) {
       await conn.rollback();
       return res.status(404).json({ error: 'Invoice not found' });
     }
     const invoiceId = invoiceRows[0].id;
 
-    // Update invoice
-    await conn.execute(
-      `UPDATE invoices
-       SET invoice_type=?,bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?
-       WHERE id=?`,
-      [
-  invoiceData.invoice_type,
-  invoiceData.bill_to,
-  invoiceData.address1,
-  invoiceData.address2,
-  invoiceData.tin,
-  invoiceData.terms,
-  invoiceData.date,
-  invoiceData.total_amount_due,
-  invoiceData.logo || null,
-  JSON.stringify(extraColumns),
-  invoiceId
-]
-    );
+    const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount'];
+    let extraColumns = [];
+    invoiceData.items.forEach(item => {
+      Object.keys(item).forEach(key => {
+        if (!defaultItemCols.includes(key) && !extraColumns.includes(key)) extraColumns.push(key);
+      });
+    });
 
-    // Remove old items, insert new
-    await conn.execute(`DELETE FROM invoice_items WHERE invoice_id=?`, [invoiceId]);
+    // ------------------ Delete old items ------------------
+    await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [invoiceId]);
+
+    // ------------------ Insert new items and calculate total_amount_due ------------------
+    let totalAmountDue = 0;
     for (const item of invoiceData.items) {
-      const [cols] = await conn.execute(`SHOW COLUMNS FROM invoice_items`);
+      const [cols] = await conn.execute('SHOW COLUMNS FROM invoice_items');
       const existingCols = cols.map(c => c.Field);
 
-      const columns = ["invoice_id", "description", "quantity", "unit_price", "amount"];
-      const values = [invoiceId, item.description, item.quantity, item.unit_price, item.amount];
-      const placeholders = ["?", "?", "?", "?", "?"];
+      const columns = ['invoice_id', 'description', 'quantity', 'unit_price', 'amount'];
+      let quantity = parseDecimal(item.quantity);
+      let unit_price = parseDecimal(item.unit_price);
 
-      for (const [key, val] of Object.entries(item)) {
-        if (defaultItemCols.includes(key)) continue;
+      // Base item amount
+      let itemAmount = quantity * unit_price;
+
+      // Extra numeric columns
+      const extraCols = Object.keys(item).filter(k => !defaultItemCols.includes(k));
+      for (const key of extraCols) {
+        const val = parseDecimal(item[key]);
+        if (!isNaN(val)) itemAmount += val;
+
+        // Add extra column to table if missing
         if (!existingCols.includes(key)) {
           await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${key}\` VARCHAR(255)`);
           existingCols.push(key);
         }
-        columns.push("`" + key + "`");
-        values.push(val);
-        placeholders.push("?");
+        columns.push('`' + key + '`');
       }
 
-      await conn.execute(
-        `INSERT INTO invoice_items (${columns.join(", ")}) VALUES (${placeholders.join(", ")})`,
-        values
-      );
+      const values = [invoiceId, item.description || '', quantity, unit_price, itemAmount];
+      const placeholders = ['?', '?', '?', '?', '?'];
+
+      // Add extra column values
+      for (const key of extraCols) {
+        values.push(item[key] || null);
+        placeholders.push('?');
+      }
+
+      await conn.execute(`INSERT INTO invoice_items (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`, values);
+
+      totalAmountDue += itemAmount;
     }
 
-    // Remove old payment/footer, insert new if present
-    await conn.execute(`DELETE FROM payments WHERE invoice_id=?`, [invoiceId]);
+    // ------------------ Update invoice ------------------
+    await conn.execute(
+      `UPDATE invoices SET invoice_type=?, bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=? WHERE id=?`,
+      [
+        invoiceData.invoice_type,
+        invoiceData.bill_to,
+        invoiceData.address1,
+        invoiceData.address2,
+        invoiceData.tin,
+        invoiceData.terms,
+        invoiceData.date,
+        totalAmountDue,            // ✅ calculated total
+        invoiceData.logo || null,
+        JSON.stringify(extraColumns),
+        invoiceId
+      ]
+    );
+
+    // ------------------ Delete and insert payment ------------------
+    await conn.execute('DELETE FROM payments WHERE invoice_id=?', [invoiceId]);
     if (invoiceData.payment) {
       const p = invoiceData.payment;
       await conn.execute(
@@ -519,6 +464,7 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
            vat_exempt, less_vat, zero_rated, net_vat, vat_amount, withholding, total,
            due, pay_date, payable)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+
         [
           invoiceId,
           p.cash || false,
@@ -541,162 +487,95 @@ app.put('/api/invoices/:invoiceNo', async (req, res) => {
       );
     }
 
-    await conn.execute(`DELETE FROM invoice_footer WHERE invoice_id=?`, [invoiceId]);
+    // ------------------ Delete and insert footer ------------------
+    await conn.execute('DELETE FROM invoice_footer WHERE invoice_id=?', [invoiceId]);
     if (invoiceData.footer) {
       const f = invoiceData.footer;
       await conn.execute(
-        `INSERT INTO invoice_footer 
-          (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO invoice_footer (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos) VALUES (?, ?, ?, ?, ?, ?)`,
         [invoiceId, f.atp_no, f.atp_date, f.bir_permit_no, f.bir_date, f.serial_nos]
       );
     }
 
     await conn.commit();
-    res.json({ success: true, invoiceId });
+    res.json({ success: true, invoiceId, total_amount_due: totalAmountDue });
   } catch (err) {
     await conn.rollback();
-    console.error("❌ Update invoice error:", err);
-    res.status(500).json({ error: 'Internal server error' });
+    errorLog('Update invoice error:', err);
+    throw err;
   } finally {
     conn.release();
   }
-});
+}));
 
-// GET INVOICE BY NUMBER
-app.get('/api/invoices/:invoiceNo', async (req, res) => {
+
+// ----------------- GET /api/invoices/:invoiceNo -----------------
+app.get('/api/invoices/:invoiceNo', asyncHandler(async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
-  const conn = await pool.getConnection();
+  const conn = await getConn();
   try {
-    const [invoiceRows] = await conn.query(
-      `SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1`,
-      [invoiceNo]
-    );
+    const [invoiceRows] = await conn.execute('SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
     if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
     const invoice = invoiceRows[0];
 
-    const [columns] = await conn.query(`SHOW COLUMNS FROM invoice_items`);
+    const [columns] = await conn.execute('SHOW COLUMNS FROM invoice_items');
     const colNames = columns.map(c => c.Field);
 
-    const [items] = await conn.query(
-      `SELECT ${colNames.map(c => '`'+c+'`').join(', ')} FROM invoice_items WHERE invoice_id = ?`,
-      [invoice.id]
-    );
-
-    const [paymentRows] = await conn.query(
-      `SELECT * FROM payments WHERE invoice_id = ? LIMIT 1`,
-      [invoice.id]
-    );
-
-    const [footerRows] = await conn.query(
-      `SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1`,
-      [invoice.id]
-    );
-
-    const [companyRows] = await conn.query(`SELECT * FROM company_info LIMIT 1`);
-
-    // Parse extra_columns JSON
-    let extra_columns = [];
-    try {
-      extra_columns = invoice.extra_columns ? JSON.parse(invoice.extra_columns) : [];
-    } catch (e) {}
+    const [items] = await conn.execute(`SELECT ${colNames.map(c => '`' + c + '`').join(', ')} FROM invoice_items WHERE invoice_id = ?`, [invoice.id]);
+    const [paymentRows] = await conn.execute('SELECT * FROM payments WHERE invoice_id = ? LIMIT 1', [invoice.id]);
+    const [footerRows] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1', [invoice.id]);
+    const [companyRows] = await conn.execute('SELECT * FROM company_info LIMIT 1');
 
     invoice.items = items;
     invoice.payment = paymentRows[0] || {};
     invoice.footer = footerRows[0] || {};
     invoice.company = companyRows[0] || {};
-    invoice.extra_columns = extra_columns; // Attach to response
+    invoice.extra_columns = safeJSONParse(invoice.extra_columns, []);
 
     res.json(invoice);
-  } catch (err) {
-    console.error('❌ Error fetching invoice:', err);
-    res.status(500).json({ error: 'Internal server error' });
   } finally {
     conn.release();
   }
-});
+}));
 
-// GET ALL INVOICES
-app.get('/api/invoices', async (req, res) => {
-  const conn = await pool.getConnection();
+app.get('/api/invoices', asyncHandler(async (req, res) => {
+  const conn = await getConn();
   try {
-    const [rows] = await conn.query(
-      `SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, 
-              i.total_amount_due, i.logo
-       FROM invoices i
-       ORDER BY i.date DESC`
-    );
+    const [rows] = await conn.execute(`
+      SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, i.total_amount_due, i.logo
+      FROM invoices i
+      ORDER BY i.date DESC
+    `);
     res.json(rows);
-  } catch (err) {
-    console.error("❌ Error fetching all invoices:", err);
-    res.status(500).json({ error: "Server error" });
   } finally {
     conn.release();
   }
-});
+}));
 
-// DELETE INVOICE
-app.delete('/api/invoices/:invoiceNo', async (req, res) => {
+app.delete('/api/invoices/:invoiceNo', asyncHandler(async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
-  const conn = await pool.getConnection();
+  const conn = await getConn();
   try {
-    const [invoiceRows] = await conn.query('SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
+    const [invoiceRows] = await conn.execute('SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
     if (invoiceRows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
-
     const invoiceId = invoiceRows[0].id;
-
-    await conn.query('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
-    await conn.query('DELETE FROM payments WHERE invoice_id = ?', [invoiceId]);
-    await conn.query('DELETE FROM invoice_footer WHERE invoice_id = ?', [invoiceId]);
-    await conn.query('DELETE FROM invoices WHERE id = ?', [invoiceId]);
-
+    await conn.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
+    await conn.execute('DELETE FROM payments WHERE invoice_id = ?', [invoiceId]);
+    await conn.execute('DELETE FROM invoice_footer WHERE invoice_id = ?', [invoiceId]);
+    await conn.execute('DELETE FROM invoices WHERE id = ?', [invoiceId]);
     res.json({ success: true, message: 'Invoice deleted successfully' });
-  } catch (err) {
-    console.error("❌ Error deleting invoice:", err);
-    res.status(500).json({ error: 'Internal server error' });
   } finally {
     conn.release();
   }
-});
+}));
 
-// ----------- EIS INTEGRATION ROUTES -----------
+// ----------------- Global Error Handler -----------------
+app.use((err, req, res, next) => { errorLog('Unhandled error:', err); res.status(500).json({ error: 'Internal server error', message: err.message }); });
 
-// SEND INVOICE TO EIS
-app.post('/api/send-invoice/:invoiceNo', async (req, res) => {
-  const invoiceNo = req.params.invoiceNo;
-  const conn = await pool.getConnection();
-  try {
-    const [rows] = await conn.query(`SELECT * FROM invoices WHERE invoice_no=? LIMIT 1`, [invoiceNo]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+// ----------------- Process-level handlers -----------------
+process.on('unhandledRejection', reason => errorLog('Unhandled Rejection:', reason));
+process.on('uncaughtException', err => { errorLog('Uncaught Exception:', err); process.exit(1); });
 
-    const invoice = rows[0];
-    // You might also need to fetch items, payment, footer like in your GET invoice API
-    const result = await eis.sendInvoiceToEIS(invoice);
-
-    res.json({ success: true, response: result });
-  } catch (err) {
-    console.error("❌ Send to EIS failed:", err.message);
-    res.status(500).json({ error: "Failed to send invoice to EIS" });
-  } finally {
-    conn.release();
-  }
-});
-
-// CHECK EIS STATUS
-app.get('/api/check-status/:submissionId', async (req, res) => {
-  try {
-    const submissionId = req.params.submissionId;
-    const status = await eis.checkInvoiceStatus(submissionId);
-    res.json({ success: true, status });
-  } catch (err) {
-    console.error("❌ Check status failed:", err.message);
-    res.status(500).json({ error: "Failed to check status" });
-  }
-});
-
-
-
-
-// ----------- START SERVER -----------
-const PORT = 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+// ----------------- Start server & cron -----------------
+scheduleRecurringJob().catch(err => errorLog('Failed to schedule recurring job:', err));
+app.listen(PORT, () => infoLog(`Server running at http://localhost:${PORT}`));

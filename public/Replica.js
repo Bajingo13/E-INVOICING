@@ -4,21 +4,13 @@
 
 console.log("✅ REPLICA.js loaded");
 
-window.onload = async function () {
-  const params = new URLSearchParams(window.location.search);
-  const invoiceNo = params.get("invoice_no");
-
-  if (!invoiceNo) {
-    alert("No invoice number provided in the URL.");
-    return;
-  }
-
-  // ---------- Helpers ----------
+// ============================
+// Main Invoice Renderer
+// ============================
+function renderInvoice(data) {
   const formatCurrency = (value) => {
     const num = parseFloat(value);
-    return isNaN(num)
-      ? ""
-      : num.toLocaleString("en-PH", { style: "currency", currency: "PHP" });
+    return isNaN(num) ? "" : num.toLocaleString("en-PH", { style: "currency", currency: "PHP" });
   };
 
   const formatDate = (dateStr) => {
@@ -42,7 +34,6 @@ window.onload = async function () {
     if (el) el.textContent = value || "";
   };
 
-  // ---------- Build Items Table ----------
   const buildTable = (items) => {
     const theadRow = document.getElementById("replica-thead-row");
     const colgroup = document.getElementById("invoice-colgroup");
@@ -53,45 +44,34 @@ window.onload = async function () {
     tbody.innerHTML = "";
 
     // Detect extra fields dynamically
-    let extraFieldsSet = new Set();
-    items.forEach((it) => {
-      Object.keys(it || {}).forEach((k) => {
-        if (
-          !["description", "quantity", "unit_price", "amount", "invoice_id", "id"].includes(
-            k.toLowerCase()
-          ) &&
-          it[k] != null &&
-          it[k] !== ""
-        ) {
+    const extraFieldsSet = new Set();
+    items.forEach(it => {
+      Object.keys(it || {}).forEach(k => {
+        if (!["description","quantity","unit_price","amount","invoice_id","id"].includes(k.toLowerCase()) &&
+            it[k] != null && it[k] !== "") {
           extraFieldsSet.add(k);
         }
       });
     });
     const extraFields = Array.from(extraFieldsSet);
 
-    // Headers
-    const headers = [
-      "Item Description / Nature of Service",
-      "Quantity",
-      "Unit Price",
-      "Amount",
-      ...extraFields,
-    ];
-    headers.forEach((label) => {
+    const headers = ["Item Description / Nature of Service","Quantity","Unit Price","Amount", ...extraFields];
+    headers.forEach(label => {
       const th = document.createElement("th");
-      th.textContent = label.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      th.textContent = label.replace(/_/g," ").replace(/\b\w/g,c => c.toUpperCase());
       theadRow.appendChild(th);
     });
 
-    // Column widths
-    const baseWidths = ["40%", "10%", "15%", "15%"];
-    baseWidths.forEach((width) => {
+    // Base widths
+    const baseWidths = ["40%","10%","15%","15%"];
+    baseWidths.forEach(width => {
       const col = document.createElement("col");
       col.style.width = width;
       colgroup.appendChild(col);
     });
-    if (extraFields.length > 0) {
-      const extraWidth = ((100 - 40 - 10 - 15 - 15) / extraFields.length).toFixed(2) + "%";
+
+    if(extraFields.length > 0){
+      const extraWidth = ((100-40-10-15-15)/extraFields.length).toFixed(2)+"%";
       extraFields.forEach(() => {
         const col = document.createElement("col");
         col.style.width = extraWidth;
@@ -99,9 +79,8 @@ window.onload = async function () {
       });
     }
 
-    // Fixed 20 rows
     const TOTAL_ROWS = 20;
-    for (let i = 0; i < TOTAL_ROWS; i++) {
+    for(let i=0;i<TOTAL_ROWS;i++){
       const row = document.createElement("tr");
       const item = items[i] || {};
       const cells = [
@@ -109,149 +88,217 @@ window.onload = async function () {
         `<td>${item.quantity || "&nbsp;"}</td>`,
         `<td>${item.unit_price ? formatCurrency(item.unit_price) : "&nbsp;"}</td>`,
         `<td>${item.amount ? formatCurrency(item.amount) : "&nbsp;"}</td>`,
-        ...extraFields.map((f) => `<td>${item[f] != null ? item[f] : "&nbsp;"}</td>`),
+        ...extraFields.map(f => `<td>${item[f] != null ? item[f] : "&nbsp;"}</td>`)
       ];
       row.innerHTML = cells.join("");
       tbody.appendChild(row);
     }
+
+    return extraFields; // return for later use in extraction/export
   };
 
-  // ---------- Main Fetch ----------
+  // --- Company Info & Logo ---
+  if (data.company) {
+    fillById("companyName", data.company.company_name || data.company.companyName);
+    fillById("companyAddress", data.company.company_address || data.company.companyAddress);
+    fillById("companyTel", data.company.tel_no || data.company.companyTel);
+    fillById("companyTIN", data.company.vat_tin || data.company.companyTIN);
+
+    if (data.company.logo_path) {
+      const logoEl = document.getElementById("uploaded-logo");
+      logoEl.src = data.company.logo_path;
+      logoEl.style.display = "block";
+    }
+  }
+
+  // --- Items Table & detect extras ---
+  const extraFields = buildTable(Array.isArray(data.items) ? data.items : []);
+
+  // --- Invoice Header ---
+  fillLine("BILL TO", data.bill_to || data.invoice?.billTo);
+  fillLine("ADDRESS", `${data.address1 || data.invoice?.address1 || ""} ${data.address2 || data.invoice?.address2 || ""}`.trim());
+  fillLine("N", data.invoice_no || data.invoice?.invoiceNumber);
+  fillLine("DATE", formatDate(data.date || data.invoice?.invoiceDate));
+  fillLine("TIN", data.tin || data.invoice?.tin);
+  fillLine("TERMS", data.terms || data.invoice?.terms);
+
+  fillById("billTo", data.bill_to || data.invoice?.billTo);
+  fillById("address1", data.address1 || data.invoice?.address1);
+  fillById("address2", data.address2 || data.invoice?.address2);
+  fillById("invoiceNumber", data.invoice_no || data.invoice?.invoiceNumber);
+  fillById("invoiceDate", formatDate(data.date || data.invoice?.invoiceDate));
+  fillById("tin", data.tin || data.invoice?.tin);
+  fillById("terms", data.terms || data.invoice?.terms);
+
+  // --- Payment ---
+  const payment = data.payment || {};
+  fillById("cash", payment.cash ? "✔" : "");
+  fillById("check", payment.check_payment ? "✔" : "");
+  fillById("checkNumber", payment.check_no || payment.checkNumber);
+  fillById("bank", payment.bank);
+  fillById("paymentDate", formatDate(payment.pay_date || payment.paymentDate));
+
+  fillById("vatableSales", formatCurrency(payment.vatable_sales || payment.vatableSales));
+  fillById("vatExemptSales", formatCurrency(payment.vat_exempt || payment.vatExemptSales));
+  fillById("zeroRatedSales", formatCurrency(payment.zero_rated || payment.zeroRatedSales));
+  fillById("vatAmount", formatCurrency(payment.vat_amount || payment.vatAmount));
+  fillById("lessVAT", formatCurrency(payment.less_vat || payment.lessVAT));
+  fillById("netOfVAT", formatCurrency(payment.net_vat || payment.netOfVAT));
+  fillById("withholdingTax", formatCurrency(payment.withholding || payment.withholdingTax));
+
+  // --- Auto-sum total amounts ---
+  let computedTotal = 0;
+  (Array.isArray(data.items) ? data.items : []).forEach(item => {
+    // Sum amount field
+    computedTotal += parseFloat(item.amount) || 0;
+    // Sum numeric extra fields
+    extraFields.forEach(f => {
+      const val = parseFloat(item[f]);
+      if(!isNaN(val)) computedTotal += val;
+    });
+  });
+  fillById("total", formatCurrency(computedTotal));
+  fillById("totalDue", formatCurrency(computedTotal));
+  fillById("totalPayable", formatCurrency(computedTotal));
+
+  // --- Signatures ---
+  fillById("preparedBy", payment.prepared_by || payment.preparedBy);
+  fillById("approvedBy", payment.approved_by || payment.approvedBy);
+  fillById("receivedBy", payment.received_by || payment.receivedBy);
+
+  // --- Footer ---
+  if (data.footer) {
+    fillById("footer-atp-no", data.footer.atp_no || data.footer.atpNo);
+    fillById("footer-atp-date", formatDate(data.footer.atp_date || data.footer.atpDate));
+    fillById("footer-bir-permit", data.footer.bir_permit_no || data.footer.birPermit);
+    fillById("footer-bir-date", formatDate(data.footer.bir_date || data.footer.birDate));
+    fillById("footer-serial-nos", data.footer.serial_nos || data.footer.serialNos);
+  }
+
+  // --- Invoice Title + Notice ---
+  const titleEl = document.querySelector(".service-invoice-title");
+  const htmlTitle = document.querySelector("title");
+  const inputTaxNotice = document.getElementById("inputTaxNotice");
+  let invoiceTitle = data.invoice_type || "SERVICE INVOICE";
+
+  titleEl.textContent = invoiceTitle.toUpperCase();
+  if(htmlTitle) htmlTitle.textContent = invoiceTitle.toUpperCase();
+  inputTaxNotice.style.display = invoiceTitle.toUpperCase().includes("CREDIT") || invoiceTitle.toUpperCase().includes("DEBIT") ? "block" : "none";
+
+  // Save extraFields for CSV / export use
+  window._extraFields = extraFields;
+};
+
+
+
+// ============================
+// Window onload — Fetch or Preview
+// ============================
+window.onload = async function() {
+  const params = new URLSearchParams(window.location.search);
+  const invoiceNo = params.get("invoice_no");
+  const isPreviewMode = params.get("mode")==="preview";
+
+  if(isPreviewMode){
+    const previewData = JSON.parse(localStorage.getItem("invoicePreviewData") || "{}");
+    if(!previewData || Object.keys(previewData).length === 0){
+      alert("No preview data found.");
+      return;
+    }
+
+    const inv = previewData.invoice || {};
+    const normalizedInvoice = {
+      billTo: inv.billTo || inv.bill_to || "",
+      invoiceNumber: inv.invoiceNumber || inv.invoice_no || "",
+      address1: inv.address1 || inv.address_1 || "",
+      address2: inv.address2 || inv.address_2 || "",
+      tin: inv.tin || inv.tin_no || "",
+      terms: inv.terms || inv.terms || "",
+      invoice_type: inv.invoice_type || inv.invoiceType || "SERVICE INVOICE",
+      date: inv.invoiceDate || inv.date || ""
+    };
+
+    const comp = previewData.company || {};
+    const normalizedCompany = {
+      companyName: comp.companyName || comp.company_name || "",
+      companyAddress: comp.companyAddress || comp.company_address || "",
+      companyTel: comp.companyTel || comp.tel_no || "",
+      companyTIN: comp.companyTIN || comp.vat_tin || "",
+      logo_path: comp.logo_path || ""
+    };
+
+    const pay = previewData.payment || {};
+    const normalizedPayment = {
+      cash: pay.cash || false,
+      check_payment: pay.check_payment || pay.check || false,
+      check_no: pay.check_no || pay.checkNumber || "",
+      bank: pay.bank || "",
+      pay_date: pay.pay_date || pay.paymentDate || "",
+      vatable_sales: pay.vatable_sales || pay.vatableSales || "",
+      vat_exempt: pay.vat_exempt || pay.vatExemptSales || "",
+      zero_rated: pay.zero_rated || pay.zeroRatedSales || "",
+      vat_amount: pay.vat_amount || pay.vatAmount || "",
+      less_vat: pay.less_vat || pay.lessVAT || "",
+      net_vat: pay.net_vat || pay.netOfVAT || "",
+      withholding: pay.withholding || pay.withholdingTax || "",
+      total: pay.total || "",
+      due: pay.due || "",
+      payable: pay.payable || pay.totalPayable || "",
+      prepared_by: pay.prepared_by || pay.preparedBy || "",
+      approved_by: pay.approved_by || pay.approvedBy || "",
+      received_by: pay.received_by || pay.receivedBy || ""
+    };
+
+    const foot = previewData.footer || {};
+    const normalizedFooter = {
+      atp_no: foot.atp_no || foot.atpNo || "",
+      atp_date: foot.atp_date || foot.atpDate || "",
+      bir_permit_no: foot.bir_permit_no || foot.birPermit || "",
+      bir_date: foot.bir_date || foot.birDate || "",
+      serial_nos: foot.serial_nos || foot.serialNos || ""
+    };
+
+    const data = {
+      company: normalizedCompany,
+      invoice: normalizedInvoice,
+      items: previewData.items || [],
+      payment: normalizedPayment,
+      footer: normalizedFooter
+    };
+
+    renderInvoice(data);
+    return; 
+  }
+
+  if(!invoiceNo){
+    alert("No invoice number provided in the URL.");
+    return;
+  }
+
   try {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`Failed to fetch invoice: ${res.status} ${errorText}`);
-    }
-
+    if(!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    console.log("📦 Loaded invoice data:", data);
-
-    // --- Company Info & Logo ---
-    if (data.company) {
-      fillById("companyName", data.company.company_name);
-      fillById("companyAddress", data.company.company_address);
-      fillById("companyTel", data.company.tel_no);
-      fillById("companyTIN", data.company.vat_tin);
-
-      if (data.company.logo_path) {
-        const logoEl = document.getElementById("uploaded-logo");
-        logoEl.src = data.company.logo_path;
-        logoEl.style.display = "block";
-      }
-    }
-
-    // --- Items Table ---
-    buildTable(Array.isArray(data.items) ? data.items : []);
-
-    // --- Invoice Header Info ---
-    fillLine("BILL TO", data.bill_to);
-    fillLine("ADDRESS", `${data.address1 || ""} ${data.address2 || ""}`.trim());
-    fillLine("N", data.invoice_no);
-    fillLine("DATE", formatDate(data.date));
-    fillLine("TIN", data.tin);
-    fillLine("TERMS", data.terms);
-
-    fillById("billTo", data.bill_to);
-    fillById("address1", data.address1);
-    fillById("address2", data.address2);
-    fillById("invoiceNumber", data.invoice_no);
-    fillById("invoiceDate", formatDate(data.date));
-    fillById("tin", data.tin);
-    fillById("terms", data.terms);
-
-    // --- Payment Section ---
-    const payment = data.payment || {};
-    fillById("cash", payment.cash ? "✔" : "");
-    fillById("check", payment.check_payment ? "✔" : "");
-    fillById("checkNumber", payment.check_no);
-    fillById("bank", payment.bank);
-    fillById("paymentDate", formatDate(payment.pay_date));
-
-    fillById("vatableSales", formatCurrency(payment.vatable_sales));
-    fillById("vatExemptSales", formatCurrency(payment.vat_exempt));
-    fillById("zeroRatedSales", formatCurrency(payment.zero_rated));
-    fillById("vatAmount", formatCurrency(payment.vat_amount));
-    fillById("lessVAT", formatCurrency(payment.less_vat));
-    fillById("netOfVAT", formatCurrency(payment.net_vat));
-    fillById("withholdingTax", formatCurrency(payment.withholding));
-    fillById("total", formatCurrency(payment.total));
-    fillById("totalDue", formatCurrency(payment.due));
-    fillById("totalPayable", formatCurrency(payment.payable));
-
-    // --- Signatures ---
-    fillById("preparedBy", payment.prepared_by);
-    fillById("approvedBy", payment.approved_by);
-    fillById("receivedBy", payment.received_by);
-
-    // --- Footer ---
-    if (data.footer) {
-      fillById("footer-atp-no", data.footer.atp_no);
-      fillById("footer-atp-date", formatDate(data.footer.atp_date));
-      fillById("footer-bir-permit", data.footer.bir_permit_no);
-      fillById("footer-bir-date", formatDate(data.footer.bir_date));
-      fillById("footer-serial-nos", data.footer.serial_nos);
-    }
-
-    // --- Apply Invoice Title + Disclaimer ---
-    const titleEl = document.querySelector(".service-invoice-title");
-    const htmlTitle = document.querySelector("title");
-    const inputTaxNotice = document.getElementById("inputTaxNotice");
-
-    let invoiceTitle = data.invoice_type || "SERVICE INVOICE";
-    titleEl.textContent = invoiceTitle.toUpperCase();
-    if (htmlTitle) htmlTitle.textContent = invoiceTitle.toUpperCase();
-
-    if (invoiceTitle.toUpperCase().includes("CREDIT") || invoiceTitle.toUpperCase().includes("DEBIT")) {
-      inputTaxNotice.style.display = "block";
-      console.log("🟥 Input Tax Notice shown for:", invoiceTitle);
-    } else {
-      inputTaxNotice.style.display = "none";
-      console.log("✅ Hidden for:", invoiceTitle);
-    }
-
-    console.log(`🟢 Invoice title applied: ${invoiceTitle}`);
-
-  } catch (err) {
+    renderInvoice(data);
+  } catch(err){
     console.error("❌ Error loading invoice:", err);
     alert("Error loading invoice — showing empty template.");
   }
 };
 
 // ============================
-// EXPORT INVOICE DATA SCRIPT
+// EXPORT FUNCTIONS
 // ============================
-
-// Dropdown toggle for Export menu
 function toggleDropdown() {
-  document.querySelector('.dropdown').classList.toggle('show');
+  document.querySelector('.dropdown')?.classList.toggle('show');
 }
+
 window.onclick = function(event) {
   if (!event.target.matches('.export-btn')) {
     document.querySelectorAll('.dropdown.show').forEach(drop => drop.classList.remove('show'));
   }
 };
 
-// Main export handler
-function exportInvoice(type) {
-  const invoiceData = getInvoiceDataFromDOM();
-
-  if (type === 'json') {
-    const blob = new Blob([JSON.stringify(invoiceData, null, 2)], {type : 'application/json'});
-    downloadBlob(blob, 'invoice.json');
-  } else if (type === 'xml') {
-    const xml = objectToXml(invoiceData, 'invoice');
-    const blob = new Blob([xml], {type : 'application/xml'});
-    downloadBlob(blob, 'invoice.xml');
-  } else if (type === 'excel') {
-    // Generate CSV with UTF-8 BOM to preserve currency symbols in Excel
-    const csv = '\uFEFF' + objectToCSV(invoiceData); // Add BOM!
-    const blob = new Blob([csv], {type : 'text/csv'});
-    downloadBlob(blob, 'invoice.csv');
-  }
-}
-
-// Download helper
 function downloadBlob(blob, filename) {
   const link = document.createElement('a');
   link.href = window.URL.createObjectURL(blob);
@@ -261,23 +308,27 @@ function downloadBlob(blob, filename) {
   document.body.removeChild(link);
 }
 
-// Extract invoice data from DOM
-function getInvoiceDataFromDOM() {
-  // Company Info
-  const companyName = document.getElementById('companyName')?.textContent.trim();
-  const companyAddress = document.getElementById('companyAddress')?.textContent.trim();
-  const companyTel = document.getElementById('companyTel')?.textContent.trim();
-  const companyTIN = document.getElementById('companyTIN')?.textContent.trim();
-  // Invoice Info
-  const billTo = document.getElementById('billTo')?.textContent.trim();
-  const address1 = document.getElementById('address1')?.textContent.trim();
-  const address2 = document.getElementById('address2')?.textContent.trim();
-  const tin = document.getElementById('tin')?.textContent.trim();
-  const invoiceNumber = document.getElementById('invoiceNumber')?.textContent.trim();
-  const invoiceDate = document.getElementById('invoiceDate')?.textContent.trim();
-  const terms = document.getElementById('terms')?.textContent.trim();
+function exportInvoice(type) {
+  const invoiceData = getInvoiceDataFromDOM();
 
-  // Items Table (SKIP EMPTY ROWS)
+  if (type === 'json') {
+    downloadBlob(new Blob([JSON.stringify(invoiceData,null,2)], {type:'application/json'}), 'invoice.json');
+  } else if(type==='xml') {
+    downloadBlob(new Blob([objectToXml(invoiceData,'invoice')], {type:'application/xml'}), 'invoice.xml');
+  } else if(type==='excel') {
+    const csv = '\uFEFF' + objectToCSV(invoiceData);
+    downloadBlob(new Blob([csv], {type:'text/csv'}), 'invoice.csv');
+  }
+}
+
+// ============================
+// UTILITY: DOM -> Invoice Data
+// ============================
+function getInvoiceDataFromDOM() {
+  const getText = id => document.getElementById(id)?.textContent.trim() || "";
+
+  const extraFields = window._extraFields || [];
+
   const itemRows = [];
   document.querySelectorAll('#itemRows tr').forEach(tr => {
     const tds = tr.querySelectorAll('td');
@@ -287,95 +338,97 @@ function getInvoiceDataFromDOM() {
         quantity: tds[1]?.textContent.trim(),
         unit_price: tds[2]?.textContent.trim(),
         amount: tds[3]?.textContent.trim(),
-        one: tds[4]?.textContent.trim(),
-        two: tds[5]?.textContent.trim()
       };
-      // Only include non-empty rows
-      if (Object.values(item).some(val => val !== "")) {
-        itemRows.push(item);
-      }
+      extraFields.forEach((f, idx) => {
+        item[f] = tds[4 + idx]?.textContent.trim() || "";
+      });
+      if (Object.values(item).some(v => v !== "")) itemRows.push(item);
     }
   });
-
-  // Payment Table
-  function getText(id) {
-    return document.getElementById(id)?.textContent.trim();
-  }
-  const payment = {
-    cash: getText('cash'),
-    check: getText('check'),
-    checkNumber: getText('checkNumber'),
-    bank: getText('bank'),
-    paymentDate: getText('paymentDate'),
-    vatableSales: getText('vatableSales'),
-    totalWithVAT: getText('totalWithVAT'),
-    vatAmount: getText('vatAmount'),
-    lessVAT: getText('lessVAT'),
-    zeroRatedSales: getText('zeroRatedSales'),
-    netOfVAT: getText('netOfVAT'),
-    vatExemptSales: getText('vatExemptSales'),
-    total: getText('total'),
-    addVAT: getText('addVAT'),
-    withholdingTax: getText('withholdingTax'),
-    totalPayable: getText('totalPayable')
-  };
-
-  // Footer
-  const footer = {
-    atpNo: getText('footer-atp-no'),
-    atpDate: getText('footer-atp-date'),
-    birPermit: getText('footer-bir-permit'),
-    birDate: getText('footer-bir-date'),
-    serialNos: getText('footer-serial-nos')
-  };
 
   return {
-    company: { companyName, companyAddress, companyTel, companyTIN },
-    invoice: { billTo, address1, address2, tin, invoiceNumber, invoiceDate, terms },
+    company: {
+      companyName: getText('companyName'),
+      companyAddress: getText('companyAddress'),
+      companyTel: getText('companyTel'),
+      companyTIN: getText('companyTIN')
+    },
+    invoice: {
+      billTo: getText('billTo'),
+      address1: getText('address1'),
+      address2: getText('address2'),
+      tin: getText('tin'),
+      invoiceNumber: getText('invoiceNumber'),
+      invoiceDate: getText('invoiceDate'),
+      terms: getText('terms')
+    },
     items: itemRows,
-    payment,
-    footer
+    payment: {
+      cash: getText('cash'),
+      check: getText('check'),
+      checkNumber: getText('checkNumber'),
+      bank: getText('bank'),
+      paymentDate: getText('paymentDate'),
+      vatableSales: getText('vatableSales'),
+      totalWithVAT: getText('totalWithVAT'),
+      vatAmount: getText('vatAmount'),
+      lessVAT: getText('lessVAT'),
+      zeroRatedSales: getText('zeroRatedSales'),
+      netOfVAT: getText('netOfVAT'),
+      vatExemptSales: getText('vatExemptSales'),
+      total: getText('total'),
+      addVAT: getText('addVAT'),
+      withholdingTax: getText('withholdingTax'),
+      totalPayable: getText('totalPayable')
+    },
+    footer: {
+      atpNo: getText('footer-atp-no'),
+      atpDate: getText('footer-atp-date'),
+      birPermit: getText('footer-bir-permit'),
+      birDate: getText('footer-bir-date'),
+      serialNos: getText('footer-serial-nos')
+    }
   };
 }
 
-// Object to XML (recursive, array support)
-function objectToXml(obj, rootName) {
+
+// ============================
+// OBJECT -> XML / CSV
+// ============================
+function objectToXml(obj, rootName){
   let xml = `<${rootName}>`;
-  for (let key in obj) {
-    if (Array.isArray(obj[key])) {
+  for(let key in obj){
+    if(Array.isArray(obj[key])){
       xml += `<${key}>`;
-      obj[key].forEach(item => { xml += objectToXml(item, 'item'); });
+      obj[key].forEach(item=>xml+=objectToXml(item,'item'));
       xml += `</${key}>`;
-    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-      xml += objectToXml(obj[key], key);
-    } else {
-      xml += `<${key}>${escapeXml(obj[key] ?? '')}</${key}>`;
+    } else if(typeof obj[key]==='object' && obj[key]!==null){
+      xml+=objectToXml(obj[key],key);
+    } else{
+      xml+=`<${key}>${escapeXml(obj[key]??'')}</${key}>`;
     }
   }
-  xml += `</${rootName}>`;
+  xml+=`</${rootName}>`;
   return xml;
 }
-function escapeXml(unsafe) {
-  return String(unsafe).replace(/[<>&'"]/g, function (c) {
-    switch (c) {
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '&': return '&amp;';
-      case '\'': return '&apos;';
-      case '"': return '&quot;';
+function escapeXml(unsafe){
+  return String(unsafe).replace(/[<>&'"]/g,c=>{
+    switch(c){
+      case'<':return'&lt;';
+      case'>':return'&gt;';
+      case'&':return'&amp;';
+      case"'":return'&apos;';
+      case'"':return'&quot;';
     }
   });
 }
 
-// Object to CSV (for Excel) with UTF-8 BOM
 function objectToCSV(obj) {
   let lines = [];
-  // Company
   lines.push(['Company Name', obj.company.companyName]);
   lines.push(['Company Address', obj.company.companyAddress]);
   lines.push(['Company Tel', obj.company.companyTel]);
   lines.push(['Company TIN', obj.company.companyTIN]);
-  // Invoice info
   lines.push(['Bill To', obj.invoice.billTo]);
   lines.push(['Address 1', obj.invoice.address1]);
   lines.push(['Address 2', obj.invoice.address2]);
@@ -383,21 +436,28 @@ function objectToCSV(obj) {
   lines.push(['Invoice No', obj.invoice.invoiceNumber]);
   lines.push(['Invoice Date', obj.invoice.invoiceDate]);
   lines.push(['Terms', obj.invoice.terms]);
-  // Items
   lines.push(['--- Items ---']);
-  lines.push(['Description','Quantity','Unit Price','Amount','One','Two']);
+
+  const extraFields = window._extraFields || [];
+  const headers = ['Description','Quantity','Unit Price','Amount', ...extraFields];
+  lines.push(headers);
+
   obj.items.forEach(item => {
-    lines.push([item.description, item.quantity, item.unit_price, item.amount, item.one, item.two]);
+    const row = [
+      item.description,
+      item.quantity,
+      item.unit_price,
+      item.amount,
+      ...extraFields.map(f => item[f] || "")
+    ];
+    lines.push(row);
   });
-  // Payment
+
   lines.push(['--- Payment ---']);
-  for (const k in obj.payment) {
-    lines.push([k, obj.payment[k]]);
-  }
-  // Footer
+  for(const k in obj.payment) lines.push([k,obj.payment[k]]);
   lines.push(['--- Footer ---']);
-  for (const k in obj.footer) {
-    lines.push([k, obj.footer[k]]);
-  }
-  return lines.map(row => row.map(x => `"${(x??'').replace(/"/g, '""')}"`).join(',')).join('\n');
+  for(const k in obj.footer) lines.push([k,obj.footer[k]]);
+
+  return lines.map(row=>row.map(x=>`"${(x??'').replace(/"/g,'""')}"`).join(',')).join('\n');
 }
+
