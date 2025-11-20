@@ -1,37 +1,30 @@
-// ================= Login.js =================
-const loginForm = document.getElementById('loginForm');
-const errorMsg = document.getElementById('errorMsg');
-const createBtn = document.getElementById('createAccountBtn');
-
-// ---------- LOGIN ----------
-loginForm.addEventListener('submit', async (e) => {
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value.trim();
 
-  if (!username || !password) {
-    errorMsg.textContent = "Username and password required";
-    return;
-  }
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
 
   try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password })
     });
 
-    const data = await res.json();
+    const data = await response.json();
 
-    if (data.success) {
-      window.location.href = '/dashboard';
+    if (response.ok && data.success) {
+      // Successful login
+      window.location.href = "/dashboard";
     } else {
-      errorMsg.textContent = data.message || "Invalid username or password";
+      const err = document.getElementById("error");
+      err.innerText = data.message || "Invalid login";
+      err.classList.remove("hidden");
     }
   } catch (err) {
-    console.error(err);
-    errorMsg.textContent = "Server error. Try again later.";
+    console.error("Login error:", err);
+    const errEl = document.getElementById("error");
+    errEl.innerText = "Server error. Try again later.";
+    errEl.classList.remove("hidden");
   }
 });
-
-

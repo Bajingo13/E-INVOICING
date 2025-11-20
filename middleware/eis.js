@@ -133,3 +133,31 @@ module.exports = {
   sendInvoiceToEIS,
   checkInvoiceStatus
 };
+
+
+
+
+
+
+
+// ----------------- Routes: EIS -----------------
+app.post('/api/send-invoice/:invoiceNo', asyncHandler(async (req, res) => {
+  const invoiceNo = req.params.invoiceNo;
+  const conn = await getConn();
+  try {
+    const [rows] = await conn.execute('SELECT * FROM invoices WHERE invoice_no=? LIMIT 1', [invoiceNo]);
+    if (!rows.length) return res.status(404).json({ error: 'Invoice not found' });
+    const invoice = rows[0];
+    const [columns] = await conn.execute('SHOW COLUMNS FROM invoice_items');
+    const colNames = columns.map(c => c.Field);
+    const [items] = await conn.execute(`SELECT ${colNames.map(c => '`'+c+'`').join(', ')} FROM invoice_items WHERE invoice_id=?`, [invoice.id]);
+    const [paymentRows] = await conn.execute('SELECT * FROM payments WHERE invoice_id=? LIMIT 1', [invoice.id]);
+    const [footerRows] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id=? LIMIT 1', [invoice.id]);
+    invoice.items = items;
+    invoice.payment = paymentRows[0] || {};
+    invoice.footer = footerRows[0] || {};
+    const result = await eis.sendInvoiceToEIS(invoice);
+    res.json({ success: true, response: result });
+  } finally { conn.release(); }
+}));
+app.get('/api/check-status/:submissionId', asyncHandler(async (req, res) => { const status = await eis.checkInvoiceStatus(req.params.submissionId); res.json({ success: true, status }); }));
