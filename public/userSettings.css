@@ -1,0 +1,174 @@
+/* ---------------- General Reset ---------------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+  background: #f5f7fa;
+  color: #333;
+}
+
+/* ---------------- Header ---------------- */
+header {
+  background: linear-gradient(90deg, #4e54c8, #8f94fb);
+  color: #fff;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header h1 {
+  font-size: 1.8rem;
+}
+
+.btn-show {
+  background: #fff;
+  color: #4e54c8;
+  padding: 0.5rem 1.2rem;
+  border-radius: 10px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-show:hover {
+  background: #4e54c8;
+  color: #fff;
+}
+
+/* ---------------- Main ---------------- */
+main {
+  padding: 2rem;
+}
+
+h2 {
+  margin-bottom: 1rem;
+  color: #4e54c8;
+}
+
+/* ---------------- Tables ---------------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+table th, table td {
+  border: 1px solid #ddd;
+  padding: 10px 12px;
+}
+
+table th {
+  background-color: #ecf0f1;
+  font-weight: 600;
+}
+
+/* ---------------- Modals ---------------- */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.modal.show {
+  display: flex;
+  opacity: 1;
+  z-index: 1100;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  transform: translateY(-25px);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.modal.show .modal-content {
+  transform: translateY(0);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+label {
+  font-weight: 600;
+}
+
+input, select {
+  width: 100%;
+  padding: 8px 12px;
+  margin: 8px 0 15px;
+  border-radius: 8px;
+  border: 1px solid #bbb;
+}
+
+.modal-buttons,
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+#cancel-create-user, #confirm-create-no {
+  background: #ccc;
+  padding: 10px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+#cancel-create-user:hover, #confirm-create-no:hover {
+  background: #aaa;
+}
+
+#create-user-submit, #confirm-create-yes {
+  background: #4e54c8;
+  color: #fff;
+  padding: 10px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+#create-user-submit:hover, #confirm-create-yes:hover {
+  background: #3b3f9c;
+}
+
+/* ---------------- Inline Errors ---------------- */
+.error {
+  color: red;
+  font-size: 0.85rem;
+}
+
+/* ---------------- Toast ---------------- */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #4caf50;
+  color: #fff;
+  padding: 10px 15px;
+  border-radius: 5px;
+  display: none;
+  z-index: 2000;
+}
+
+.toast.error {
+  background: #f44336;
+}

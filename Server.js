@@ -7,6 +7,7 @@ const multer = require('multer');
 const fs = require('fs');
 const cron = require('node-cron');
 const morgan = require('morgan');
+const bcrypt = require('bcrypt');
 //const eis = require('./middleware/eis');
 
 const app = express();
@@ -54,6 +55,7 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 async function getConn() { try { return await pool.getConnection(); } catch (err) { errorLog('DB Connection Error:', err); throw err; } }
+
 
 // ----------------- Helpers -----------------
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -135,6 +137,22 @@ async function scheduleRecurringJob() {
   }, { scheduled: true });
 }
 
+// POST /api/users
+
+app.post('/api/users', asyncHandler(async (req, res) => {
+  const { username, password, role } = req.body;
+  if (!username || !password || !role) return res.status(400).json({ error: 'Missing required fields' });
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const conn = await getConn();
+  try {
+    await conn.execute('INSERT INTO users (username, password, role, created_at) VALUES (?, ?, ?, NOW())', [username, hashedPassword, role]);
+    res.json({ message: 'User created successfully' });
+  } finally { conn.release(); }
+}));
+
+
 // ----------------- Routes: Upload -----------------
 app.post('/upload-logo', invoiceLogoUpload.single('logo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -147,7 +165,7 @@ app.get('/api/dashboard', asyncHandler(async (req, res) => {
   try {
     const [invoices] = await conn.execute('SELECT COUNT(*) AS total FROM invoices');
     const [totalAmountDue] = await conn.execute('SELECT SUM(total_amount_due) AS total FROM invoices');
-    const [pending] = await conn.execute('SELECT COUNT(*) AS total FROM invoices WHERE total_amount_due > 0');
+    const [pending] = await conn.execute('SELECT COUNT(*) AS total FROM invoices WHERE status = "pending"');
     res.json({ totalInvoices: invoices[0].total, totalPayments: totalAmountDue[0].total || 0, pendingInvoices: pending[0].total });
   } finally { conn.release(); }
 }));
@@ -236,30 +254,34 @@ app.post('/api/invoices', asyncHandler(async (req, res) => {
       });
     });
 
-    // Insert invoice (initial total_amount_due = 0, will update later)
-    const [invoiceResult] = await conn.execute(
-      `INSERT INTO invoices
-        (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
-         recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-      [
-        invoiceData.invoice_no,
-        invoiceData.invoice_type,
-        invoiceData.bill_to,
-        invoiceData.address1,
-        invoiceData.address2,
-        invoiceData.tin,
-        invoiceData.terms,
-        invoiceData.date,
-        invoiceData.due_date || null,
-        invoiceData.logo || null,
-        JSON.stringify(extraColumns || []),
-        invoiceData.recurrence_type || null,
-        invoiceData.recurrence_start_date || null,
-        invoiceData.recurrence_end_date || null,
-        invoiceData.recurrence_type ? 'active' : null
-      ]
-    );
+    
+    const invoiceStatus = invoiceData.status || 'draft'; 
+
+const [invoiceResult] = await conn.execute(
+  `INSERT INTO invoices
+    (invoice_no, invoice_type, bill_to, address1, address2, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
+     recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status, status)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+  [
+    invoiceData.invoice_no,
+    invoiceData.invoice_type,
+    invoiceData.bill_to,
+    invoiceData.address1,
+    invoiceData.address2,
+    invoiceData.tin,
+    invoiceData.terms,
+    invoiceData.date,
+    invoiceData.due_date || null,
+    invoiceData.logo || null,
+    JSON.stringify(extraColumns || []),
+    invoiceData.recurrence_type || null,
+    invoiceData.recurrence_start_date || null,
+    invoiceData.recurrence_end_date || null,
+    invoiceData.recurrence_type ? 'active' : null,
+    invoiceStatus
+  ]
+);
+
 
     const invoiceId = invoiceResult.insertId;
 
@@ -438,21 +460,23 @@ app.put('/api/invoices/:invoiceNo', asyncHandler(async (req, res) => {
 
     // ------------------ Update invoice ------------------
     await conn.execute(
-      `UPDATE invoices SET invoice_type=?, bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=? WHERE id=?`,
-      [
-        invoiceData.invoice_type,
-        invoiceData.bill_to,
-        invoiceData.address1,
-        invoiceData.address2,
-        invoiceData.tin,
-        invoiceData.terms,
-        invoiceData.date,
-        totalAmountDue,            // ✅ calculated total
-        invoiceData.logo || null,
-        JSON.stringify(extraColumns),
-        invoiceId
-      ]
-    );
+  `UPDATE invoices SET invoice_type=?, bill_to=?, address1=?, address2=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?, status=? WHERE id=?`,
+  [
+    invoiceData.invoice_type,
+    invoiceData.bill_to,
+    invoiceData.address1,
+    invoiceData.address2,
+    invoiceData.tin,
+    invoiceData.terms,
+    invoiceData.date,
+    totalAmountDue,
+    invoiceData.logo || null,
+    JSON.stringify(extraColumns),
+    invoiceData.status || 'draft', // ← default to draft
+    invoiceId
+  ]
+);
+
 
     // ------------------ Delete and insert payment ------------------
     await conn.execute('DELETE FROM payments WHERE invoice_id=?', [invoiceId]);
@@ -541,16 +565,28 @@ app.get('/api/invoices/:invoiceNo', asyncHandler(async (req, res) => {
 app.get('/api/invoices', asyncHandler(async (req, res) => {
   const conn = await getConn();
   try {
-    const [rows] = await conn.execute(`
-      SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, i.total_amount_due, i.logo
+    // Optional query parameter: ?status=pending
+    const { status } = req.query;
+    let query = `
+      SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, i.total_amount_due, i.logo, i.status
       FROM invoices i
-      ORDER BY i.date DESC
-    `);
+    `;
+    const params = [];
+
+    if (status) {
+      query += ' WHERE i.status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY i.date DESC';
+
+    const [rows] = await conn.execute(query, params);
     res.json(rows);
   } finally {
     conn.release();
   }
 }));
+
 
 app.delete('/api/invoices/:invoiceNo', asyncHandler(async (req, res) => {
   const invoiceNo = req.params.invoiceNo;
@@ -568,6 +604,38 @@ app.delete('/api/invoices/:invoiceNo', asyncHandler(async (req, res) => {
     conn.release();
   }
 }));
+
+// GET /api/users
+app.get('/api/users', asyncHandler(async (req, res) => {
+  const conn = await getConn();
+  try {
+    const [rows] = await conn.execute('SELECT id, username, role, created_at FROM users');
+    res.json(rows);
+  } finally { conn.release(); }
+}));
+
+
+// GET /api/login-history
+app.get('/api/login-history', async (req, res) => {
+  try {
+    const conn = await getConn();
+    const [rows] = await conn.execute(
+      `SELECT lh.*, u.username AS real_username
+       FROM login_history lh
+       LEFT JOIN users u ON lh.user_id = u.id
+       ORDER BY lh.timestamp DESC`
+    );
+    conn.release();
+    res.json(rows);
+  } catch (err) {
+    console.error("Login history error:", err);
+    res.status(500).json({ error: "Failed to load login history" });
+  }
+});
+
+
+
+
 
 // ----------------- Global Error Handler -----------------
 app.use((err, req, res, next) => { errorLog('Unhandled error:', err); res.status(500).json({ error: 'Internal server error', message: err.message }); });

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice Settings</title>
+  <link rel="stylesheet" href="invoiceSettings.css">
+</head>
+<body>
+  <header>
+    <h1>Invoice Settings</h1>
+    <nav>
+      <a href="/dashboard" class="btn">Back to Dashboard</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="invoice-settings-container">
+      <!-- Left column: Settings -->
+      <div class="settings-column">
+        <!-- Header Alignment -->
+        <div class="card">
+          <div class="content">
+            <h3>Header Alignment</h3>
+            <select id="headerAlignment">
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Logo Alignment -->
+        <div class="card">
+  <div class="content">
+    <h3>Logo Alignment</h3>
+    <div class="setting-row">
+      <select id="logoAlignment">
+        <option value="left">Left</option>
+        <option value="center">Center</option>
+        <option value="right">Right</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+        <button id="saveSettings" class="btn">Save Settings</button>
+      </div>
+
+      <!-- Right column: Live Preview -->
+      <div class="preview-column">
+        <h2>Live Preview</h2>
+        <div class="invoice-preview">
+          <div id="logoPreview" class="preview-logo">Logo</div>
+          <div id="headerPreview" class="preview-header">Invoice Header</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="invoiceSettings.js"></script>
+</body>
+</html>

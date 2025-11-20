@@ -40,7 +40,6 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
   if (!username || !password)
     return res.status(400).json({ success: false, message: 'Username and password required' });
 
-  // Ensure session is active
   if (!req.session)
     return res.status(500).json({ success: false, message: "Session not initialized" });
 
@@ -51,20 +50,39 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
       [username]
     );
 
+    // USER NOT FOUND -----------------------------------------
     if (!rows.length) {
-      console.log(`Login failed: unknown user "${username}"`);
+      await conn.execute(
+        `INSERT INTO login_history (user_id, username, success, ip_address)
+         VALUES (?, ?, ?, ?)`,
+        [null, username, 0, req.ip]
+      );
+
       return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
     const user = rows[0];
     const match = await bcrypt.compare(password, user.password);
 
+    // WRONG PASSWORD -----------------------------------------
     if (!match) {
-      console.log(`Login failed: wrong password for "${username}"`);
+      await conn.execute(
+        `INSERT INTO login_history (user_id, username, success, ip_address)
+         VALUES (?, ?, ?, ?)`,
+        [user.id, username, 0, req.ip]
+      );
+
       return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
-    // Store user in session
+    // SUCCESSFUL LOGIN ---------------------------------------
+    await conn.execute(
+      `INSERT INTO login_history (user_id, username, success, ip_address)
+       VALUES (?, ?, ?, ?)`,
+      [user.id, username, 1, req.ip]
+    );
+
+    // Store in session
     req.session.user = {
       id: user.id,
       username: user.username,
@@ -83,6 +101,7 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
     conn.release();
   }
 }));
+
 
 // -------------------------------
 // LOGOUT

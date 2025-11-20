@@ -1,20 +1,35 @@
-// INVOICE LIST JS
-
 console.log("✅ Invoice-list.js loaded");
 
-// FETCH & POPULATE INVOICES
+let showDraftsOnly = false; // toggle flag
 
+// ---------------- FETCH & POPULATE INVOICES ----------------
+// ---------------- FETCH & POPULATE INVOICES ----------------
 async function fetchInvoices() {
   try {
     const res = await fetch('/api/invoices');
     if (!res.ok) throw new Error("Failed to fetch invoices");
-    const invoices = await res.json();
+    let invoices = await res.json();
+
+    // Filter drafts if toggle is ON
+    if (showDraftsOnly) {
+      invoices = invoices.filter(inv => inv.status === 'draft');
+    }
+
+    // Sort invoices by creation date descending (newest first)
+    invoices.sort((a, b) => {
+      const dateA = new Date(a.date || a.invoice_date || 0);
+      const dateB = new Date(b.date || b.invoice_date || 0);
+      return dateB - dateA; // descending order
+    });
+
     populateTable(invoices);
   } catch (err) {
     console.error("❌ Error fetching invoices:", err);
   }
 }
 
+
+// ---------------- POPULATE TABLE ----------------
 function populateTable(invoices) {
   const tbody = document.querySelector("#invoiceTable tbody");
   tbody.innerHTML = "";
@@ -22,13 +37,23 @@ function populateTable(invoices) {
   invoices.forEach(inv => {
     const tr = document.createElement("tr");
 
-    // 🔹 Determine the correct keys
-    const issueDate = inv.date || inv.invoice_date || ''; // fallback
+    const issueDate = inv.date || inv.invoice_date || '';
     const dueDate = inv.due_date || inv.dueDate || '';
 
-    // 🔹 Format dates safely
     const issueDateFormatted = issueDate ? new Date(issueDate).toLocaleDateString('en-PH') : '';
     const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString('en-PH') : '';
+
+    // Determine status text only (no CSS class for badges)
+    let statusText = '';
+    if (inv.status === 'draft') {
+      statusText = 'Draft';
+    } else if (inv.status === 'cancelled') {
+      statusText = 'Cancelled';
+    } else if (inv.is_paid) {
+      statusText = 'Paid';
+    } else {
+      statusText = 'Pending';
+    }
 
     tr.innerHTML = `
       <td><input type="checkbox" class="select-invoice" data-invoice="${inv.invoice_no}"></td>
@@ -36,18 +61,14 @@ function populateTable(invoices) {
       <td>${inv.bill_to}</td>
       <td>${issueDateFormatted}</td>
       <td>${dueDateFormatted}</td>
-      <td>₱${Number(inv.total_amount_due).toLocaleString('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      })}</td>
-      <td>${Number(inv.total_amount_due) > 0 ? 'Pending' : 'Paid'}</td>
+      <td>₱${Number(inv.total_amount_due || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td>${statusText}</td>
       <td>
         <button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>
         <button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>
         <button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>
       </td>
     `;
-
     tbody.appendChild(tr);
   });
 
@@ -55,7 +76,7 @@ function populateTable(invoices) {
 }
 
 
-// INVOICE ACTION BUTTONS
+// ---------------- ACTION BUTTONS ----------------
 function viewInvoice(invoiceNo) {
   window.location.href = `/replica.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
 }
@@ -65,8 +86,7 @@ function editInvoice(invoiceNo) {
 }
 
 async function deleteInvoice(invoiceNo) {
-  if (!confirm(`Are you sure you want to delete invoice ${invoiceNo}? This action cannot be undone.`)) return;
-
+  if (!confirm(`Are you sure you want to delete invoice ${invoiceNo}?`)) return;
   try {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`, { method: 'DELETE' });
     const data = await res.json();
@@ -82,50 +102,18 @@ async function deleteInvoice(invoiceNo) {
   }
 }
 
-
-// BULK DELETE (API ENDPOINT)
-document.getElementById("bulkDeleteBtn")?.addEventListener("click", async () => {
-  const selected = [...document.querySelectorAll(".select-invoice:checked")].map(cb => cb.dataset.invoice);
-  if (!selected.length) return alert("No invoices selected for deletion.");
-  if (!confirm(`Are you sure you want to delete ${selected.length} invoice(s)? This cannot be undone.`)) return;
-
-  try {
-    const res = await fetch('/api/invoices/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ invoices: selected })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert(`${selected.length} invoice(s) deleted successfully!`);
-      fetchInvoices();
-    } else {
-      alert(data.error || 'Failed to delete invoices');
-    }
-  } catch (err) {
-    console.error('❌ Bulk delete error:', err);
-    alert('Server error during bulk delete');
-  }
-});
-
-
-// BULK DELETE (LOOP METHOD)
-document.getElementById("deleteSelectedBtn").addEventListener("click", async () => {
+// ---------------- BULK DELETE ----------------
+document.getElementById("deleteSelectedBtn")?.addEventListener("click", async () => {
   const selected = Array.from(document.querySelectorAll(".select-invoice:checked"))
                         .map(cb => cb.dataset.invoice);
-
-  if (selected.length === 0) {
-    alert("No invoices selected for deletion.");
-    return;
-  }
-
-  if (!confirm(`Are you sure you want to delete ${selected.length} invoice(s)? This cannot be undone.`)) return;
+  if (!selected.length) return alert("No invoices selected.");
+  if (!confirm(`Delete ${selected.length} invoice(s)? This cannot be undone.`)) return;
 
   try {
     for (const invoiceNo of selected) {
       await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`, { method: 'DELETE' });
     }
-    alert(`${selected.length} invoice(s) deleted successfully!`);
+    alert(`${selected.length} invoice(s) deleted!`);
     fetchInvoices();
   } catch (err) {
     console.error("❌ Bulk delete error:", err);
@@ -133,35 +121,33 @@ document.getElementById("deleteSelectedBtn").addEventListener("click", async () 
   }
 });
 
-
-// SELECT ALL CHECKBOX
-const selectAll = document.getElementById("selectAllInvoices");
-selectAll.addEventListener("change", function() {
+// ---------------- SELECT ALL ----------------
+function setupSelectAllCheckbox() {
+  const selectAll = document.getElementById("selectAllInvoices");
+  if (!selectAll) return;
   const checkboxes = document.querySelectorAll(".select-invoice");
-  checkboxes.forEach(cb => cb.checked = selectAll.checked);
-});
 
-// SEARCH FILTER
-document.getElementById("searchInput").addEventListener("input", function() {
+  selectAll.checked = false;
+  selectAll.addEventListener("change", function() {
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+  });
+}
+
+// ---------------- SEARCH FILTER ----------------
+document.getElementById("searchInput")?.addEventListener("input", function() {
   const filter = this.value.toLowerCase();
-  const rows = document.querySelectorAll("#invoiceTable tbody tr");
-  rows.forEach(row => {
+  document.querySelectorAll("#invoiceTable tbody tr").forEach(row => {
     const text = row.textContent.toLowerCase();
     row.style.display = text.includes(filter) ? "" : "none";
   });
 });
 
+// ---------------- DRAFTS TOGGLE ----------------
+document.getElementById("toggleDrafts")?.addEventListener("click", function() {
+  showDraftsOnly = !showDraftsOnly;
+  this.textContent = showDraftsOnly ? "Show All" : "Show Drafts";
+  fetchInvoices();
+});
 
-// INITIAL LOAD
+// ---------------- INITIAL LOAD ----------------
 window.addEventListener("DOMContentLoaded", fetchInvoices);
-
-
-// HELPER: SETUP SELECT ALL (if needed)
-function setupSelectAllCheckbox() {
-  const selectAll = document.getElementById("selectAllInvoices");
-  const checkboxes = document.querySelectorAll(".select-invoice");
-
-  selectAll.addEventListener("change", function() {
-    checkboxes.forEach(cb => cb.checked = selectAll.checked);
-  });
-}

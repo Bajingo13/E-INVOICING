@@ -1,4 +1,3 @@
-// ===================== Dashboard.js =====================
 console.log("✅ Dashboard.js loaded");
 
 // ===================== Fetch Dashboard Data =====================
@@ -13,7 +12,6 @@ async function fetchDashboardData() {
     animateNumber('totalInvoices', data.totalInvoices || 0);
     animateNumber('totalPayments', data.totalPayments || 0, true);
     animateNumber('pendingInvoices', data.pendingInvoices || 0);
-
   } catch (err) {
     console.error("❌ Error loading dashboard data:", err);
   }
@@ -31,7 +29,7 @@ function animateNumber(elementId, targetValue, isCurrency = false) {
 
   let current = 0;
   const steps = 100;
-  const increment = targetValue / steps;
+  const increment = targetValue / steps; 
   const duration = 2000;
   const intervalTime = duration / steps;
 
@@ -50,28 +48,51 @@ function animateNumber(elementId, targetValue, isCurrency = false) {
 
 // ===================== DOM Ready =====================
 window.addEventListener('DOMContentLoaded', () => {
-  // Fetch dashboard data
   fetchDashboardData();
 
-  // ---------------- Dropdown Menu ----------------
-  
-  const btn = document.getElementById('createInvoiceBtn');
-  const menu = document.getElementById('invoiceDropdown');
+  // ---------------- Dropdown Function ----------------
+  function setupDropdown(buttonId, menuId) {
+  const btn = document.getElementById(buttonId);
+  const menu = document.getElementById(menuId);
 
+  if (!btn || !menu) return;
 
-
-  btn?.addEventListener('click', (e) => {
+  btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    menu.classList.toggle('show'); // toggle show class
+    menu.classList.toggle('show');
+
+    menu.style.left = '';
+    menu.style.right = '';
+
+    const rect = btn.getBoundingClientRect();
+    const dropdownWidth = menu.offsetWidth;
+    const spaceRight = window.innerWidth - rect.right;
+    const spaceLeft = rect.left;
+
+    menu.style.right = '36px';
+    menu.style.left = 'auto';
+
+    if (dropdownWidth > spaceRight && dropdownWidth <= spaceLeft) {
+      
+      menu.style.left = '-48px';
+      menu.style.right = 'auto';
+    }
   });
+
+  menu.addEventListener('click', e => e.stopPropagation());
 
   document.addEventListener('click', () => {
     menu.classList.remove('show');
   });
+}
 
-  menu?.addEventListener('click', e => e.stopPropagation());
+// Initialize dropdowns
+setupDropdown('accountingBtn', 'accountingDropdown');
+setupDropdown('createInvoiceBtn', 'invoiceDropdown');
+setupDropdown('profileBtn', 'profileDropdown');
 
-  // ---------------- Modal ----------------
+
+  // ---------------- Modal for Create Invoice ----------------
   const modal = document.getElementById('recurringModal');
   const standardBtn = document.getElementById('standardBtn');
   const recurringBtn = document.getElementById('recurringBtn');
@@ -81,16 +102,14 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#invoiceDropdown .dropdown-item').forEach(link => {
       link.addEventListener('click', function(e) {
         const type = new URL(link.href, location.origin).searchParams.get('type');
-        // Only Service, Sales, Commercial invoices trigger modal
-        if (type === 'credit' || type === 'debit') return;
+
+      
+        if (!['service', 'sales', 'commercial'].includes(type)) return;
 
         e.preventDefault();
 
-        // Show modal
         modal.classList.add('show');
-
-        // Save href for later
-        modal.dataset.href = link.href;
+        modal.dataset.href = link.href; 
       });
     });
 
@@ -109,3 +128,4 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Settings</title>
+  <link rel="stylesheet" href="userSettings.css">
+</head>
+<body>
+
+  <!-- Header / Navbar -->
+  <header>
+    <h1>User Settings</h1>
+    <nav>
+      <button id="back-dashboard" class="btn-show">Back to Dashboard</button>
+      <button id="show-create-user" class="btn-show">Create User</button>
+      <button id="show-login-history" class="btn-show">Login History</button>
+    </nav>
+  </header>
+
+  <main>
+
+    <!-- Current Users Section -->
+    <div id="users-section">
+      <h2>Current Users</h2>
+      <table id="users-table">
+        <thead>
+          <tr><th>Username</th><th>Role</th><th>Created At</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Login History Section -->
+    <div id="login-history-container" style="display:none;">
+      <h2>Login History</h2>
+      <table id="login-history-table">
+        <thead>
+          <tr><th>Username</th><th>Success</th><th>IP Address</th><th>Timestamp</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="create-user-modal" class="modal">
+      <div class="modal-content">
+        <h2>Create User</h2>
+        <form id="create-user-form">
+          <label>Username</label>
+          <input type="text" id="new-username" placeholder="Enter username" required>
+          <span class="error" id="username-error"></span>
+
+          <label>Password</label>
+          <input type="password" id="new-password" placeholder="Enter password" required>
+          <span class="error" id="password-error"></span>
+
+          <label>Role</label>
+          <select id="new-role">
+            <option value="normal">Normal</option>
+            <option value="super">Super</option>
+          </select>
+
+          <div class="modal-buttons">
+            <button type="button" id="cancel-create-user">Cancel</button>
+            <button type="submit" id="create-user-submit">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-create-modal" class="modal">
+      <div class="modal-content">
+        <h3>Confirm User Creation</h3>
+        <p>Are you sure you want to create this user?</p>
+        <div class="modal-actions">
+          <button id="confirm-create-yes" class="btn-show">Yes</button>
+          <button id="confirm-create-no" class="btn-show">No</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Toast -->
+    <div id="success-toast" class="toast">User created successfully!</div>
+
+  </main>
+
+  <script src="userSettings.js"></script>
+</body>
+</html>

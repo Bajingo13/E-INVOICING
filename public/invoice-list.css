@@ -65,151 +65,50 @@ header nav a.logout:hover {
   color: #fff;
 }
 
-/* -------------------- Dropdown -------------------- */
-.dropdown {
-  position: relative;
-  display: inline-block;
-}
-
-.dropdown-toggle {
-  background: #a3aaff;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 8px 24px;
-  font-size: 15px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-}
-
-.dropdown-toggle:hover {
-  background: #8793e6;
-}
-
-.dropdown-toggle::after {
-  content: " ▼";
-  font-size: 13px;
-  margin-left: 8px;
-}
-
-.dropdown-menu {
-  display: none;
-  position: absolute;
-  left: 0;
-  top: 110%;
-  min-width: 140px;
-  background: #a3aaff;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  z-index: 1000;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.dropdown-menu.show {
-  display: block;
-  opacity: 1;
-}
-
-.dropdown-item {
-  color: #fff;
-  text-decoration: none;
-  display: block;
-  padding: 8px 16px;
-  font-size: 14px;
-  background: transparent;
-  border-bottom: 1px solid #c0c8f0;
-  transition: background 0.2s;
-}
-
-.dropdown-item:last-child {
-  border-bottom: none;
-}
-
-.dropdown-item:hover {
-  background: #8793e6;
-}
-
-/* -------------------- Modal -------------------- */
-.modal {
-  display: none;
-  opacity: 0;
-  position: fixed;
-  z-index: 1000;
-  left: 0; top: 0;
-  width: 100%; height: 100%;
-  background-color: rgba(0,0,0,0.5);
-  justify-content: center;
-  align-items: center;
-  transition: opacity 0.3s ease;
-}
-
-.modal.show {
-  display: flex;
-  opacity: 1;
-}
-
-.modal-content {
-  background: #fff;
-  padding: 25px 30px;
-  border-radius: 12px;
-  width: 350px;
-  text-align: center;
-  position: relative;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-  transform: translateY(-20px);
-  transition: transform 0.3s ease;
-}
-
-.modal.show .modal-content {
-  transform: translateY(0);
-}
-
-.modal h3 {
-  margin-top: 0;
-  font-size: 20px;
-  color: #333;
-}
-
-.modal p {
-  margin: 15px 0;
-  font-size: 16px;
-  color: #555;
-}
-
-.modal-buttons button {
-  margin: 8px;
-  padding: 10px 18px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-#standardBtn { background-color: #4CAF50; color: white; }
-#recurringBtn { background-color: #2196F3; color: white; }
-#closeModal {
-  background: #f44336;
-  color: white;
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  font-size: 18px;
-  padding: 2px 10px;
-}
-#closeModal:hover { opacity: 0.8; }
-
 /* -------------------- Main -------------------- */
 main {
   padding: 2rem;
 }
 
+/* -------------------- Subheader / Toggle -------------------- */
+.invoice-subheader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 0.5rem 2rem; /* Match the main content padding */
+  border-bottom: 2px solid #e0e0e0;
+  max-width: 1200px; /* Optional: keep it aligned with main content */
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+
+.invoice-subheader span {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #4e54c8;
+}
+
+.invoice-subheader button {
+  padding: 6px 16px;
+  font-size: 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: #8793e6;
+  color: #fff;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.invoice-subheader button:hover {
+  background: #4e54c8;
+}
+
 /* -------------------- Search -------------------- */
 .search-container {
-  margin-bottom: 20px;
+  margin-bottom: 15px;
 }
 
 #searchInput {
@@ -224,6 +123,26 @@ main {
 
 #searchInput:focus {
   border-color: #4e54c8;
+}
+
+/* -------------------- Bulk Actions -------------------- */
+.bulk-actions {
+  margin-bottom: 10px;
+}
+
+.bulk-actions button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: #ff4d4f;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.3s;
+}
+
+.bulk-actions button:hover {
+  background: #ff7875;
 }
 
 /* -------------------- Table -------------------- */
@@ -258,7 +177,6 @@ tr:hover {
   margin-right: 5px;
   padding: 6px 12px;
   border: none;
-  background-color: #4e54c8;
   color: white;
   border-radius: 6px;
   cursor: pointer;
@@ -266,60 +184,20 @@ tr:hover {
   transition: all 0.3s ease;
 }
 
-.action-btn:last-child {
-  background-color: #2ecc71;
+.action-btn.view {
+  background-color: #4e54c8;
+}
+
+.action-btn.edit {
+  background-color: #f39c12;
+}
+
+.action-btn.delete {
+  background-color: #ff4d4f;
 }
 
 .action-btn:hover {
   opacity: 0.85;
-}
-
-/* -------------------- Cards -------------------- */
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.card {
-  display: flex;
-  align-items: center;
-  padding: 1.5rem;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-}
-
-.card .icon {
-  font-size: 2.2rem;
-  margin-right: 1rem;
-  color: #4e54c8;
-}
-
-.card.total-payments .icon {
-  color: #2ecc71;
-}
-
-.card.pending-invoices .icon {
-  color: #f39c12;
-}
-
-.card .content h3 {
-  font-size: 1rem;
-  margin-bottom: 0.3rem;
-  color: #666;
-}
-
-.card .content p {
-  font-size: 1.5rem;
-  font-weight: 700;
 }
 
 /* -------------------- Responsive -------------------- */
@@ -338,4 +216,20 @@ tr:hover {
     font-size: 13px;
     padding: 10px;
   }
+
+  .invoice-subheader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .invoice-subheader button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .bulk-actions button {
+    width: 100%;
+  }
 }
+

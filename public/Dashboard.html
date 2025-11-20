@@ -11,59 +11,68 @@
   <header> 
     <h1>E-Invoicing Dashboard</h1>
 
-    <!--- 
-  -->
-    
     <nav class="navbar">
-  <div class="navbar-left">
-    <a href="/company-setup" class="btn">Company Info</a>
-    
-    <div class="dropdown">
-      <button class="btn dropdown-toggle" id="createInvoiceBtn">
-        Accounting <span class="arrow"></span>
-      </button>
-      <div class="dropdown-menu" id="invoiceDropdown">
-        <a href="/COA.HTML" class="dropdown-item">Chart of Accounts</a>
-        <a href="/invoice?type=sales" class="dropdown-item">Contacts</a>
+      <div class="navbar-left"> 
+        <a href="/company-setup" class="btn">Company Info</a>
 
+        <!-- Accounting Dropdown -->
+        <div class="dropdown">
+          <button class="btn dropdown-toggle" id="accountingBtn">
+            Accounting
+          </button>
+          <div class="dropdown-menu" id="accountingDropdown">
+            <a href="/COA.HTML" class="dropdown-item">Chart of Accounts</a>
+            <a href="/contacts.html" class="dropdown-item">Contacts</a>
+          </div>
+        </div>
+
+        <!-- Create Invoice Dropdown -->
+        <div class="dropdown">
+          <button class="btn dropdown-toggle" id="createInvoiceBtn">
+            Create Invoice
+          </button>
+          <div class="dropdown-menu" id="invoiceDropdown">
+            <a href="/invoice?type=service" class="dropdown-item">Service Invoice</a>
+            <a href="/invoice?type=sales" class="dropdown-item">Sales Invoice</a>
+            <a href="/invoice?type=commercial" class="dropdown-item">Commercial Invoice</a>
+            <a href="/invoice?type=credit" class="dropdown-item">Credit Memo</a>
+            <a href="/invoice?type=debit" class="dropdown-item">Debit Memo</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="navbar-right">
+        <a href="/reports.html" class="btn">Reports</a>
+
+        <!-- Profile Dropdown -->
+        <div class="dropdown profile-dropdown">
+          <button class="btn dropdown-toggle" id="profileBtn">
+            <img src="/images/profile.png" alt="Profile" class="profile-pic">
+          </button>
+          <div class="dropdown-menu" id="profileDropdown">
+            <a href="/profile.html" class="dropdown-item">Profile</a>
+            <a href="/invoiceSettings.html" class="dropdown-item">Invoice Settings</a>
+            <a href="/userSettings.html" class="dropdown-item">User Settings</a>
+            <a href="/" class="dropdown-item logout">Logout</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+    
+    <!-- Recurring Modal -->
+    <div id="recurringModal" class="modal">
+      <div class="modal-content">
+        <h3>Select Invoice Type</h3>
+        <p>Do you want to create a Standard or Recurring invoice?</p>
+        <div class="modal-buttons">
+          <button id="standardBtn">Standard</button>
+          <button id="recurringBtn">Recurring</button>
+          <button id="closeModal">&times;</button>
+        </div>
       </div>
     </div>
-  </div>
+  </header>
 
-    <div class="dropdown">
-      <button class="btn dropdown-toggle" id="createInvoiceBtn">
-        Create Invoice <span class="arrow"></span>
-      </button>
-      <div class="dropdown-menu" id="invoiceDropdown">
-        <a href="/invoice?type=service" class="dropdown-item">Service Invoice</a>
-        <a href="/invoice?type=sales" class="dropdown-item">Sales Invoice</a>
-        <a href="/invoice?type=commercial" class="dropdown-item">Commercial Invoice</a>
-        <a href="/invoice?type=credit" class="dropdown-item">Credit Memo</a>
-        <a href="/invoice?type=debit" class="dropdown-item">Debit Memo</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="navbar-right">
-    
-    <a href="/reports.html" class="btn">Reports</a>
-    <a href="/" class="btn logout">Logout</a>
-  </div>
-</nav>
-
-<!-- Recurring Modal -->
-<div id="recurringModal" class="modal">
-  <div class="modal-content">
-    <h3>Select Invoice Type</h3>
-    <p>Do you want to create a Standard or Recurring invoice?</p>
-    <div class="modal-buttons">
-      <button id="standardBtn">Standard</button>
-      <button id="recurringBtn">Recurring</button>
-      <button id="closeModal">&times;</button>
-    </div>
-  </div>
-</div>
-</header>
   <main>
     <section class="cards">
       <div class="card total-invoices">
