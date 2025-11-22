@@ -235,7 +235,7 @@ body {
   
 }
 .right-fields {
-  margin-left: 20px; /* Reduced from 60px or 40px */
+  margin-left: 20px;
 }
 
 /* ----------------------------------
@@ -276,13 +276,11 @@ body {
   text-align: center;
 }
 
-/* Keep top border on the very first row */
 .invoice-table thead th {
   border-top: 1px solid #000;
   border-bottom: 1px solid #000;
 }
 
-/* Add bottom border to last row */
 .invoice-table tr:last-child td {
   border-bottom: 1px solid #000;
 }
@@ -303,41 +301,34 @@ body {
   vertical-align: top;
 }
 
-/* === PAYMENT TABLE REMAINS UNCHANGED === */
-.payment-table th.form-payment-label {
-  font-weight: bold;
-  text-align: left;
-  padding: 6px 8px;
-  font-size: 13px;
-  border: 1px solid #000;
-  background-color: #f9f9f9;
-}
-
+/*-------PAYMENT / TAX SUMMARY TABLE------*/
 .payment-table {
-  width: 100%;
+  width: 400px;           
+  margin-left: 0;         
+  margin-top: 15px;      
   border-collapse: collapse;
-  table-layout: fixed; /* Ensure fixed layout */
+  table-layout: fixed;
   font-size: 12px;
 }
 
-.payment-table td,
-.payment-table th {
+.payment-table th,
+.payment-table td {
   border: 1px solid #000;
-  padding: 4px 8px;
+  padding: 6px 8px;
   vertical-align: top;
   word-break: break-word;
-  overflow-wrap: break-word;
-  white-space: normal; /* Allow wrapping */
-  text-align: center;
+  text-align: left;       
+}
+.payment-table th {
+  background-color: #f9f9f9;
+  font-weight: bold;
 }
 
-/* Optionally: make text align left for descriptions if needed */
-.payment-table td:nth-child(1),
-.payment-table td:nth-child(3),
-.payment-table td:nth-child(5) {
-  text-align: left;
+.payment-table td:nth-child(2),
+.payment-table td:nth-child(4),
+.payment-table td:nth-child(6) {
+  text-align: right;  
 }
-
 
 /* ----------------------------------
    SIGNATURES

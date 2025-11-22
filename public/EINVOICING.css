@@ -189,7 +189,6 @@ button.delete-btn:hover {
    TABLES & FORMS
 ============================== */
 .info-table,
-.form-payment,
 .bordered,
 .signature-section {
   width: 100%;
@@ -733,4 +732,71 @@ body{
 canvas {
   background: white;
   box-shadow: 0 0 15px rgba(0,0,0,0.6);
+}
+
+/*-------PAYMENT / TAX SUMMARY TABLE------*/
+.payment-table {
+  width: 400px;           
+  margin-left: 0;         
+  margin-top: 15px;      
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.payment-table th,
+.payment-table td {
+  border: 1px solid #000;
+  padding: 6px 8px;
+  vertical-align: top;
+  word-break: break-word;
+  text-align: left;       
+}
+.payment-table th {
+  background-color: #f9f9f9;
+  font-weight: bold;
+}
+
+.payment-table td:nth-child(2),
+.payment-table td:nth-child(4),
+.payment-table td:nth-child(6) {
+  text-align: right;  
+}
+
+/* Container label + dropdown */
+.vat-type-container {
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  font-family: Arial, sans-serif;
+}
+
+/* Label */
+.vat-type-container label {
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+/* Dropdown styling */
+#vatType {
+  width: 200px;
+  padding: 6px 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: #fff;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+/* Hover + focus UI */
+#vatType:hover {
+  border-color: #999;
+}
+
+#vatType:focus {
+  outline: none;
+  border-color: #0077ff;
+  box-shadow: 0 0 3px rgba(0, 119, 255, 0.4);
 }

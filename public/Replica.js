@@ -132,34 +132,40 @@ function renderInvoice(data) {
 
   // --- Payment ---
   const payment = data.payment || {};
-  fillById("cash", payment.cash ? "✔" : "");
-  fillById("check", payment.check_payment ? "✔" : "");
-  fillById("checkNumber", payment.check_no || payment.checkNumber);
-  fillById("bank", payment.bank);
-  fillById("paymentDate", formatDate(payment.pay_date || payment.paymentDate));
 
-  fillById("vatableSales", formatCurrency(payment.vatable_sales || payment.vatableSales));
-  fillById("vatExemptSales", formatCurrency(payment.vat_exempt || payment.vatExemptSales));
-  fillById("zeroRatedSales", formatCurrency(payment.zero_rated || payment.zeroRatedSales));
-  fillById("vatAmount", formatCurrency(payment.vat_amount || payment.vatAmount));
-  fillById("lessVAT", formatCurrency(payment.less_vat || payment.lessVAT));
-  fillById("netOfVAT", formatCurrency(payment.net_vat || payment.netOfVAT));
-  fillById("withholdingTax", formatCurrency(payment.withholding || payment.withholdingTax));
+  // --- Auto-sum totals from items ---
+  let subtotal = 0;
+  let vatableSales = 0;
+  let vatExemptSales = 0;
+  let zeroRatedSales = 0;
+  let vatAmount = 0;
 
-  // --- Auto-sum total amounts ---
-  let computedTotal = 0;
   (Array.isArray(data.items) ? data.items : []).forEach(item => {
-    // Sum amount field
-    computedTotal += parseFloat(item.amount) || 0;
-    // Sum numeric extra fields
-    extraFields.forEach(f => {
-      const val = parseFloat(item[f]);
-      if(!isNaN(val)) computedTotal += val;
-    });
+    const amount = parseFloat(item.amount) || 0;
+    subtotal += amount;
+
+    // check if item has VAT category fields
+    if (item.vatable_sales != null) vatableSales += parseFloat(item.vatable_sales) || 0;
+    if (item.vat_exempt != null) vatExemptSales += parseFloat(item.vat_exempt) || 0;
+    if (item.zero_rated != null) zeroRatedSales += parseFloat(item.zero_rated) || 0;
+    if (item.vat_amount != null) vatAmount += parseFloat(item.vat_amount) || 0;
   });
-  fillById("total", formatCurrency(computedTotal));
-  fillById("totalDue", formatCurrency(computedTotal));
-  fillById("totalPayable", formatCurrency(computedTotal));
+
+  const discount = parseFloat(payment.discount || payment.discountAmount) || 0;
+  const withholding = parseFloat(payment.withholding || payment.withholdingTax) || 0;
+  const totalPayable = subtotal - discount - withholding;
+
+  // Fill all payment fields
+  fillById("vatableSales", formatCurrency(vatableSales));
+  fillById("vatExemptSales", formatCurrency(vatExemptSales));
+  fillById("zeroRatedSales", formatCurrency(zeroRatedSales));
+  fillById("vatAmount", formatCurrency(vatAmount));
+  fillById("subtotal", formatCurrency(subtotal));
+  fillById("discount", formatCurrency(discount));
+  fillById("withholdingTax", formatCurrency(withholding));
+  fillById("totalPayable", formatCurrency(totalPayable));
+  fillById("total", formatCurrency(subtotal));
+  fillById("totalDue", formatCurrency(totalPayable));
 
   // --- Signatures ---
   fillById("preparedBy", payment.prepared_by || payment.preparedBy);
@@ -187,8 +193,7 @@ function renderInvoice(data) {
 
   // Save extraFields for CSV / export use
   window._extraFields = extraFields;
-};
-
+}
 
 
 // ============================
@@ -228,26 +233,20 @@ window.onload = async function() {
     };
 
     const pay = previewData.payment || {};
-    const normalizedPayment = {
-      cash: pay.cash || false,
-      check_payment: pay.check_payment || pay.check || false,
-      check_no: pay.check_no || pay.checkNumber || "",
-      bank: pay.bank || "",
-      pay_date: pay.pay_date || pay.paymentDate || "",
-      vatable_sales: pay.vatable_sales || pay.vatableSales || "",
-      vat_exempt: pay.vat_exempt || pay.vatExemptSales || "",
-      zero_rated: pay.zero_rated || pay.zeroRatedSales || "",
-      vat_amount: pay.vat_amount || pay.vatAmount || "",
-      less_vat: pay.less_vat || pay.lessVAT || "",
-      net_vat: pay.net_vat || pay.netOfVAT || "",
-      withholding: pay.withholding || pay.withholdingTax || "",
-      total: pay.total || "",
-      due: pay.due || "",
-      payable: pay.payable || pay.totalPayable || "",
-      prepared_by: pay.prepared_by || pay.preparedBy || "",
-      approved_by: pay.approved_by || pay.approvedBy || "",
-      received_by: pay.received_by || pay.receivedBy || ""
-    };
+   const normalizedPayment = {
+  vatable_sales: pay.vatable_sales || pay.vatableSales || "0.00",
+  vat_amount: pay.vat_amount || pay.vatAmount || "0.00",
+  vat_exempt: pay.vat_exempt || pay.vatExemptSales || "0.00",
+  zero_rated: pay.zero_rated || pay.zeroRatedSales || "0.00",
+  subtotal: pay.subtotal || "0.00",                  
+  discount: pay.discount || pay.discountAmount || "0.00",
+  withholding: pay.withholding || pay.withholdingTax || "0.00",
+  total: pay.total || pay.payable || pay.totalPayable || "0.00",
+  prepared_by: pay.prepared_by || pay.preparedBy || "",
+  approved_by: pay.approved_by || pay.approvedBy || "",
+  received_by: pay.received_by || pay.receivedBy || ""
+};
+
 
     const foot = previewData.footer || {};
     const normalizedFooter = {
@@ -364,22 +363,15 @@ function getInvoiceDataFromDOM() {
     },
     items: itemRows,
     payment: {
-      cash: getText('cash'),
-      check: getText('check'),
-      checkNumber: getText('checkNumber'),
-      bank: getText('bank'),
-      paymentDate: getText('paymentDate'),
       vatableSales: getText('vatableSales'),
-      totalWithVAT: getText('totalWithVAT'),
-      vatAmount: getText('vatAmount'),
-      lessVAT: getText('lessVAT'),
-      zeroRatedSales: getText('zeroRatedSales'),
-      netOfVAT: getText('netOfVAT'),
-      vatExemptSales: getText('vatExemptSales'),
-      total: getText('total'),
-      addVAT: getText('addVAT'),
-      withholdingTax: getText('withholdingTax'),
-      totalPayable: getText('totalPayable')
+vatAmount: getText('vatAmount'),
+vatExemptSales: getText('vatExemptSales'),
+zeroRatedSales: getText('zeroRatedSales'),
+subtotal: getText('subtotal'),
+discount: getText('discount'),
+withholdingTax: getText('withholdingTax'),
+totalPayable: getText('totalPayable')
+
     },
     footer: {
       atpNo: getText('footer-atp-no'),

@@ -229,100 +229,84 @@
       </tbody>
     </table>
 
-    <!-- === PAYMENT SECTION === -->
-    <table class="form-payment">
-  <tr>
-    <td colspan="2">FORM OF PAYMENT</td>
-    <td>VATable Sales</td>
-    <td><input type="text" name="vatableSales" /></td>
-    <td>Total Sales (VAT Inclusive)</td>
-    <td><input type="text" name="totalSales" /></td>
-  </tr>
-  <tr>
-    <td>Cash</td>
-    <td><input type="checkbox" name="cash" /></td>
-    <td>VAT</td>
-    <td>
-      <select name="vatExempt" class="input-full" onchange="calculateTotals()">
-      <option value="0">0%</option>
-      <option value="5">5%</option>
-      <option value="12">12%</option>
-    </select>
-    </td>
-    <td>Less: VAT</td>
-    <td>
-      <select name="lessVat" class="input-full" onchange="calculateTotals()">
-      <option value="0">0%</option>
-      <option value="5">5%</option>
-      <option value="12">12%</option>
-    </select>
-    </td>
-  </tr>
-  <tr>
-    <td>Check</td>
-    <td><input type="checkbox" name="check" /></td>
-    <td>Zero-Rated Sales</td>
-    <td>
-      <select name="zeroRated" class="input-full" onchange="calculateTotals()">
-      <option value="0">0%</option>
-      <option value="5">5%</option>
-      <option value="12">12%</option>
-    </select>
-    </td>
-    <td>Amount Net of VAT</td>
-    <td><input type="text" name="netVat" /></td>
-  </tr>
-  <tr>
-    <td>Check No.</td>
-    <td><input type="text" name="checkNo" /></td>
-    <td>VAT-Exempt Sales</td>
-    <td>
-      <select name="vatAmount" class="input-full" onchange="calculateTotals()">
-        <option value="0">0%</option>
-        <option value="5">5%</option>
-        <option value="12">12%</option>
-      </select>
-    </td>
-    <td>Less: Discount <br> (SC/PWD/NAAC/MOV/SP)</td>
-    <td><input type="text" name="withholding" /></td>
-  </tr>
-  <tr>
-    <td>Bank</td>
-    <td><input type="text" name="bank" /></td>
-    <td>Total</td>
-    <td><input type="text" name="total" /></td>
-    <td>Add: VAT</td>
-    <td>
-      <select name="addVat" class="input-full" onchange="calculateTotals()">
-      <option value="0">0%</option>
-      <option value="5">5%</option>
-      <option value="12">12%</option>
-    </select>
-    </td>
-  </tr>
-  <tr>
-    <td>Date</td>
-    <td><input type="date" name="payDate" /></td>
-    <td></td>
-    <td></td>
-    <td>Less Withholding Tax</td>
-    <td>
-      <select name="payable">
-        <option value="0">0%</option>
-        <option value="1">1%</option>
-        <option value="2">2%</option>
-        <option value="5">5%</option>
-      </select>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="5" style="text-align:right;"><strong>TOTAL AMOUNT DUE</strong></td>
-    <td><input type="number" name="totalAmountDue" readonly /></td>
-  </tr>
+<div class="vat-type-container">
+  <label for="vatType">VAT Type:</label>
+  <select id="vatType" name="vatType" onchange="calculateTotals()">
+    <option value="inclusive">VAT Inclusive</option>
+    <option value="exclusive">VAT Exclusive</option>
+    <option value="nonvat">Non-VAT</option>
+  </select>
+</div>
+
+
+    <!-- === TAX SUMMARY (Visible Table) === -->
+<table class="payment-table">
+  <colgroup>
+    <col style="width: 50%;">
+    <col style="width: 50%;">
+  </colgroup>
+  <thead>
+    <tr>
+      <th colspan="2" class="form-payment-label">TAX SUMMARY</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>VATable Sales</td>
+      <td><input type="number" step="0.01" id="vatableSales" name="vatableSales" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>Add: VAT Amount</td>
+      <td><input type="number" step="0.01" id="vatAmount" name="vatAmount" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>VAT Exempt Sales</td>
+      <td><input type="number" step="0.01" id="vatExemptSales" name="vatExemptSales" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>VAT Zero Rated Sales</td>
+      <td><input type="number" step="0.01" id="zeroRatedSales" name="zeroRatedSales" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>Subtotal</td>
+      <td><input type="number" step="0.01" id="subtotal" name="subtotal" value="0.00" class="input-full" readonly></td>
+    </tr>
+    <tr>
+      <td>Less: Discount (SC/PWD)</td>
+      <td>
+        <select id="discount" name="discount" class="input-full">
+          <option value="0.00">0%</option>
+          <option value="0.05">5%</option>
+          <option value="0.10">10%</option>
+          <option value="0.15">15%</option>
+          <option value="0.20">20%</option>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <td>Less: Withholding Tax Amount</td>
+      <td><input type="number" step="0.01" id="withholdingTax" name="withholdingTax" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>Total Amount Due</td>
+      <td><input type="number" step="0.01" id="totalPayable" name="totalPayable" value="0.00" class="input-full" readonly></td>
+    </tr>
+  </tbody>
 </table>
 
 
-    
+<!-- === HIDDEN FIELDS FOR DATABASE === -->
+<input type="hidden" id="cash" name="cash" value="0">
+<input type="hidden" id="check_payment" name="check_payment" value="0">
+<input type="hidden" id="check_no" name="check_no" value="">
+<input type="hidden" id="bank" name="bank" value="">
+
+<input type="hidden" id="vatable_sales_val" name="vatable_sales" value="0">
+<input type="hidden" id="vat_exempt_val" name="vat_exempt" value="0">
+<input type="hidden" id="zero_rated_val" name="zero_rated" value="0">
+<input type="hidden" id="vat_amount_val" name="vat_amount" value="0">
+<input type="hidden" id="withholding_val" name="withholding" value="0">
+<input type="hidden" id="total_val" name="total" value="0">
 
     <div class="footer">
   <div class="footer-container">

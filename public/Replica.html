@@ -8,29 +8,31 @@
   <link rel="stylesheet" href="InvoicePreviewToolbar.css" />
 </head>
 <body>
- <div class="invoice-toolbar-header no-print">
-  <span class="invoice-toolbar-title">
-    <button class="close-btn" onclick="closePreview()">&times;</button>
-    Invoice preview
-  </span>
-  <div class="invoice-toolbar-actions"> 
-    <button class="download-btn" onclick="downloadPDF()">
-      Download PDF <span>⬇️</span>
-    </button>
-    <div class="dropdown">
-      <button class="export-btn" onclick="toggleDropdown()">Export ▼</button>
-      <div id="exportDropdown" class="dropdown-content">
-        <a href="#" onclick="exportInvoice('json');return false;">Export as JSON</a>
-        <a href="#" onclick="exportInvoice('xml');return false;">Export as XML</a>
-        <a href="#" onclick="exportInvoice('excel');return false;">Export as Excel</a>
+  <!-- ===================== TOOLBAR ===================== -->
+  <div class="invoice-toolbar-header no-print">
+    <span class="invoice-toolbar-title">
+      <button class="close-btn" onclick="closePreview()">&times;</button>
+      Invoice preview
+    </span>
+    <div class="invoice-toolbar-actions"> 
+      <button class="download-btn" onclick="downloadPDF()">
+        Download PDF <span>⬇️</span>
+      </button>
+      <div class="dropdown">
+        <button class="export-btn" onclick="toggleDropdown()">Export ▼</button>
+        <div id="exportDropdown" class="dropdown-content">
+          <a href="#" onclick="exportInvoice('json');return false;">Export as JSON</a>
+          <a href="#" onclick="exportInvoice('xml');return false;">Export as XML</a>
+          <a href="#" onclick="exportInvoice('excel');return false;">Export as Excel</a>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
+  <!-- ===================== INVOICE CONTAINER ===================== -->
   <div class="invoice-container">
 
-    <!-- ===================== HEADER ===================== -->
+    <!-- ===== HEADER ===== -->
     <header class="header">
       <div class="logo">
         <img id="uploaded-logo" src="" alt="Logo" style="display:none; max-height:60px;" />
@@ -45,7 +47,7 @@
       </div>
     </header>
 
-    <!-- ===================== INVOICE INFO ===================== -->
+    <!-- ===== INVOICE INFO ===== -->
     <section class="invoice-info">
       <div class="left-info">
         <div class="field"><span class="label">BILL TO :</span><span class="line" id="billTo">_________________________________________________________________________</span></div>
@@ -63,10 +65,10 @@
       </div>
     </section>
 
-    <!-- ===================== TITLE ===================== -->
+    <!-- ===== TITLE ===== -->
     <h2 class="service-invoice-title">SERVICE INVOICE</h2>
 
-    <!-- ===================== ITEMIZED TABLE ===================== -->
+    <!-- ===== ITEMIZED TABLE ===== -->
     <table class="invoice-table">
       <colgroup id="invoice-colgroup"></colgroup>
       <thead>
@@ -75,61 +77,54 @@
       <tbody id="itemRows"></tbody>
     </table>
 
-    <!-- ===================== PAYMENT TABLE ===================== -->
+    <!-- ===== TAX SUMMARY TABLE ===== -->
     <table class="payment-table">
       <colgroup>
-        <col style="width: 20%;">
-        <col style="width: 10%;">
-        <col style="width: 26%;">
-        <col style="width: 10%;">
-        <col style="width: 26%;">
-        <col style="width: 10%;">
+        <col style="width: 50%;">
+        <col style="width: 50%;">
       </colgroup>
       <thead>
         <tr>
-          <th colspan="6" class="form-payment-label">FORM OF PAYMENT</th>
+          <th colspan="2" class="form-payment-label">TAX SUMMARY</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>Cash</td><td id="cash"></td>
-          <td>VATable Sales</td><td id="vatableSales"></td>
-          <td>Total Sales (VAT Inclusive)</td><td id="totalWithVAT"></td>
+          <td>VATable Sales</td>
+          <td id="vatableSales">0.00</td>
         </tr>
         <tr>
-          <td>Check</td><td id="check"></td>
-          <td>VAT</td><td id="vatAmount"></td>
-          <td>Less: VAT</td><td id="lessVAT"></td>
+          <td>Add: VAT Amount</td>
+          <td id="vatAmount">0.00</td>
         </tr>
         <tr>
-          <td>Check No.</td><td id="checkNumber"></td>
-          <td>Zero-Rated Sales</td><td id="zeroRatedSales"></td>
-          <td>Amount Net of VAT</td><td id="netOfVAT"></td>
+          <td>VAT Exempt Sales</td>
+          <td id="vatExemptSales">0.00</td>
         </tr>
         <tr>
-          <td>Bank</td><td id="bank"></td>
-          <td>VAT-Exempt Sales</td><td id="vatExemptSales"></td>
-          <td>Less Discount: (SC/PWD/NAAC/MOV/SP)</td><td id="  "></td>
+          <td>VAT Zero Rated Sales</td>
+          <td id="zeroRatedSales">0.00</td>
         </tr>
         <tr>
-          <td>Date</td><td id="paymentDate"></td>
-          <td>Total</td><td id="total"></td>
-          <td>Add: VAT</td><td id="addVAT"></td>
+          <td>Subtotal</td>
+          <td id="subtotal">0.00</td>
         </tr>
         <tr>
-          <td></td><td></td>
-          <td></td><td></td>
-          <td>Less: Withholding Tax</td><td id="withholdingTax"></td>
+          <td>Less: Discount (SC/PWD)</td>
+          <td id="discount">0.00</td>
         </tr>
         <tr>
-          <td></td><td></td>
-          <td></td><td></td>
-          <td>Total Amount Due</td><td id="totalPayable"></td>
+          <td>Less: Withholding Tax Amount</td>
+          <td id="withholdingTax">0.00</td>
+        </tr>
+        <tr>
+          <td>Total Amount Due</td>
+          <td id="totalPayable">0.00</td>
         </tr>
       </tbody>
     </table>
 
-    <!-- ===================== FOOTER ===================== -->
+    <!-- ===== FOOTER ===== -->
     <footer class="footer-info">
       <div class="left-footer">
         <small>
@@ -144,46 +139,29 @@
           Approved Inclusive Serial Nos.: <span id="footer-serial-nos"></span>
         </small>
 
-        <!-- ============================= -->
-<!-- INPUT TAX NOTICE (BOTTOM DISCLAIMER) -->
-<!-- ============================= -->
-<div id="inputTaxNotice"
-     style="
-       display:none;
-       text-align:left;
-       margin-top:25px;
-       font-weight:bold;
-       color:#000000;
-       font-size:13px;
-     ">
-  THIS DOCUMENT IS NOT VALID FOR INPUT TAX
-</div>
-
+        <div id="inputTaxNotice"
+             style="display:none; text-align:left; margin-top:25px; font-weight:bold; color:#000000; font-size:13px;">
+          THIS DOCUMENT IS NOT VALID FOR INPUT TAX
+        </div>
       </div>
     </footer>
   </div>
-  
 
-  <!-- ===================== SCRIPT ===================== -->
+  <!-- ===== SCRIPTS ===== -->
   <script src="Replica.js"></script>
   <script>
     function closePreview() {
-      // Hide or close the invoice preview (example: redirect to dashboard)
       window.location.href = 'Dashboard.html';
     }
     function openInvoiceSettings() {
-      // Open invoice settings page (replace with your actual settings page)
       window.open('InvoiceSettings.html', '_blank');
     }
     function downloadPDF() {
-      // Download PDF (replace with actual PDF path or generate on backend)
       window.open('/invoices/sample-invoice.pdf', '_blank');
     }
     function showMoreOptions() {
-      // Show extra menu or options
       alert('More options coming soon!');
     }
   </script>
 </body>
-
 </html>
