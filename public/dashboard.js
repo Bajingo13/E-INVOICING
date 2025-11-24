@@ -89,7 +89,9 @@ window.addEventListener('DOMContentLoaded', () => {
 // Initialize dropdowns
 setupDropdown('accountingBtn', 'accountingDropdown');
 setupDropdown('createInvoiceBtn', 'invoiceDropdown');
+setupDropdown('SystemconfigBtn', 'systemConfigDropdown');
 setupDropdown('profileBtn', 'profileDropdown');
+
 
 
   // ---------------- Modal for Create Invoice ----------------

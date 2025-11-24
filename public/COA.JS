@@ -1,3 +1,5 @@
+// public/COA.js
+
 const codeInput = document.getElementById("codeInput");
 const dateInput = document.getElementById("dateInput");
 const titleInput = document.getElementById("titleInput");
@@ -17,7 +19,7 @@ const tabs = document.querySelectorAll(".tab");
 let accounts = [];
 let editingIndex = null;
 
-// Disable form at start
+// --- Form Control ---
 disableForm();
 
 function disableForm() {
@@ -59,18 +61,38 @@ taxRateSelect.addEventListener("change", () => {
   }
 });
 
-// ADD
+// --- Load COA from backend ---
+async function loadCOA() {
+  try {
+    const res = await fetch('/api/coa');
+    const data = await res.json();
+    accounts = data.map(acc => ({
+      id: acc.id,
+      code: acc.code,
+      date: acc.date || "",
+      title: acc.description,
+      classType: acc.type,
+      taxRate: acc.tax_rate || "0"
+    }));
+    refreshTable(document.querySelector(".tab.active").textContent.trim());
+  } catch (err) {
+    console.error("Failed to load COA:", err);
+  }
+}
+
+loadCOA();
+
+// --- ADD ---
 addBtn.addEventListener("click", () => {
   enableForm();
   clearForm();
   editingIndex = null;
 });
 
-// EDIT
+// --- EDIT ---
 editBtn.addEventListener("click", () => {
   const selected = document.querySelector(".row-selected");
   if (!selected) return alert("Select a row to edit!");
-
   enableForm();
 
   editingIndex = selected.dataset.index;
@@ -91,13 +113,15 @@ editBtn.addEventListener("click", () => {
   }
 });
 
-// DELETE
-deleteBtn.addEventListener("click", () => {
+// --- DELETE ---
+deleteBtn.addEventListener("click", async () => {
   const selected = document.querySelector(".row-selected");
   if (!selected) return alert("Select a row to delete!");
-
   const index = selected.dataset.index;
+  const acc = accounts[index];
+
   if (confirm("Are you sure you want to delete this account?")) {
+    await fetch(`/api/coa/${acc.id}`, { method: "DELETE" });
     accounts.splice(index, 1);
     refreshTable(document.querySelector(".tab.active").textContent.trim());
     editingIndex = null;
@@ -106,7 +130,7 @@ deleteBtn.addEventListener("click", () => {
   }
 });
 
-// Select row
+// --- Select row ---
 tableBody.addEventListener("click", (e) => {
   const tr = e.target.closest("tr");
   if (!tr) return;
@@ -117,8 +141,8 @@ tableBody.addEventListener("click", (e) => {
   tr.classList.add("row-selected");
 });
 
-// SAVE
-saveBtn.addEventListener("click", (e) => {
+// --- SAVE ---
+saveBtn.addEventListener("click", async (e) => {
   e.preventDefault();
 
   if (!codeInput.value.trim()) return alert("Code is required.");
@@ -126,7 +150,6 @@ saveBtn.addEventListener("click", (e) => {
   if (!titleInput.value.trim()) return alert("Title is required.");
 
   let tax = taxRateSelect.value;
-
   if (tax === "custom") {
     if (customTaxInput.value.trim() === "" || isNaN(customTaxInput.value)) {
       return alert("Enter a valid custom VAT (decimals allowed).");
@@ -142,32 +165,61 @@ saveBtn.addEventListener("click", (e) => {
     taxRate: tax
   };
 
-  if (editingIndex !== null) {
-    accounts[editingIndex] = acc;
-  } else {
-    accounts.push(acc);
-  }
+  try {
+    if (editingIndex !== null) {
+      // Update existing record
+      const id = accounts[editingIndex].id;
+      await fetch(`/api/coa/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: acc.code,
+          description: acc.title,
+          type: acc.classType,
+          tax_rate: acc.taxRate
+        })
+      });
+      acc.id = id;
+      accounts[editingIndex] = acc;
+    } else {
+      // Add new record
+      const res = await fetch('/api/coa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: acc.code,
+          description: acc.title,
+          type: acc.classType,
+          tax_rate: acc.taxRate
+        })
+      });
+      const result = await res.json();
+      acc.id = result.id;
+      accounts.push(acc);
+    }
 
-  refreshTable(document.querySelector(".tab.active").textContent.trim());
-  disableForm();
-  clearForm();
+    refreshTable(document.querySelector(".tab.active").textContent.trim());
+    disableForm();
+    clearForm();
+  } catch (err) {
+    console.error("Failed to save COA:", err);
+    alert("Failed to save. Check console.");
+  }
 });
 
-// CANCEL
+// --- CANCEL ---
 cancelBtn.addEventListener("click", () => {
   clearForm();
   disableForm();
   editingIndex = null;
 });
 
-// TABLE REFRESH
+// --- TABLE REFRESH ---
 function refreshTable(filter = "All Accounts") {
   tableBody.innerHTML = "";
 
   accounts.forEach((acc, index) => {
-    if (filter !== "All Accounts" && acc.classType !== convertFilterName(filter)) {
-      return;
-    }
+    if (filter !== "All Accounts" && acc.classType !== convertFilterName(filter)) return;
 
     const tr = document.createElement("tr");
     tr.dataset.index = index;
@@ -198,7 +250,7 @@ function convertFilterName(name) {
   }
 }
 
-// TABS
+// --- TABS ---
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     document.querySelector(".tab.active").classList.remove("active");
