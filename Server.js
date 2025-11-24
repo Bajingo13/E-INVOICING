@@ -29,13 +29,6 @@ app.use(session({
   rolling: true             
 }));
 
-// ----------------- Routes: Auth -----------------
-const authRoutes = require('./route/auth.js');
-app.use('/auth', authRoutes);
-
-// ----------------- Routes: COA -----------------
-const coaRoutes = require('./route/COA.js');
-app.use('/api/coa', coaRoutes);
 
 // ----------------- Configuration & Debug -----------------
 const DEBUG = process.env.DEBUG === 'true' || false;
@@ -95,6 +88,20 @@ app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice.html')));
 app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
 app.get('/invoice-list', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice-list.html')));
+
+
+// ----------------- Routes: Auth -----------------
+const authRoutes = require('./route/auth.js');
+app.use('/auth', authRoutes);
+
+// ----------------- Routes: COA -----------------
+const coaRoutes = require('./route/COA.js');
+app.use('/api/coa', coaRoutes);
+
+// ----------------- Routes: Import -----------------
+const importRoutes = require('./route/import');
+app.use('/api/import', importRoutes);
+
 
 // ----------------- Routes: Next Invoice Number -----------------
 app.get('/api/next-invoice-no', asyncHandler(async (req, res) => {
