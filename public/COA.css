@@ -9,17 +9,7 @@
   font-family: Arial, sans-serif;
 }
 
-/* Header */
-h1 {
-  margin-bottom: 20px;
-  font-size: 28px;
-  font-weight: 700;
-  color: #333;
-}
-
 /* Buttons */
-.coa-buttons { margin-bottom: 20px; }
-
 .btn {
   padding: 7px 12px;
   margin: 3px;
@@ -35,11 +25,20 @@ h1 {
 .exit { background: #d9534f !important; }
 .exit:hover { background: #c64541 !important; }
 
-/* Tabs */
-.coa-tabs {
-  margin-bottom: 15px;
-  border-bottom: 1px solid #ccc;
+.btn.save { background: #28a745; }
+.btn.save:hover { background: #218838; }
+
+.btn.cancel { background: #6c757d; }
+.btn.cancel:hover { background: #5a6268; }
+
+.form-actions {
+  text-align: right;
+  margin-top: 15px;
 }
+
+/* Tabs */
+.coa-tabs { margin-bottom: 15px; border-bottom: 1px solid #ccc; }
+
 .tab {
   background: #e9ecef;
   padding: 8px 16px;
@@ -54,7 +53,7 @@ h1 {
   border-top: 3px solid #4a68f4;
 }
 
-/* Search Row */
+/* Search */
 .coa-search-row {
   display: flex;
   justify-content: flex-end;
@@ -66,9 +65,8 @@ h1 {
   border: 1px solid #aaa;
   margin-right: 5px;
 }
-.btn.mini {
-  padding: 6px 10px;
-}
+
+.btn.mini { padding: 6px 10px; }
 
 /* Table */
 .coa-table {
@@ -85,17 +83,28 @@ h1 {
   font-weight: bold;
 }
 
-/* Form layout */
+.row-selected {
+  background: #dce7ff !important;
+}
+
+.coa-code { width: 120px; }
+.coa-name { width: 300px; }
+.coa-type { width: 150px; }
+.coa-tax { width: 180px; }
+
+/* Form */
 .coa-form {
   margin-top: 20px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
 }
+
 .form-group label {
   font-weight: bold;
   margin-bottom: 5px;
 }
+
 .form-group input,
 .form-group select {
   padding: 8px;
@@ -103,20 +112,7 @@ h1 {
   border-radius: 5px;
 }
 
-/* Title field full width */
-.form-group:nth-child(3) {
-  grid-column: span 2;
-}
-
-/* Button press animation */
-.btn.active { transform: scale(0.95); }
-
-.row-selected {
-  background: #dce7ff !important;
-}
-
 .coa-form input:disabled,
 .coa-form select:disabled {
   background: #f2f2f2;
-  cursor: not-allowed;
 }
