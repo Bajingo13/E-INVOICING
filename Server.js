@@ -33,6 +33,10 @@ app.use(session({
 const authRoutes = require('./route/auth.js');
 app.use('/auth', authRoutes);
 
+// ----------------- Routes: COA -----------------
+const coaRoutes = require('./route/COA.js');
+app.use('/api/coa', coaRoutes);
+
 // ----------------- Configuration & Debug -----------------
 const DEBUG = process.env.DEBUG === 'true' || false;
 const PORT = process.env.PORT || 3000;

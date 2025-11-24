@@ -39,8 +39,8 @@ header nav {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  position: relative;   /* new */
-  overflow: visible;    /* new: allows dropdown to overflow without stretching nav */
+  position: relative;
+  overflow: visible;
 }
 
 .navbar-left,
@@ -67,21 +67,21 @@ header nav .dropdown-toggle,
   text-decoration: none;
   line-height: 1.2;
   vertical-align: middle;
-  background: #fff;        
-  color: #4e54c8;         
+  background: #fff;
+  color: #4e54c8;
   font-weight: 500;
   border: 1px solid transparent;
 }
 
 header nav a.btn:hover,
 header nav .dropdown-toggle:hover {
-  background: #4e54c8;    
-  color: #fff;             
+  background: #4e54c8;
+  color: #fff;
 }
 
 /* Logout button */
 header nav a.logout {
-  background: #ff4d4f;    
+  background: #ff4d4f;
   color: #fff;
 }
 
@@ -102,12 +102,21 @@ header nav .dropdown.show .dropdown-toggle::after {
   transform: rotate(-180deg);
 }
 
-/* Dropdown items */
+/* ---------------- FIXED NAVBAR DROPDOWN ALIGNMENT (EXCEPT PROFILE) ---------------- */
+header nav .dropdown {
+  position: relative;
+  display: inline-block;
+  z-index: 10;
+}
+
 header nav .dropdown-menu {
   position: absolute;
-  top: 100%; 
-  left: 0;
-  min-width: 160px;
+  top: calc(100% + 5px);
+  left: 0;                    /* FIX: dropdown perfectly aligns under button */
+  transform: translateX(0);   /* FIX: remove offset */
+  min-width: max-content;
+  white-space: nowrap;
+
   background: #a3aaff;
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -116,11 +125,7 @@ header nav .dropdown-menu {
   transition: opacity 0.3s ease;
   z-index: 1000;
 }
-header nav .dropdown {
-  position: relative; 
-  display: inline-block;
-  z-index: 10; 
-}
+
 header nav .dropdown-menu.show {
   display: block;
   opacity: 1;
@@ -129,7 +134,7 @@ header nav .dropdown-menu.show {
 header nav .dropdown-item {
   display: block;
   padding: 10px 20px;
-  color: #fff;          
+  color: #fff;
   text-decoration: none;
   font-size: 15px;
   border-bottom: 1px solid #c0c8f0;
@@ -137,19 +142,19 @@ header nav .dropdown-item {
 }
 
 header nav .dropdown-item:hover {
-  background: #8793e6;    
+  background: #8793e6;
 }
 
 header nav .dropdown-menu .dropdown-item:last-child {
   border-bottom: none;
 }
 
-/* ---------------- Profile Dropdown ---------------- */
+/* ---------------- Profile Dropdown (UNCHANGED) ---------------- */
 .profile-dropdown {
-  position: relative;  
+  position: relative;
   display: inline-flex;
   align-items: center;
-  z-index: 1000;      
+  z-index: 1000;
 }
 
 .profile-dropdown .dropdown-toggle {
@@ -170,8 +175,8 @@ header nav .dropdown-menu .dropdown-item:last-child {
 }
 
 .profile-dropdown .dropdown-menu {
-  position: absolute; 
-  top: calc(100% + 5px); 
+  position: absolute;
+  top: calc(100% + 5px);
   right: 0;
   background-color: #fff;
   min-width: 150px;
@@ -327,6 +332,7 @@ main {
 
 #standardBtn { background-color: #4CAF50; color: white; }
 #recurringBtn { background-color: #2196F3; color: white; }
+
 #closeModal {
   background: #f44336;
   color: white;
@@ -336,4 +342,5 @@ main {
   font-size: 18px;
   padding: 2px 10px;
 }
+
 #closeModal:hover { opacity: 0.8; }

@@ -12,8 +12,7 @@
     <h1>E-Invoicing Dashboard</h1>
 
     <nav class="navbar">
-      <div class="navbar-left"> 
-        <a href="/company-setup" class="btn">Company Info</a>
+      <div class="navbar-left">
 
         <!-- Accounting Dropdown -->
         <div class="dropdown">
@@ -39,13 +38,20 @@
             <a href="/invoice?type=debit" class="dropdown-item">Debit Memo</a>
           </div>
         </div>
-      </div>
+      </div>  
 
       <div class="navbar-right">
         <a href="/reports.html" class="btn">Reports</a>
 
-        <div class="navbar-right">
-        <a href="/reports.html" class="btn">System Configuration</a>
+        <div class="dropdown">
+          <button class="btn dropdown-toggle" id="SystemconfigBtn">
+            System Configuration
+          </button>
+          <div class="dropdown-menu" id="systemConfigDropdown">
+            <a href="/Company_info.html" class="dropdown-item">Company Info</a>
+            <a href="/TransLock.html" class="dropdown-item">Transaction Locking</a>
+          </div>
+        </div>
 
         <!-- Profile Dropdown -->
         <div class="dropdown profile-dropdown">
