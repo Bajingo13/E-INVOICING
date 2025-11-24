@@ -15,36 +15,51 @@ const cancelBtn = document.getElementById("cancelBtn");
 
 const tableBody = document.querySelector(".coa-table tbody");
 const tabs = document.querySelectorAll(".tab");
+const tableHeaders = document.querySelectorAll(".coa-table thead th");
 
 let accounts = [];
 let editingIndex = null;
+let sortColumn = null;
+let sortAsc = true;
+
+// --- Class type mapping ---
+const CLASS_MAP = {
+  "A": "Assets",
+  "E": "Expenses",
+  "L": "Liabilities",
+  "I": "Revenue",
+  "C": "Equity"
+};
+
+function letterToClass(letter) {
+  return CLASS_MAP[letter] || letter;
+}
+
+function classToLetter(name) {
+  for (let key in CLASS_MAP) {
+    if (CLASS_MAP[key] === name) return key;
+  }
+  return name;
+}
 
 // --- Form Control ---
 disableForm();
 
 function disableForm() {
-  codeInput.disabled = true;
-  dateInput.disabled = true;
-  titleInput.disabled = true;
-  classSelect.disabled = true;
-  taxRateSelect.disabled = true;
-  customTaxInput.disabled = true;
+  codeInput.disabled = dateInput.disabled = titleInput.disabled = true;
+  classSelect.disabled = taxRateSelect.disabled = customTaxInput.disabled = true;
 }
 
 function enableForm() {
-  codeInput.disabled = false;
-  dateInput.disabled = false;
-  titleInput.disabled = false;
-  classSelect.disabled = false;
-  taxRateSelect.disabled = false;
-  customTaxInput.disabled = false;
+  codeInput.disabled = dateInput.disabled = titleInput.disabled = false;
+  classSelect.disabled = taxRateSelect.disabled = customTaxInput.disabled = false;
 }
 
 function clearForm() {
   codeInput.value = "";
   dateInput.value = "";
   titleInput.value = "";
-  classSelect.value = "ASSET";
+  classSelect.value = "A";
   taxRateSelect.value = "0";
   customTaxInput.value = "";
   customTaxInput.style.display = "none";
@@ -70,8 +85,8 @@ async function loadCOA() {
       id: acc.id,
       code: acc.code,
       date: acc.date || "",
-      title: acc.description,
-      classType: acc.type,
+      title: acc.title,
+      classType: acc.class_type,             // letter stored
       taxRate: acc.tax_rate || "0"
     }));
     refreshTable(document.querySelector(".tab.active").textContent.trim());
@@ -82,19 +97,13 @@ async function loadCOA() {
 
 loadCOA();
 
-// --- ADD ---
-addBtn.addEventListener("click", () => {
-  enableForm();
-  clearForm();
-  editingIndex = null;
-});
+// --- ADD / EDIT / DELETE ---
+addBtn.addEventListener("click", () => { enableForm(); clearForm(); editingIndex = null; });
 
-// --- EDIT ---
 editBtn.addEventListener("click", () => {
   const selected = document.querySelector(".row-selected");
   if (!selected) return alert("Select a row to edit!");
   enableForm();
-
   editingIndex = selected.dataset.index;
   const acc = accounts[editingIndex];
 
@@ -103,7 +112,7 @@ editBtn.addEventListener("click", () => {
   titleInput.value = acc.title;
   classSelect.value = acc.classType;
 
-  if (["0", "1", "5", "12", "18"].includes(acc.taxRate)) {
+  if (["0","1","5","12","18"].includes(acc.taxRate)) {
     taxRateSelect.value = acc.taxRate;
     customTaxInput.style.display = "none";
   } else {
@@ -113,7 +122,6 @@ editBtn.addEventListener("click", () => {
   }
 });
 
-// --- DELETE ---
 deleteBtn.addEventListener("click", async () => {
   const selected = document.querySelector(".row-selected");
   if (!selected) return alert("Select a row to delete!");
@@ -122,7 +130,7 @@ deleteBtn.addEventListener("click", async () => {
 
   if (confirm("Are you sure you want to delete this account?")) {
     await fetch(`/api/coa/${acc.id}`, { method: "DELETE" });
-    accounts.splice(index, 1);
+    accounts.splice(index,1);
     refreshTable(document.querySelector(".tab.active").textContent.trim());
     editingIndex = null;
     clearForm();
@@ -130,30 +138,23 @@ deleteBtn.addEventListener("click", async () => {
   }
 });
 
-// --- Select row ---
-tableBody.addEventListener("click", (e) => {
+tableBody.addEventListener("click", e => {
   const tr = e.target.closest("tr");
   if (!tr) return;
-
-  document.querySelectorAll(".row-selected")
-    .forEach(row => row.classList.remove("row-selected"));
-
+  document.querySelectorAll(".row-selected").forEach(r=>r.classList.remove("row-selected"));
   tr.classList.add("row-selected");
 });
 
 // --- SAVE ---
 saveBtn.addEventListener("click", async (e) => {
   e.preventDefault();
-
-  if (!codeInput.value.trim()) return alert("Code is required.");
-  if (!dateInput.value.trim()) return alert("Date is required.");
-  if (!titleInput.value.trim()) return alert("Title is required.");
+  if (!codeInput.value.trim() || !dateInput.value.trim() || !titleInput.value.trim())
+    return alert("Code, Date, and Title are required.");
 
   let tax = taxRateSelect.value;
   if (tax === "custom") {
-    if (customTaxInput.value.trim() === "" || isNaN(customTaxInput.value)) {
-      return alert("Enter a valid custom VAT (decimals allowed).");
-    }
+    if (customTaxInput.value.trim() === "" || isNaN(customTaxInput.value))
+      return alert("Enter a valid custom VAT.");
     tax = parseFloat(customTaxInput.value).toString();
   }
 
@@ -167,29 +168,29 @@ saveBtn.addEventListener("click", async (e) => {
 
   try {
     if (editingIndex !== null) {
-      // Update existing record
       const id = accounts[editingIndex].id;
       await fetch(`/api/coa/${id}`, {
-        method: 'PUT',
+        method: "PUT",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: acc.code,
-          description: acc.title,
-          type: acc.classType,
+          date: acc.date,
+          title: acc.title,
+          class_type: acc.classType,
           tax_rate: acc.taxRate
         })
       });
       acc.id = id;
       accounts[editingIndex] = acc;
     } else {
-      // Add new record
       const res = await fetch('/api/coa', {
-        method: 'POST',
+        method: "POST",
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: acc.code,
-          description: acc.title,
-          type: acc.classType,
+          date: acc.date,
+          title: acc.title,
+          class_type: acc.classType,
           tax_rate: acc.taxRate
         })
       });
@@ -201,61 +202,71 @@ saveBtn.addEventListener("click", async (e) => {
     refreshTable(document.querySelector(".tab.active").textContent.trim());
     disableForm();
     clearForm();
-  } catch (err) {
-    console.error("Failed to save COA:", err);
+  } catch(err) {
+    console.error(err);
     alert("Failed to save. Check console.");
   }
 });
 
 // --- CANCEL ---
-cancelBtn.addEventListener("click", () => {
-  clearForm();
-  disableForm();
-  editingIndex = null;
+cancelBtn.addEventListener("click", () => { clearForm(); disableForm(); editingIndex = null; });
+
+// --- SORTING ---
+tableHeaders.forEach(th => {
+  th.addEventListener("click", () => {
+    const column = th.dataset.sort;
+    if (!column) return;
+    if (sortColumn === column) sortAsc = !sortAsc;
+    else { sortColumn = column; sortAsc = true; }
+    refreshTable(document.querySelector(".tab.active").textContent.trim());
+  });
 });
 
-// --- TABLE REFRESH ---
-function refreshTable(filter = "All Accounts") {
-  tableBody.innerHTML = "";
-
-  accounts.forEach((acc, index) => {
-    if (filter !== "All Accounts" && acc.classType !== convertFilterName(filter)) return;
-
-    const tr = document.createElement("tr");
-    tr.dataset.index = index;
-
-    const taxLabel = acc.taxRate === "0" 
-      ? "Tax Exempt (0%)" 
-      : parseFloat(acc.taxRate) + "%";
-
-    tr.innerHTML = `
-      <td>${acc.code}</td>
-      <td>${acc.title}</td>
-      <td>${acc.classType}</td>
-      <td>${taxLabel}</td>
-    `;
-
-    tableBody.appendChild(tr);
-  });
-}
-
-function convertFilterName(name) {
-  switch (name) {
-    case "Assets": return "ASSET";
-    case "Liabilities": return "LIABILITY";
-    case "Equity": return "EQUITY";
-    case "Expenses": return "EXPENSE";
-    case "Revenue": return "REVENUE";
-    default: return "All Accounts";
-  }
-}
-
 // --- TABS ---
-tabs.forEach((tab) => {
+tabs.forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelector(".tab.active").classList.remove("active");
     tab.classList.add("active");
-
     refreshTable(tab.textContent.trim());
   });
 });
+
+// --- IMPORT BTN ---
+document.getElementById("importBtn").addEventListener("click", () => {
+  window.location.href = "coaImport.html";
+});
+
+// --- REFRESH TABLE ---
+function refreshTable(filter="All Accounts") {
+  tableBody.innerHTML = "";
+
+  let filtered = accounts.filter(acc => {
+    return filter === "All Accounts" || letterToClass(acc.classType) === filter;
+  });
+
+  // Sorting
+  if (sortColumn) {
+    filtered.sort((a,b) => {
+      let valA = a[sortColumn], valB = b[sortColumn];
+      if (sortColumn === "taxRate") { valA = parseFloat(valA); valB = parseFloat(valB); }
+      else if (sortColumn === "classType") { valA = letterToClass(valA); valB = letterToClass(valB); }
+      else { valA = valA.toString().toLowerCase(); valB = valB.toString().toLowerCase(); }
+      if (valA < valB) return sortAsc ? -1 : 1;
+      if (valA > valB) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  filtered.forEach((acc, idx) => {
+    const tr = document.createElement("tr");
+    tr.dataset.index = accounts.indexOf(acc);
+    const taxLabel = acc.taxRate === "0" ? "Tax Exempt (0%)" : parseFloat(acc.taxRate) + "%";
+    tr.innerHTML = `
+      <td>${acc.code}</td>
+      <td>${acc.title}</td>
+      <td>${letterToClass(acc.classType)}</td>
+      <td>${taxLabel}</td>
+    `;
+    tableBody.appendChild(tr);
+  });
+}

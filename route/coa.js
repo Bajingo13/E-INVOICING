@@ -1,45 +1,45 @@
 // route/COA.js
 const express = require('express');
 const router = express.Router();
-const { getConn } = require('../db'); // your db.js should export getConn()
+const { getConn } = require('../db');
 
-// Async wrapper for cleaner error handling
+// Async handler to catch errors
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// GET all COA records
+// ------------------- GET all accounts -------------------
 router.get('/', asyncHandler(async (req, res) => {
   const conn = await getConn();
   try {
-    const [rows] = await conn.execute('SELECT * FROM coa ORDER BY code ASC');
+    const [rows] = await conn.execute('SELECT * FROM chart_of_accounts ORDER BY code ASC');
     res.json(rows);
   } finally {
     conn.release();
   }
 }));
 
-// GET single COA by ID
+// ------------------- GET single account -------------------
 router.get('/:id', asyncHandler(async (req, res) => {
   const conn = await getConn();
   const id = req.params.id;
   try {
-    const [rows] = await conn.execute('SELECT * FROM coa WHERE id = ?', [id]);
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const [rows] = await conn.execute('SELECT * FROM chart_of_accounts WHERE id = ?', [id]);
+    if (!rows.length) return res.status(404).json({ error: 'Account not found' });
     res.json(rows[0]);
   } finally {
     conn.release();
   }
 }));
 
-// POST new COA
+// ------------------- POST new account -------------------
 router.post('/', asyncHandler(async (req, res) => {
-  const { code, description, type, tax_rate } = req.body;
-  if (!code || !description || !type) return res.status(400).json({ error: 'Missing required fields' });
+  const { code, title, class_type, tax_rate, date } = req.body;
+  if (!code || !title || !class_type) return res.status(400).json({ error: 'Missing required fields' });
 
   const conn = await getConn();
   try {
     const [result] = await conn.execute(
-      'INSERT INTO coa (code, description, type, tax_rate) VALUES (?, ?, ?, ?)',
-      [code, description, type, tax_rate || "0"]
+      'INSERT INTO chart_of_accounts (code, title, class_type, tax_rate, date) VALUES (?, ?, ?, ?, ?)',
+      [code, title, class_type, tax_rate || "0", date || null]
     );
     res.json({ success: true, id: result.insertId });
   } finally {
@@ -47,15 +47,16 @@ router.post('/', asyncHandler(async (req, res) => {
   }
 }));
 
-// PUT update COA
+// ------------------- PUT update account -------------------
 router.put('/:id', asyncHandler(async (req, res) => {
-  const { code, description, type, tax_rate } = req.body;
+  const { code, title, class_type, tax_rate, date } = req.body;
   const id = req.params.id;
+
   const conn = await getConn();
   try {
     await conn.execute(
-      'UPDATE coa SET code=?, description=?, type=?, tax_rate=? WHERE id=?',
-      [code, description, type, tax_rate || "0", id]
+      'UPDATE chart_of_accounts SET code=?, title=?, class_type=?, tax_rate=?, date=? WHERE id=?',
+      [code, title, class_type, tax_rate || "0", date || null, id]
     );
     res.json({ success: true });
   } finally {
@@ -63,12 +64,13 @@ router.put('/:id', asyncHandler(async (req, res) => {
   }
 }));
 
-// DELETE COA
+// ------------------- DELETE account -------------------
 router.delete('/:id', asyncHandler(async (req, res) => {
   const id = req.params.id;
+
   const conn = await getConn();
   try {
-    await conn.execute('DELETE FROM coa WHERE id=?', [id]);
+    await conn.execute('DELETE FROM chart_of_accounts WHERE id=?', [id]);
     res.json({ success: true });
   } finally {
     conn.release();

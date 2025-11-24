@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COA Import</title>
+  <link rel="stylesheet" href="COA.css">
+</head>
+<body>
+  <div class="coa-container">
+    <h2>Import Chart of Accounts</h2>
+
+    <div class="import-row">
+      <input type="file" id="importFile" accept=".xlsx,.xls">
+      <button class="btn" id="uploadBtn">Upload & Preview</button>
+      <button class="btn save" id="saveImportBtn">Save to DB</button>
+    </div>
+
+    <div id="importMessage" style="margin:10px 0; font-weight:bold;"></div>
+
+    <h3>Preview</h3>
+    <table class="coa-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Code</th>
+          <th>Title</th>
+          <th>Class Type</th>
+          <th>Tax Rate</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody id="importPreviewBody"></tbody>
+    </table>
+
+    <h3>Validation Errors</h3>
+    <ul id="importErrors"></ul>
+  </div>
+
+  <script src="coaImport.js"></script>
+</body>
+</html>
