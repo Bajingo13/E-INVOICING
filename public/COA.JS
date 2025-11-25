@@ -17,6 +17,9 @@ const tableBody = document.querySelector(".coa-table tbody");
 const tabs = document.querySelectorAll(".tab");
 const tableHeaders = document.querySelectorAll(".coa-table thead th");
 
+const searchInput = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
+
 let accounts = [];
 let editingIndex = null;
 let sortColumn = null;
@@ -65,7 +68,7 @@ function clearForm() {
   customTaxInput.style.display = "none";
 }
 
-// Show custom VAT input when needed
+// Show custom VAT input
 taxRateSelect.addEventListener("change", () => {
   if (taxRateSelect.value === "custom") {
     customTaxInput.style.display = "block";
@@ -76,25 +79,27 @@ taxRateSelect.addEventListener("change", () => {
   }
 });
 
-// --- Load COA from backend ---
+// --- Load COA ---
 async function loadCOA() {
   try {
     const res = await fetch('/api/coa');
     const data = await res.json();
+
     accounts = data.map(acc => ({
       id: acc.id,
       code: acc.code,
       date: acc.date || "",
       title: acc.title,
-      classType: acc.class_type,             // letter stored
-      taxRate: acc.tax_rate || "0"
+      classType: acc.class_type,
+      taxRate: acc.tax_rate || "0",
+      archived: acc.archived || 0
     }));
+
     refreshTable(document.querySelector(".tab.active").textContent.trim());
   } catch (err) {
     console.error("Failed to load COA:", err);
   }
 }
-
 loadCOA();
 
 // --- ADD / EDIT / DELETE ---
@@ -122,9 +127,11 @@ editBtn.addEventListener("click", () => {
   }
 });
 
+// DELETE (hard delete)
 deleteBtn.addEventListener("click", async () => {
   const selected = document.querySelector(".row-selected");
   if (!selected) return alert("Select a row to delete!");
+
   const index = selected.dataset.index;
   const acc = accounts[index];
 
@@ -138,6 +145,7 @@ deleteBtn.addEventListener("click", async () => {
   }
 });
 
+// ROW SELECTION
 tableBody.addEventListener("click", e => {
   const tr = e.target.closest("tr");
   if (!tr) return;
@@ -169,6 +177,7 @@ saveBtn.addEventListener("click", async (e) => {
   try {
     if (editingIndex !== null) {
       const id = accounts[editingIndex].id;
+
       await fetch(`/api/coa/${id}`, {
         method: "PUT",
         headers: { 'Content-Type': 'application/json' },
@@ -180,8 +189,11 @@ saveBtn.addEventListener("click", async (e) => {
           tax_rate: acc.taxRate
         })
       });
+
       acc.id = id;
+      acc.archived = accounts[editingIndex].archived;
       accounts[editingIndex] = acc;
+
     } else {
       const res = await fetch('/api/coa', {
         method: "POST",
@@ -194,14 +206,17 @@ saveBtn.addEventListener("click", async (e) => {
           tax_rate: acc.taxRate
         })
       });
+
       const result = await res.json();
       acc.id = result.id;
+      acc.archived = 0;
       accounts.push(acc);
     }
 
     refreshTable(document.querySelector(".tab.active").textContent.trim());
     disableForm();
     clearForm();
+
   } catch(err) {
     console.error(err);
     alert("Failed to save. Check console.");
@@ -210,6 +225,39 @@ saveBtn.addEventListener("click", async (e) => {
 
 // --- CANCEL ---
 cancelBtn.addEventListener("click", () => { clearForm(); disableForm(); editingIndex = null; });
+
+// --- ARCHIVE / UNARCHIVE ---
+async function archiveAccount(id) {
+  if (!confirm("Archive this account?")) return;
+
+  await fetch(`/api/coa/archive/${id}`, { method: "PUT" });
+
+  const idx = accounts.findIndex(a => a.id == id);
+  accounts[idx].archived = 1;
+
+  refreshTable(document.querySelector(".tab.active").textContent.trim());
+}
+
+async function unarchiveAccount(id) {
+  if (!confirm("Restore this account?")) return;
+
+  await fetch(`/api/coa/unarchive/${id}`, { method: "PUT" });
+
+  const idx = accounts.findIndex(a => a.id == id);
+  accounts[idx].archived = 0;
+
+  refreshTable("Archive");
+}
+
+// LISTEN BUTTONS
+document.addEventListener("click", (e) => {
+  if (e.target.classList.contains("archive-btn")) {
+    archiveAccount(e.target.dataset.id);
+  }
+  if (e.target.classList.contains("unarchive-btn")) {
+    unarchiveAccount(e.target.dataset.id);
+  }
+});
 
 // --- SORTING ---
 tableHeaders.forEach(th => {
@@ -236,12 +284,30 @@ document.getElementById("importBtn").addEventListener("click", () => {
   window.location.href = "coaImport.html";
 });
 
-// --- REFRESH TABLE ---
+// --- REFRESH TABLE (UPDATED WITH ARCHIVE TAB) ---
 function refreshTable(filter="All Accounts") {
   tableBody.innerHTML = "";
+  const search = searchInput.value.trim().toLowerCase();
+  const isArchiveTab = filter === "Archive";
 
   let filtered = accounts.filter(acc => {
-    return filter === "All Accounts" || letterToClass(acc.classType) === filter;
+    const className = letterToClass(acc.classType);
+
+    if (isArchiveTab && acc.archived != 1) return false;
+    if (!isArchiveTab && acc.archived == 1) return false;
+
+    const matchesTab =
+      filter === "All Accounts" ||
+      filter === "Archive" ||
+      className === filter;
+
+    const matchesSearch =
+      acc.code.toLowerCase().includes(search) ||
+      acc.title.toLowerCase().includes(search) ||
+      className.toLowerCase().includes(search) ||
+      acc.taxRate.toString().includes(search);
+
+    return matchesTab && matchesSearch;
   });
 
   // Sorting
@@ -257,16 +323,36 @@ function refreshTable(filter="All Accounts") {
     });
   }
 
-  filtered.forEach((acc, idx) => {
+  // Build rows
+  filtered.forEach((acc) => {
     const tr = document.createElement("tr");
     tr.dataset.index = accounts.indexOf(acc);
+
     const taxLabel = acc.taxRate === "0" ? "Tax Exempt (0%)" : parseFloat(acc.taxRate) + "%";
+
     tr.innerHTML = `
       <td>${acc.code}</td>
       <td>${acc.title}</td>
       <td>${letterToClass(acc.classType)}</td>
       <td>${taxLabel}</td>
+      <td>
+        ${
+          isArchiveTab
+            ? `<button class="tb-btn unarchive-btn" data-id="${acc.id}">Unarchive</button>`
+            : `<button class="tb-btn archive-btn" data-id="${acc.id}">Archive</button>`
+        }
+      </td>
     `;
+
     tableBody.appendChild(tr);
   });
 }
+
+// --- SEARCH EVENTS ---
+searchInput.addEventListener("input", () => {
+  refreshTable(document.querySelector(".tab.active").textContent.trim());
+});
+
+searchBtn.addEventListener("click", () => {
+  refreshTable(document.querySelector(".tab.active").textContent.trim());
+});
