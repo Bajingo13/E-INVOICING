@@ -21,25 +21,23 @@ const searchInput = document.getElementById("searchInput");
 let contacts = [];
 let editIndex = null;
 
-// helpers: enable/disable form controls
+// --- Helpers: enable/disable form controls ---
 function setFormEnabled(enabled) {
-  [typeInput, codeInput, nameInput, phoneInput,
-   businessInput, addressInput, VatRegistrationInput,
-   TINInput, emailInput].forEach(el => el.disabled = !enabled);
-
+  const allInputs = [
+    typeInput, codeInput, nameInput, phoneInput,
+    businessInput, addressInput, VatRegistrationInput,
+    TINInput, emailInput
+  ];
+  allInputs.forEach(el => el.disabled = !enabled);
   saveBtn.disabled = !enabled;
   cancelBtn.disabled = !enabled;
-
-  // keep Add/Edit/Delete available always
+  // Add/Edit/Delete always available
   addBtn.disabled = false;
   editBtn.disabled = false;
   deleteBtn.disabled = false;
 }
 
-// initial state: form disabled
-setFormEnabled(false);
-
-// clear form fields
+// clear form
 function clearForm() {
   typeInput.value = "Customer";
   codeInput.value = "";
@@ -52,7 +50,20 @@ function clearForm() {
   emailInput.value = "";
 }
 
-// ADD
+// --- LOAD CONTACTS FROM DB ---
+async function loadContacts() {
+  try {
+    const res = await fetch('http://localhost:3000/api/contacts');
+    contacts = await res.json();
+    refreshTable();
+  } catch(err) {
+    console.error("Failed to load contacts:", err);
+  }
+}
+
+loadContacts();
+
+// --- ADD ---
 addBtn.addEventListener("click", () => {
   editIndex = null;
   clearForm();
@@ -60,7 +71,7 @@ addBtn.addEventListener("click", () => {
   codeInput.focus();
 });
 
-// SELECT ROW
+// --- SELECT ROW ---
 contactBody.addEventListener("click", (e) => {
   const tr = e.target.closest("tr");
   if (!tr) return;
@@ -68,7 +79,7 @@ contactBody.addEventListener("click", (e) => {
   tr.classList.add("selected");
 });
 
-// EDIT
+// --- EDIT ---
 editBtn.addEventListener("click", () => {
   const selected = contactBody.querySelector("tr.selected");
   if (!selected) return alert("Select a row to edit.");
@@ -80,25 +91,37 @@ editBtn.addEventListener("click", () => {
   phoneInput.value = item.phone;
   businessInput.value = item.business;
   addressInput.value = item.address;
-  VatRegistrationInput.value = item.VatRegistration;
-  TINInput.value = item.TIN;
-  emailInput.value = item.email;
+  VatRegistrationInput.value = item.vat_registration || "";
+  TINInput.value = item.tin || "";
+  emailInput.value = item.email || "";
   setFormEnabled(true);
   codeInput.focus();
 });
 
-// DELETE
-deleteBtn.addEventListener("click", () => {
+// --- DELETE ---
+deleteBtn.addEventListener("click", async () => {
   const selected = contactBody.querySelector("tr.selected");
   if (!selected) return alert("Select a row to delete.");
   const idx = Number(selected.dataset.index);
+  const id = contacts[idx].id;
+
   if (!confirm("Delete selected contact?")) return;
-  contacts.splice(idx, 1);
-  refreshTable();
+
+  try {
+    await fetch(`http://localhost:3000/api/contacts/${id}`, { method: 'DELETE' });
+    contacts.splice(idx, 1);
+    refreshTable();
+    clearForm();
+    setFormEnabled(false);
+    editIndex = null;
+  } catch(err) {
+    console.error(err);
+    alert("Failed to delete contact.");
+  }
 });
 
-// SAVE
-saveBtn.addEventListener("click", (e) => {
+// --- SAVE ---
+saveBtn.addEventListener("click", async (e) => {
   e.preventDefault();
   const obj = {
     type: typeInput.value,
@@ -107,41 +130,58 @@ saveBtn.addEventListener("click", (e) => {
     phone: phoneInput.value.trim(),
     business: businessInput.value.trim(),
     address: addressInput.value.trim(),
-    VatRegistration: VatRegistrationInput.value.trim(),
-    TIN: TINInput.value.trim(),
+    vat_registration: VatRegistrationInput.value.trim(),
+    tin: TINInput.value.trim(),
     email: emailInput.value.trim()
   };
 
-  if (!obj.code || !obj.name) {
-    alert("Please provide at least Code and Name.");
-    return;
-  }
+  if (!obj.code || !obj.name) return alert("Please provide at least Code and Name.");
 
-  if (editIndex === null) {
-    contacts.push(obj);
-  } else {
-    contacts[editIndex] = obj;
-  }
+  try {
+    if (editIndex === null) {
+      const res = await fetch('http://localhost:3000/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(obj)
+      });
+      const data = await res.json();
+      obj.id = data.id;
+      contacts.push(obj);
+    } else {
+      const id = contacts[editIndex].id;
+      await fetch(`http://localhost:3000/api/contacts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(obj)
+      });
+      obj.id = contacts[editIndex].id;
+      contacts[editIndex] = obj;
+    }
 
-  refreshTable();
-  clearForm();
-  setFormEnabled(false);
-  editIndex = null;
+    refreshTable();
+    clearForm();
+    setFormEnabled(false);
+    editIndex = null;
+
+  } catch(err) {
+    console.error(err);
+    alert("Failed to save contact.");
+  }
 });
 
-// CANCEL
+// --- CANCEL ---
 cancelBtn.addEventListener("click", () => {
   clearForm();
   setFormEnabled(false);
   editIndex = null;
 });
 
-// SEARCH (live)
+// --- SEARCH ---
 searchInput.addEventListener("input", () => {
   refreshTable(searchInput.value.trim().toLowerCase());
 });
 
-// refresh table display
+// --- REFRESH TABLE ---
 function refreshTable(filter = "") {
   contactBody.innerHTML = "";
   contacts.forEach((c, i) => {
@@ -157,31 +197,21 @@ function refreshTable(filter = "") {
       <td>${escapeHtml(c.phone)}</td>
       <td>${escapeHtml(c.business)}</td>
       <td>${escapeHtml(c.address)}</td>
-      <td>${escapeHtml(c.VatRegistration)}</td>
-      <td>${escapeHtml(c.TIN)}</td>
+      <td>${escapeHtml(c.vat_registration)}</td>
+      <td>${escapeHtml(c.tin)}</td>
       <td>${escapeHtml(c.email)}</td>
     `;
     contactBody.appendChild(tr);
   });
 }
 
-// small helper
-function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-
-function setFormEnabled(enabled) {
-  const allInputs = [
-    typeInput, codeInput, nameInput, phoneInput,
-    businessInput, addressInput, VatRegistrationInput,
-    TINInput, emailInput
-  ];
-
-  allInputs.forEach(el => {
-    el.disabled = !enabled;
-    if (enabled) {
-      el.classList.remove("disabled");
-    }
-  });
-
-  saveBtn.disabled = !enabled;
-  cancelBtn.disabled = !enabled;
+// --- HELPER ---
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, ch => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[ch]));
 }

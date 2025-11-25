@@ -1,0 +1,17 @@
+/* public/InvoicePreviewToolbar.css */
+
+#preview-overlay button {
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+}
+
+#preview-overlay button:hover {
+  background-color: #ddd;
+}
+
+#preview-overlay {
+  font-family: Arial, sans-serif;
+}
