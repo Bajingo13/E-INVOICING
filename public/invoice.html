@@ -120,14 +120,6 @@
 
 
   <div class="invoice-container">
-   
-    <!-- === BUTTONS === -->
-    <div style="display: flex; align-items: center; margin-bottom: 10px;">
-      <button type="button" onclick="window.history.back()" style="margin-right: 10px;">⬅️ Back</button>
-    </div>
-    <div class="buttons">
-      <button type="button" onclick="saveToDatabase()">💾 Save & Preview</button>
-    </div>
 
     <div class="header">
   <div class="logo">
@@ -182,7 +174,7 @@
   <td><strong>VAT Reg. TIN:</strong> <input type="text" name="tin" /></td>
 </tr>
 <tr>
-  <td><strong>:</strong> <input type="text" name="address2" class="input-long" /></td>
+  <td></td>
   <td><strong>TERMS:</strong> <input type="text" name="terms" /></td>
 </tr>
 
@@ -294,19 +286,6 @@
   </tbody>
 </table>
 
-
-<!-- === HIDDEN FIELDS FOR DATABASE === -->
-<input type="hidden" id="cash" name="cash" value="0">
-<input type="hidden" id="check_payment" name="check_payment" value="0">
-<input type="hidden" id="check_no" name="check_no" value="">
-<input type="hidden" id="bank" name="bank" value="">
-
-<input type="hidden" id="vatable_sales_val" name="vatable_sales" value="0">
-<input type="hidden" id="vat_exempt_val" name="vat_exempt" value="0">
-<input type="hidden" id="zero_rated_val" name="zero_rated" value="0">
-<input type="hidden" id="vat_amount_val" name="vat_amount" value="0">
-<input type="hidden" id="withholding_val" name="withholding" value="0">
-<input type="hidden" id="total_val" name="total" value="0">
 
     <div class="footer">
   <div class="footer-container">
