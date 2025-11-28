@@ -8,6 +8,9 @@ const session = require('express-session');
 const invoicesRoutes = require('./routes/invoices');
 const companyRoutes = require('./routes/company');
 const filesRoutes = require('./routes/files');
+const authRoutes = require('./routes/auth');
+const coaRoutes = require('./routes/COA');
+const importRoutes = require('./routes/import');
 // other routes you already have (auth, coa, import) can still be required here
 
 const app = express();
@@ -17,7 +20,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
-app.use('/public', express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Session (simple)
 app.use(session({
@@ -37,6 +40,10 @@ app.use(session({
 app.use('/api', invoicesRoutes);
 app.use('/api', companyRoutes);
 app.use('/', filesRoutes);
+app.use('/auth', authRoutes);
+app.use('/api/coa', coaRoutes);
+app.use('/api/import', importRoutes);
+
 
 // Example of keeping legacy static routes (optional)
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Login.html')));
