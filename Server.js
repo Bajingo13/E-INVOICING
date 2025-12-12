@@ -4,7 +4,7 @@ const express = require('express');
 const path = require('path');
 const morgan = require('morgan');
 const session = require('express-session');
-
+ 
 const invoicesRoutes = require('./routes/invoices');
 const companyRoutes = require('./routes/company');
 const filesRoutes = require('./routes/files');
@@ -38,7 +38,7 @@ app.use(session({
 
 // Mount route modules
 app.use('/api', invoicesRoutes);
-app.use('/api', companyRoutes);
+app.use('/api/company-info', companyRoutes);
 app.use('/', filesRoutes);
 app.use('/auth', authRoutes);
 app.use('/api/coa', coaRoutes);
