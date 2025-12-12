@@ -4,22 +4,19 @@ const router = express.Router();
 const asyncHandler = require('../middleware/asynchandler');
 const invoicesCtrl = require('../controllers/invoicesController');
 
-// Create invoice
+// Get company info
+router.get('/get-company-info', asyncHandler(invoicesCtrl.getCompanyInfo));
+// Create invoice 
 router.post('/invoices', asyncHandler(invoicesCtrl.createInvoice));
-
-// Update invoice by invoiceNo (PUT /api/invoices/:invoiceNo)
+// Update invoice
 router.put('/invoices/:invoiceNo', asyncHandler(invoicesCtrl.updateInvoice));
-
 // Get invoice by invoiceNo
 router.get('/invoices/:invoiceNo', asyncHandler(invoicesCtrl.getInvoice));
-
-// List invoices (supports ?status=)
+// List invoices
 router.get('/invoices', asyncHandler(invoicesCtrl.listInvoices));
-
 // Delete invoice
 router.delete('/invoices/:invoiceNo', asyncHandler(invoicesCtrl.deleteInvoice));
-
-// Next invoice number
+// Get next invoice number
 router.get('/next-invoice-no', asyncHandler(invoicesCtrl.nextInvoiceNo));
 
 module.exports = router;

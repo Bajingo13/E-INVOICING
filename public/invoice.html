@@ -5,18 +5,23 @@
   <title>Service Invoice</title>
   <link rel="stylesheet" href="EINVOICING.css" />
 
-  
   <style>
     .row-controls {
       margin: 10px 0;
       display: flex; 
       gap: 10px;
     }
+    .preview-frame {
+      width: 100%;
+      height: 400px;
+      border: 1px solid #ddd;
+      margin-top: 12px;
+      display: none; /* hidden by default; shown only on preview click */
+    }
   </style>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.worker.min.js"></script>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.worker.min.js"></script>
 </head> 
 <body>
 <!-- Topbar / Main Navigation -->
@@ -48,7 +53,7 @@
   </div>
 
   <div class="subheader-right" aria-hidden="false">
-    <button class="btn btn-link" id="previewBtn" title="Preview">👁 Preview</button>
+    <button class="btn btn-link" id="previewBtn" title="Preview" aria-pressed="false">👁 Preview</button>
 
     <div class="split-actions">
       <button class="btn btn-outline" id="saveCloseBtn">Save &amp; close</button>
@@ -68,131 +73,59 @@
   </div>
 </div>
 
-
-  <div class="invoice-header-dates">
+<div class="invoice-header-dates">
   <label for="issueDate"><strong>Issue Date:</strong></label>
-  <input type="date" id="issueDate" name="issueDate" onchange="populateDates()">
+  <input type="date" id="issueDate" name="issueDate">
 
   <label for="dueDate" style="margin-left: 20px;"><strong>Due Date:</strong></label>
-  <input type="date" id="dueDate" name="dueDate" onchange="updateDueDate()">
+  <input type="date" id="dueDate" name="dueDate">
 </div>
 
-<!-- ====== RECURRING OPTIONS ====== -->
-<div id="recurringOptions">
-  <div class="recurring-box">
-    <h3>🔁 Recurring Invoice Options</h3>
-
-    <div class="recurring-row">
-      <div class="recurring-field">
-        <label for="recurrenceType">Repeat Every:</label>
-        <select id="recurrenceType" name="recurrenceType">
-          <option value="">-- Select Frequency --</option>
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
-        </select>
-      </div>
-
-      <div class="recurring-field">
-        <label for="recurrenceStart">Start Date:</label>
-        <input type="date" id="recurrenceStart" name="recurrenceStart">
-      </div>
-
-      <div class="recurring-field">
-        <label for="recurrenceEnd">End Date:</label>
-        <input type="date" id="recurrenceEnd" name="recurrenceEnd">
-      </div>
-    </div>
-
-    <div class="recurring-notes">
-      <label for="recurrenceNotes">Notes (Optional):</label>
-      <textarea id="recurrenceNotes" name="recurrenceNotes"
-        placeholder="Add any notes or reminders about this recurring schedule..."></textarea>
-    </div>
-
-    <div class="recurring-footer">
-      <span>💡 This invoice will automatically regenerate based on your recurrence settings.</span>
-    </div>
-  </div>
-</div>
-
-
-
+<!-- Invoice Container wrapped in a FORM so JS can query form elements by id -->
+<form id="invoiceForm">
   <div class="invoice-container">
 
     <div class="header">
-  <div class="logo">
-    <img id="invoice-logo" alt="Company Logo" style="max-height:60px;" />
-  </div>
+      <div class="logo">
+        <img id="invoice-logo" alt="Company Logo" />
+      </div>
 
-  <div class="company-info" style="text-align:center; flex:1;">
-    <strong id="company-name"></strong><br />
-    <span id="company-address"></span><br />
-    Tel. No.: <span id="company-tel"></span><br />
-    VAT Reg. TIN: <span id="company-tin"></span>
-  </div>
+      <div class="company-info">
+        <strong id="company-name"></strong><br />
+        <span id="company-address"></span><br />
+        Tel. No.: <span id="company-tel"></span><br />
+        VAT Reg. TIN: <span id="company-tin"></span>
+      </div>
 
-  <div class="invoice-no">
-    No <input type="text" id="invoice_no" name="invoiceNo" readonly>
-  </div>
-</div>
+      <div class="invoice-box">
+        <div class="invoice-title">SERVICE INVOICE</div>
 
-    <script>
-      function previewLogo(event) {
-      const img = document.getElementById('uploaded-logo');
-      const btn = document.getElementById('remove-logo-btn');
-      if (event.target.files && event.target.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-        img.src = e.target.result;
-        img.style.display = 'block';
-        btn.style.display = 'inline-block';
-        };
-        reader.readAsDataURL(event.target.files[0]);
-      }
-      }
-      function removeLogo() {
-      const img = document.getElementById('uploaded-logo');
-      const btn = document.getElementById('remove-logo-btn');
-      const input = document.getElementById('logo-upload');
-      img.src = '';
-      img.style.display = 'none';
-      btn.style.display = 'none';
-      input.value = '';
-      }
-    </script>
+        <div class="invoice-no">
+          <label>Invoice No.:</label>
+          <input type="text" id="invoice_no" name="invoiceNo" readonly>
+        </div>
+        <div> <strong>DATE:</strong> <input type="date" name="date" /></div>
+      </div>
+    </div>
 
     <!-- === BILLING INFO === -->
     <table class="info-table">
       <tr>
         <td><strong>BILL TO:</strong> <input type="text" name="billTo" class="input-long" /></td>
-        <td><strong>DATE:</strong> <input type="date" name="date" /></td>
+        <td><strong>VAT Reg. TIN:</strong> <input type="text" name="tin" /></td>
       </tr>
       <tr>
-  <td><strong>ADDRESS :</strong> <input type="text" name="address1" class="input-long" /></td>
-  <td><strong>VAT Reg. TIN:</strong> <input type="text" name="tin" /></td>
-</tr>
-<tr>
-  <td></td>
-  <td><strong>TERMS:</strong> <input type="text" name="terms" /></td>
-</tr>
-
+        <td><strong>ADDRESS :</strong> <input type="text" name="address" class="input-long" /></td>
+        <td><strong>TERMS:</strong> <input type="text" name="terms" /></td>
+      </tr>
     </table>
-
-    <!-- === TITLE === -->
-    <div class="invoice-title">
-  <span class="service">SERVICE</span><br>
-  <span class="invoice">INVOICE</span>
-</div>
-
 
     <!-- === ROW & COLUMN CONTROLS === -->
     <div class="row-controls">
       <button type="button" onclick="addRow()">➕ Add Row</button>
-      <button type="button" onclick="addColumn()">➕ Add Column</button>
+      <button type="button" onclick="showAddColumnModal()">➕ Add Column</button>
       <button type="button" onclick="removeRow()">➖ Remove Row</button>
-      <button type="button" onclick="removeColumn()">➖ Remove Column</button>
+      <button type="button" onclick="showRemoveColumnModal()">➖ Remove Column</button>
     </div>
 
     <!-- === ITEMS TABLE === -->
@@ -210,10 +143,10 @@
         <tr>
           <td><input type="text" class="input-full" name="desc[]" /></td>
           <td class="Acc-col">
-        <select name="account[]" class="input-full">
-          <option value="">+ Create New Account</option>
-        </select>
-      </td>
+            <select name="account[]" class="input-full">
+              <option value="">+ Create New Account</option>
+            </select>
+          </td>
           <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)" /></td>
           <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)" /></td>
           <td><input type="number" class="input-short" name="amt[]" readonly /></td>
@@ -221,170 +154,114 @@
       </tbody>
     </table>
 
-<div class="vat-type-container">
-  <label for="vatType">VAT Type:</label>
-  <select id="vatType" name="vatType" onchange="calculateTotals()">
-    <option value="inclusive">VAT Inclusive</option>
-    <option value="exclusive">VAT Exclusive</option>
-    <option value="nonvat">Non-VAT</option>
-  </select>
-</div>
-
+    <div class="vat-type-container">
+      <label for="vatType">VAT Type:</label>
+      <select id="vatType" name="vatType" onchange="calculateTotals()">
+        <option value="inclusive">VAT Inclusive</option>
+        <option value="exclusive">VAT Exclusive</option>
+        <option value="nonvat">Non-VAT</option>
+      </select>
+    </div>
 
     <!-- === TAX SUMMARY (Visible Table) === -->
-<table class="payment-table">
-  <colgroup>
-    <col style="width: 50%;">
-    <col style="width: 50%;">
-  </colgroup>
-  <thead>
-    <tr>
-      <th colspan="2" class="form-payment-label">TAX SUMMARY</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>VATable Sales</td>
-      <td><input type="number" step="0.01" id="vatableSales" name="vatableSales" value="0.00" class="input-full"></td>
-    </tr>
-    <tr>
-      <td>Add: VAT Amount</td>
-      <td><input type="number" step="0.01" id="vatAmount" name="vatAmount" value="0.00" class="input-full"></td>
-    </tr>
-    <tr>
-      <td>VAT Exempt Sales</td>
-      <td><input type="number" step="0.01" id="vatExemptSales" name="vatExemptSales" value="0.00" class="input-full"></td>
-    </tr>
-    <tr>
-      <td>VAT Zero Rated Sales</td>
-      <td><input type="number" step="0.01" id="zeroRatedSales" name="zeroRatedSales" value="0.00" class="input-full"></td>
-    </tr>
-    <tr>
-      <td>Subtotal</td>
-      <td><input type="number" step="0.01" id="subtotal" name="subtotal" value="0.00" class="input-full" readonly></td>
-    </tr>
-    <tr>
-      <td>Less: Discount (SC/PWD)</td>
-      <td>
-        <select id="discount" name="discount" class="input-full">
-          <option value="0.00">0%</option>
-          <option value="0.05">5%</option>
-          <option value="0.10">10%</option>
-          <option value="0.15">15%</option>
-          <option value="0.20">20%</option>
-        </select>
-      </td>
-    </tr>
-    <tr>
-      <td>Less: Withholding Tax Amount</td>
-      <td><input type="number" step="0.01" id="withholdingTax" name="withholdingTax" value="0.00" class="input-full"></td>
-    </tr>
-    <tr>
-      <td>Total Amount Due</td>
-      <td><input type="number" step="0.01" id="totalPayable" name="totalPayable" value="0.00" class="input-full" readonly></td>
-    </tr>
-  </tbody>
-</table>
-
+    <table class="payment-table">
+      <colgroup>
+        <col style="width: 50%;">
+        <col style="width: 50%;">
+      </colgroup>
+      <thead>
+        <tr>
+          <th colspan="2" class="form-payment-label">TAX SUMMARY</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>VATable Sales</td>
+          <td><input type="number" step="0.01" id="vatableSales" name="vatableSales" value="0.00" class="input-full"></td>
+        </tr>
+        <tr>
+          <td>Add: VAT Amount</td>
+          <td><input type="number" step="0.01" id="vatAmount" name="vatAmount" value="0.00" class="input-full"></td>
+        </tr>
+        <tr>
+          <td>VAT Exempt Sales</td>
+          <td><input type="number" step="0.01" id="vatExemptSales" name="vatExemptSales" value="0.00" class="input-full"></td>
+        </tr>
+        <tr>
+          <td>VAT Zero Rated Sales</td>
+          <td><input type="number" step="0.01" id="zeroRatedSales" name="zeroRatedSales" value="0.00" class="input-full"></td>
+        </tr>
+        <tr>
+          <td>Subtotal</td>
+          <td><input type="number" step="0.01" id="subtotal" name="subtotal" value="0.00" class="input-full" readonly></td>
+        </tr>
+        <tr>
+          <td>Less: Discount (SC/PWD)</td>
+          <td>
+            <select id="discount" name="discount" class="input-full">
+              <option value="0.00">0%</option>
+              <option value="0.05">5%</option>
+              <option value="0.10">10%</option>
+              <option value="0.15">15%</option>
+              <option value="0.20">20%</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td>Less: Withholding Tax Amount</td>
+          <td><input type="number" step="0.01" id="withholdingTax" name="withholdingTax" value="0.00" class="input-full"></td>
+        </tr>
+        <tr>
+          <td>Total Amount Due</td>
+          <td><input type="number" step="0.01" id="totalPayable" name="totalPayable" value="0.00" class="input-full" readonly></td>
+        </tr>
+      </tbody>
+    </table>
 
     <div class="footer">
-  <div class="footer-container">
-    <div class="footer-section">
-      <div class="footer-row">
-        ATP No./OCN: <input type="text" name="footerAtpNo" class="input-footer" />
-      </div>
-      <div class="footer-row">
-        Date Issued: <input type="date" name="footerAtpDate" class="input-footer" />
+      <div class="footer-container">
+        <div class="footer-section">
+          <div class="footer-row">
+            ATP No./OCN: <input type="text" name="footerAtpNo" class="input-footer" />
+          </div>
+          <div class="footer-row">
+            Date Issued: <input type="date" name="footerAtpDate" class="input-footer" />
+          </div>
+        </div>
+        <div class="footer-section footer-section-large">
+          <div class="footer-row">
+            BIR Permit No.: <input type="text" name="footerBirPermit" class="input-footer" />
+          </div>
+          <div class="footer-row">
+            Date Issued: <input type="date" name="footerBirDate" class="input-footer" />
+          </div>
+          <div class="footer-row">
+            Approved Inclusive Serial Nos.: <input type="text" name="footerSerialNos" class="input-footer" />
+          </div>
+        </div>
       </div>
     </div>
-    <div class="footer-section footer-section-large">
-      <div class="footer-row">
-        BIR Permit No.: <input type="text" name="footerBirPermit" class="input-footer" />
-      </div>
-      <div class="footer-row">
-        Date Issued: <input type="date" name="footerBirDate" class="input-footer" />
-      </div>
-      <div class="footer-row">
-        Approved Inclusive Serial Nos.: <input type="text" name="footerSerialNos" class="input-footer" />
-      </div>
-    </div>
-  </div>
-</div>
 
+  </div> <!-- /.invoice-container -->
+</form>
+
+<!-- preview iframe (optional) -->
+<iframe id="invoicePreviewFrame" class="preview-frame" title="Invoice preview"></iframe>
 
 <!-- ====== SAVING LOADER ====== -->
-<div id="loader" style="
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 9999;
-  color: white;
-  font-size: 18px;
-  text-align: center;
-  justify-content: center;
-  align-items: center;
-  font-family: Arial, sans-serif;
-">
+<div id="loader" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; color: white; font-size: 18px; text-align: center; justify-content: center; align-items: center; font-family: Arial, sans-serif;">
   <div style="background: rgba(0,0,0,0.6); padding: 25px 40px; border-radius: 8px;">
-    <div class="spinner" style="
-      width: 30px;
-      height: 30px;
-      border: 4px solid rgba(255,255,255,0.3);
-      border-top-color: #fff;
-      border-radius: 50%;
-      margin: 0 auto 10px;
-      animation: spin 1s linear infinite;
-    "></div>
+    <div class="spinner" style="width: 30px; height: 30px; border: 4px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; margin: 0 auto 10px; animation: spin 1s linear infinite;"></div>
     <div>Please wait... Saving invoice</div>
   </div>
 </div>
 
-<style>
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-</style>
+<style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
 
+<!-- modals -->
+<div id="addColumnModal" class="modal"><div class="modal-content"><input id="newColumnName" type="text"><div id="addColumnMessage"></div><button id="addColumnConfirm">Confirm</button><button onclick="closeModal('addColumnModal')">Cancel</button></div></div>
+<div id="removeColumnModal" class="modal"><div class="modal-content"><input id="removeColumnName" type="text"><div id="removeColumnMessage"></div><button id="removeColumnConfirm">Confirm</button><button onclick="closeModal('removeColumnModal')">Cancel</button></div></div>
 
-<!-- ======================== PDF PREVIEW MODAL ======================== -->
-<div id="pdfPreviewModal" class="pdf-modal hidden">
-  <div class="pdf-modal-content">
-    
-    <div class="pdf-toolbar">
-      <button id="closePreview">✕</button>
-
-      <span id="pageInfo">1 / 1</span>
-
-      <div class="zoom-controls">
-        <button id="zoomOut">−</button>
-        <span id="zoomLevel">100%</span>
-        <button id="zoomIn">+</button>
-      </div>
-
-      <button id="downloadPDF">⬇ Download</button>
-      <button id="printPDF">🖨 Print</button>
-    </div>
-
-    <div class="pdf-viewer">
-      <canvas id="pdfCanvas"></canvas>
-    </div>
-
-  </div>
-</div>
-
-
-  <!-- === SCRIPTS === -->
-  <script src="EINVOICING.js"></script>
-  <script>
-    function removeLastRow() {
-      const tbody = document.getElementById('items-body');
-      if (tbody.rows.length > 1) {
-        tbody.deleteRow(tbody.rows.length - 1);
-      }
-    }
-  </script>
-
+<script src="EINVOICING.js"></script>
 </body>
 </html>
