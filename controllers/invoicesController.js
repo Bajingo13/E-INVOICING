@@ -1,48 +1,26 @@
-/**
- * controllers/invoicesController.js
- *
- * Store tax summary in invoice_tax_summary and ensure frontend/server mapping matches.
- * Also avoid treating the account_id field as an extra item column.
- */
+'use strict';
 
 const { getConn } = require('../db/pool');
-const { generateInvoiceNo } = require('../utils/invoiceCounter'); // use the utility function
-// include account_id so it won't be treated as an extra column
+const { generateInvoiceNo } = require('../utils/invoiceCounter');
+
 const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount', 'account_id'];
 
-/**
- * Normalize tax summary into DB column keys:
- * { vatable_sales, vat_amount, vat_exempt, zero_rated, subtotal, discount, withholding, total }
- *
- * Accepts:
- * - data.payment (camelCase), or
- * - data.tax_summary / data.taxSummary (snake_case or camelCase)
- */
+// ---------------------- NORMALIZE TAX SUMMARY ----------------------
 function normalizeTaxSummary(data) {
   if (!data) return null;
+  const raw = data.payment || data.tax_summary || data.taxSummary || {};
+  const get = keys => keys.reduce((val, k) => val !== undefined ? val : raw[k], undefined) || 0;
 
-  const raw = data.payment || data.tax_summary || data.taxSummary || null;
-  if (!raw) return null;
-
-  const get = keyVariants => {
-    for (const k of keyVariants) {
-      if (Object.prototype.hasOwnProperty.call(raw, k)) return raw[k];
-    }
-    return 0;
-  };
-
-  const mapped = {
-    vatable_sales: parseFloat(get(['vatable_sales', 'vatableSales'])) || 0,
-    vat_amount: parseFloat(get(['vat_amount', 'vatAmount'])) || 0,
-    vat_exempt: parseFloat(get(['vat_exempt_sales', 'vatExemptSales', 'vat_exempt'])) || 0,
-    zero_rated: parseFloat(get(['zero_rated_sales', 'zeroRatedSales', 'zero_rated'])) || 0,
+  return {
     subtotal: parseFloat(get(['subtotal'])) || 0,
     discount: parseFloat(get(['discount'])) || 0,
+    vatable_sales: parseFloat(get(['vatable_sales', 'vatableSales'])) || 0,
+    vat_exempt_sales: parseFloat(get(['vat_exempt_sales', 'vatExemptSales', 'vat_exempt'])) || 0,
+    zero_rated_sales: parseFloat(get(['zero_rated_sales', 'zeroRatedSales', 'zero_rated'])) || 0,
+    vat_amount: parseFloat(get(['vat_amount', 'vatAmount'])) || 0,
     withholding: parseFloat(get(['withholding', 'withholdingTax'])) || 0,
-    total: parseFloat(get(['total_payable', 'totalPayable', 'total'])) || 0
+    total_payable: parseFloat(get(['total_payable', 'totalPayable', 'total'])) || 0
   };
-
-  return mapped;
 }
 
 // ---------------------- LOAD COMPANY INFO ----------------------
@@ -51,11 +29,7 @@ async function getCompanyInfo(req, res) {
     const conn = await getConn();
     const [rows] = await conn.execute('SELECT * FROM company LIMIT 1');
     conn.release();
-
-    if (rows.length === 0) {
-      return res.status(404).json({ message: 'Company info not found' });
-    }
-
+    if (!rows.length) return res.status(404).json({ message: 'Company info not found' });
     res.json(rows[0]);
   } catch (err) {
     console.error('Error loading company info:', err);
@@ -66,8 +40,7 @@ async function getCompanyInfo(req, res) {
 // ---------------------- CREATE INVOICE ----------------------
 async function createInvoice(req, res) {
   const data = req.body;
-
-  if (!data.bill_to || !data.date || !Array.isArray(data.items) || data.items.length === 0) {
+  if (!data.bill_to || !data.date || !Array.isArray(data.items) || !data.items.length) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -75,55 +48,56 @@ async function createInvoice(req, res) {
   try {
     await conn.beginTransaction();
 
-    // Use client-provided invoice_no if given, otherwise generate
     const invoiceNo = data.invoice_no || await generateInvoiceNo(conn);
+    const invoiceType = data.invoice_type || 'standard';
 
-    // Compute extra item columns - prefer client-sent extra_columns if present
+    // Compute extra columns
     let extraColumns = [];
     if (Array.isArray(data.extra_columns) && data.extra_columns.length) {
       extraColumns = data.extra_columns;
     } else {
-      const extraColumnsSet = new Set();
+      const extraSet = new Set();
       for (const it of data.items) {
         Object.keys(it || {}).forEach(k => {
-          if (!defaultItemCols.includes(k)) extraColumnsSet.add(k);
+          if (!defaultItemCols.includes(k)) extraSet.add(k);
         });
       }
-      extraColumns = Array.from(extraColumnsSet);
+      extraColumns = Array.from(extraSet).map(k => k.replace(/[^a-zA-Z0-9_]/g, ''));
     }
 
-    // Insert invoice core
-    const invoiceInsertSql = `INSERT INTO invoices
-      (invoice_no, invoice_type, bill_to, address, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
-       recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-
-    const [invoiceResult] = await conn.execute(invoiceInsertSql, [
-      invoiceNo,
-      data.invoice_type || null,
-      data.bill_to,
-      data.address || null,
-      data.tin || null,
-      data.terms || null,
-      data.date,
-      data.due_date || null,
-      0,
-      data.logo || null,
-      JSON.stringify(extraColumns || []),
-      data.recurrence_type || null,
-      data.recurrence_start_date || null,
-      data.recurrence_end_date || null,
-      data.recurrence_type ? 'active' : null,
-      data.status || 'draft'
-    ]);
+    // Insert invoice
+    const [invoiceResult] = await conn.execute(
+      `INSERT INTO invoices
+        (invoice_no, invoice_type, bill_to, address, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
+         recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        invoiceNo,
+        invoiceType,
+        data.bill_to,
+        data.address || null,
+        data.tin || null,
+        data.terms || null,
+        data.date,
+        data.due_date || null,
+        0,
+        data.logo || null,
+        JSON.stringify(extraColumns),
+        data.recurrence_type || null,
+        data.recurrence_start_date || null,
+        data.recurrence_end_date || null,
+        data.recurrence_type ? 'active' : null,
+        data.status || 'draft'
+      ]
+    );
 
     const invoiceId = invoiceResult.insertId;
 
     // ------------------ INSERT ITEMS ------------------
     const [colRows] = await conn.execute('SHOW COLUMNS FROM invoice_items');
     const existingCols = colRows.map(c => c.Field);
-
     let totalAmount = 0;
+
     for (const item of data.items) {
       const quantity = parseFloat(item.quantity) || 0;
       const unit_price = parseFloat(item.unit_price) || 0;
@@ -131,60 +105,54 @@ async function createInvoice(req, res) {
       if (Number.isNaN(itemAmount)) itemAmount = quantity * unit_price;
 
       const extraKeys = Object.keys(item).filter(k => !defaultItemCols.includes(k));
-
-      for (const k of extraKeys) {
-        const val = parseFloat(item[k]);
-        if (!Number.isNaN(val) && Number.isNaN(parseFloat(item.amount))) {
-          itemAmount += val;
-        }
-
-        if (!existingCols.includes(k)) {
+      for (let k of extraKeys) {
+        k = k.replace(/[^a-zA-Z0-9_]/g, '');
+        if (k && !existingCols.includes(k)) {
           await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${k}\` VARCHAR(255)`);
           existingCols.push(k);
         }
       }
 
-      const baseCols = ['invoice_id', 'description', 'quantity', 'unit_price', 'amount'];
-      const placeholders = ['?', '?', '?', '?', '?'];
-      const vals = [invoiceId, item.description || '', quantity, unit_price, itemAmount];
+      const baseCols = ['invoice_id', 'description', 'quantity', 'unit_price', 'amount', 'account_id'];
+      const placeholders = ['?', '?', '?', '?', '?', '?'];
+      const vals = [invoiceId, item.description || '', quantity, unit_price, itemAmount, item.account_id || null];
 
-      for (const k of extraKeys) {
-        baseCols.push('`' + k + '`');
-        placeholders.push('?');
-        vals.push(item[k] || null);
+      for (let k of extraKeys) {
+        if (k) {
+          baseCols.push('`' + k + '`');
+          placeholders.push('?');
+          vals.push(item[k] || null);
+        }
       }
 
       await conn.execute(
         `INSERT INTO invoice_items (${baseCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
         vals
       );
-
       totalAmount += itemAmount;
     }
 
-    // Update invoice total
+    // Update total
     await conn.execute('UPDATE invoices SET total_amount_due = ? WHERE id = ?', [totalAmount, invoiceId]);
 
-    // ------------------ INSERT TAX SUMMARY (normalized) ------------------
+    // ------------------ INSERT TAX SUMMARY ------------------
     const normalized = normalizeTaxSummary(data);
     if (normalized) {
-      const vals = [
-        invoiceId,
-        normalized.vatable_sales,
-        normalized.vat_amount,
-        normalized.vat_exempt,
-        normalized.zero_rated,
-        normalized.subtotal,
-        normalized.discount,
-        normalized.withholding,
-        normalized.total,
-      ];
-
       await conn.execute(
         `INSERT INTO invoice_tax_summary
-        (invoice_id, vatable_sales, vat_amount, vat_exempt, zero_rated, subtotal, discount, withholding, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        vals
+         (invoice_id, subtotal, discount, vatable_sales, vat_exempt_sales, zero_rated_sales, vat_amount, withholding, total_payable)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          invoiceId,
+          normalized.subtotal,
+          normalized.discount,
+          normalized.vatable_sales,
+          normalized.vat_exempt_sales,
+          normalized.zero_rated_sales,
+          normalized.vat_amount,
+          normalized.withholding,
+          normalized.total_payable
+        ]
       );
     }
 
@@ -200,10 +168,11 @@ async function createInvoice(req, res) {
 
     await conn.commit();
     res.status(201).json({ success: true, invoiceId, invoiceNo, total_amount_due: totalAmount });
+
   } catch (err) {
     await conn.rollback().catch(() => {});
     console.error('Create invoice error:', err);
-    res.status(500).json({ error: 'Failed to create invoice' });
+    res.status(500).json({ error: 'Failed to create invoice', details: err.message });
   } finally {
     conn.release();
   }
@@ -223,20 +192,24 @@ async function updateInvoice(req, res) {
     await conn.beginTransaction();
 
     const [rows] = await conn.execute('SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
-    if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Invoice not found' }); }
+    if (!rows.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
 
     const invoiceId = rows[0].id;
+    const invoiceType = data.invoice_type || 'standard';
 
     // Delete old items, tax summary, footer
     await conn.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
     await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id = ?', [invoiceId]);
     await conn.execute('DELETE FROM invoice_footer WHERE invoice_id = ?', [invoiceId]);
 
-    // Re-insert items
+    // ------------------ INSERT ITEMS ------------------
     const [colRows] = await conn.execute('SHOW COLUMNS FROM invoice_items');
     const existingCols = colRows.map(c => c.Field);
-
     let totalAmount = 0;
+
     for (const item of data.items) {
       const quantity = parseFloat(item.quantity) || 0;
       const unit_price = parseFloat(item.unit_price) || 0;
@@ -244,30 +217,34 @@ async function updateInvoice(req, res) {
       if (Number.isNaN(itemAmount)) itemAmount = quantity * unit_price;
 
       const extraKeys = Object.keys(item).filter(k => !defaultItemCols.includes(k));
-      for (const k of extraKeys) {
-        const val = parseFloat(item[k]);
-        if (!Number.isNaN(val) && Number.isNaN(parseFloat(item.amount))) itemAmount += val;
-        if (!existingCols.includes(k)) {
+      for (let k of extraKeys) {
+        k = k.replace(/[^a-zA-Z0-9_]/g, '');
+        if (k && !existingCols.includes(k)) {
           await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${k}\` VARCHAR(255)`);
           existingCols.push(k);
         }
       }
 
-      const baseCols = ['invoice_id', 'description', 'quantity', 'unit_price', 'amount'];
-      const placeholders = ['?', '?', '?', '?', '?'];
-      const vals = [invoiceId, item.description || '', quantity, unit_price, itemAmount];
+      const baseCols = ['invoice_id', 'description', 'quantity', 'unit_price', 'amount', 'account_id'];
+      const placeholders = ['?', '?', '?', '?', '?', '?'];
+      const vals = [invoiceId, item.description || '', quantity, unit_price, itemAmount, item.account_id || null];
 
-      for (const k of extraKeys) {
-        baseCols.push('`' + k + '`');
-        placeholders.push('?');
-        vals.push(item[k] || null);
+      for (let k of extraKeys) {
+        if (k) {
+          baseCols.push('`' + k + '`');
+          placeholders.push('?');
+          vals.push(item[k] || null);
+        }
       }
 
-      await conn.execute(`INSERT INTO invoice_items (${baseCols.join(', ')}) VALUES (${placeholders.join(', ')})`, vals);
+      await conn.execute(
+        `INSERT INTO invoice_items (${baseCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
+        vals
+      );
       totalAmount += itemAmount;
     }
 
-    // Determine extra_columns to store on invoice row
+    // Determine extra_columns
     let extraColumnsToStore = [];
     if (Array.isArray(data.extra_columns) && data.extra_columns.length) {
       extraColumnsToStore = data.extra_columns;
@@ -279,7 +256,7 @@ async function updateInvoice(req, res) {
     await conn.execute(
       `UPDATE invoices SET invoice_type=?, bill_to=?, address=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?, status=? WHERE id=?`,
       [
-        data.invoice_type || null,
+        invoiceType,
         data.bill_to,
         data.address || null,
         data.tin || null,
@@ -293,30 +270,28 @@ async function updateInvoice(req, res) {
       ]
     );
 
-    // Re-insert tax summary (normalized)
+    // Insert tax summary
     const normalized = normalizeTaxSummary(data);
     if (normalized) {
-      const vals = [
-        invoiceId,
-        normalized.vatable_sales,
-        normalized.vat_amount,
-        normalized.vat_exempt,
-        normalized.zero_rated,
-        normalized.subtotal,
-        normalized.discount,
-        normalized.withholding,
-        normalized.total,
-      ];
-
       await conn.execute(
         `INSERT INTO invoice_tax_summary
-        (invoice_id, vatable_sales, vat_amount, vat_exempt, zero_rated, subtotal, discount, withholding, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        vals
+         (invoice_id, subtotal, discount, vatable_sales, vat_exempt_sales, zero_rated_sales, vat_amount, withholding, total_payable)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          invoiceId,
+          normalized.subtotal,
+          normalized.discount,
+          normalized.vatable_sales,
+          normalized.vat_exempt_sales,
+          normalized.zero_rated_sales,
+          normalized.vat_amount,
+          normalized.withholding,
+          normalized.total_payable
+        ]
       );
     }
 
-    // Re-insert footer
+    // Insert footer
     if (data.footer) {
       const f = data.footer;
       await conn.execute(
@@ -328,10 +303,11 @@ async function updateInvoice(req, res) {
 
     await conn.commit();
     res.json({ success: true, invoiceId, total_amount_due: totalAmount });
+
   } catch (err) {
     await conn.rollback().catch(() => {});
     console.error('Update invoice error:', err);
-    res.status(500).json({ error: 'Failed to update invoice' });
+    res.status(500).json({ error: 'Failed to update invoice', details: err.message });
   } finally {
     conn.release();
   }
@@ -357,18 +333,16 @@ async function getInvoice(req, res) {
     const [footers] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1', [invoice.id]);
     const [company] = await conn.execute('SELECT * FROM company LIMIT 1');
 
-    // Normalize tax summary to frontend-friendly shape (include total_payable)
     const rawTax = taxRows[0] || {};
     const tax_summary = {
-      vatable_sales: rawTax.vatable_sales || rawTax.vatableSales || 0,
-      vat_amount: rawTax.vat_amount || rawTax.vatAmount || 0,
-      vat_exempt: rawTax.vat_exempt || rawTax.vatExempt || 0,
-      zero_rated: rawTax.zero_rated || rawTax.zeroRated || 0,
+      vatable_sales: rawTax.vatable_sales || 0,
+      vat_amount: rawTax.vat_amount || 0,
+      vat_exempt_sales: rawTax.vat_exempt_sales || 0,
+      zero_rated_sales: rawTax.zero_rated_sales || 0,
       subtotal: rawTax.subtotal || 0,
       discount: rawTax.discount || 0,
-      withholding: rawTax.withholding || rawTax.withholdingTax || 0,
-      // frontend expects total_payable; DB column is `total`
-      total_payable: rawTax.total || rawTax.total_payable || rawTax.totalPayable || 0
+      withholding: rawTax.withholding || 0,
+      total_payable: rawTax.total_payable || 0
     };
 
     invoice.items = items;
