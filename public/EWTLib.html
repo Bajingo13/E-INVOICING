@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EWT / ATC Library</title>
+    <link rel="stylesheet" href="EWTLib.css">
+</head>
+<body>
+
+<div class="ewt-container">
+
+    <h2 class="title">Expanded Withholding Tax (EWT) Library</h2>
+
+    <div class="top-buttons">
+        <button id="btnAdd" class="btn-blue">F2 Add</button>
+        <button id="btnEdit" class="btn-blue">F3 Edit</button>
+        <button id="btnDelete" class="btn-blue">F4 Delete</button>
+        <button id="btnImport" class="btn-blue">F5 Import</button>
+        <button id="btnPrint" class="btn-blue">F6 Print</button>
+
+        <button id="btnExit" class="btn-red">F10 Exit</button>
+    </div>
+
+    <div class="form-section">
+
+        <div class="form-group">
+            <label>CODE</label>
+            <input type="text" id="code" disabled>
+        </div>
+
+        <div class="form-group">
+            <label>NATURE OF INCOME</label>
+            <input type="text" id="nature" disabled>
+        </div>
+
+        <div class="form-group">
+            <label>TAX RATE</label>
+            <input type="text" id="taxRate" disabled>
+        </div>
+
+        <div class="action-buttons">
+            <button id="btnSave" class="btn-green" disabled>Save</button>
+            <button id="btnCancel" class="btn-gray" disabled>Cancel</button>
+        </div>
+
+    </div>
+
+    <div class="search-section">
+        <input type="text" id="search" placeholder="Search EWT..." />
+        <button class="btn-blue">Search</button>
+    </div>
+
+    <table class="ewt-table">
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Nature of Income</th>
+                <th>Tax Rate</th>
+            </tr>
+        </thead>
+        <tbody id="ewtTableBody"></tbody>
+    </table>
+
+</div>
+
+<script src="EWTLib.js"></script>
+</body>
+</html>
