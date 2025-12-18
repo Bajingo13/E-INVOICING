@@ -1,4 +1,6 @@
-/* Your existing styles... */
+/* =============================
+   TOOLBAR & DROPDOWN
+============================= */
 .invoice-toolbar-header {
   display: flex;
   justify-content: space-between;
@@ -86,9 +88,9 @@
   font-size: 1.4rem;
 }
 
-/* ----------------------------------
+/* =============================
    GENERAL STYLES
----------------------------------- */
+============================= */
 body {
   font-family: "Times New Roman", Times, serif;
   font-size: 14px;
@@ -99,12 +101,13 @@ body {
 .invoice-container {
   max-width: 900px;
   margin: 0 auto;
-  padding: 10px 10px 10px 10px;
+  padding: 10px;
+  overflow-x: auto; /* allow horizontal scroll if table too wide */
 }
- 
-/* ----------------------------------
+
+/* =============================
    HEADER SECTION
----------------------------------- */
+============================= */
 .header {
   display: flex;
   align-items: flex-start;
@@ -148,9 +151,9 @@ body {
   font-size: 14px;
 }
 
-/* ----------------------------------
-   INVOICE INFO (Top Fields)
----------------------------------- */
+/* =============================
+   INVOICE INFO
+============================= */
 .invoice-info {
   display: flex;
   justify-content: space-between;
@@ -207,10 +210,7 @@ body {
   margin-top: 2px;
 }
 
-.tin-terms .tin {
-  margin-top: 2px;
-}
-
+.tin-terms .tin,
 .tin-terms .terms {
   margin-top: 2px;
 }
@@ -232,15 +232,15 @@ body {
 .small-zero {
   font-size: 10px;
   vertical-align: super;
-  
 }
+
 .right-fields {
   margin-left: 20px;
 }
 
-/* ----------------------------------
+/* =============================
    SECTION TITLE
----------------------------------- */
+============================= */
 .service-invoice-title {
   text-align: center;
   font-weight: bold;
@@ -248,9 +248,9 @@ body {
   font-size: 18px;
 }
 
-/* ----------------------------------
+/* =============================
    TABLES
----------------------------------- */
+============================= */
 .invoice-table,
 .payment-table {
   width: 100%;
@@ -260,10 +260,9 @@ body {
 }
 
 .invoice-table {
-  table-layout: fixed;
+  table-layout: fixed; /* force columns to respect width */
 }
 
-/* === INVOICE TABLE WITH ONLY TOP & BOTTOM BORDERS === */
 .invoice-table th,
 .invoice-table td {
   border-left: 1px solid #000;
@@ -273,6 +272,8 @@ body {
   padding: 4px 8px;
   vertical-align: top;
   word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: normal; /* allow wrapping */
   text-align: center;
 }
 
@@ -285,27 +286,25 @@ body {
   border-bottom: 1px solid #000;
 }
 
-.invoice-table .desc {
-  width: 60%;
+.invoice-table td.desc {
+  width: 30%; /* matches JS column width */
   text-align: left;
+  vertical-align: top;
+  word-break: break-word;
 }
 
+/* Small unit-cost column */
 .invoice-table .unit-cost {
   width: 12%;
   font-size: 11px;
   line-height: 1.1;
 }
 
-.invoice-table td.desc {
-  text-align: left;
-  vertical-align: top;
-}
-
-/*-------PAYMENT / TAX SUMMARY TABLE------*/
+/* ===== PAYMENT / TAX SUMMARY TABLE ===== */
 .payment-table {
-  width: 400px;           
-  margin-left: 0;         
-  margin-top: 15px;      
+  width: 400px;
+  margin-left: 0;
+  margin-top: 15px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 12px;
@@ -317,8 +316,9 @@ body {
   padding: 6px 8px;
   vertical-align: top;
   word-break: break-word;
-  text-align: left;       
+  text-align: left;
 }
+
 .payment-table th {
   background-color: #f9f9f9;
   font-weight: bold;
@@ -327,14 +327,13 @@ body {
 .payment-table td:nth-child(2),
 .payment-table td:nth-child(4),
 .payment-table td:nth-child(6) {
-  text-align: right;  
+  text-align: right;
 }
 
-/* ----------------------------------
+/* =============================
    SIGNATURES
----------------------------------- */
+============================= */
 .signatures-box {
-  
   padding: 15px;
   margin-top: 20px;
 }
@@ -351,7 +350,6 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
- 
 }
 
 .signatures .label {
@@ -362,13 +360,13 @@ body {
 .signatures .line {
   width: 80%;
   border-bottom: 1px solid #000;
-  margin-top: 10px; /* 👈 adds vertical space below the line only */
+  margin-top: 10px;
   height: 50px;
 }
 
-/* ----------------------------------
+/* =============================
    FOOTER
----------------------------------- */
+============================= */
 .footer-info {
   width: 900px;
   margin: 0 auto;
@@ -385,9 +383,9 @@ body {
   line-height: 1.0;
 }
 
-/* ----------------------------------
+/* =============================
    PRINT
----------------------------------- */
+============================= */
 @media print {
   .no-print {
     display: none !important;

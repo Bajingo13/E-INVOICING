@@ -104,6 +104,10 @@ async function loadInvoiceForEdit() {
     setInputValue('terms', data.terms || '');
     setInputValue('invoiceNo', data.invoice_no || '');
     setInputValue('date', dateToYYYYMMDD(data.date));
+
+    // **NEW FIELDS**
+    setInputValue('invoiceMode', data.invoice_mode || 'standard');
+    setInputValue('invoiceCategory', data.invoice_category || 'service');
     safeSetText('.invoice-title', data.invoice_title || 'SERVICE INVOICE');
 
     const theadRow = $("#items-table thead tr");
@@ -395,6 +399,8 @@ async function saveToDatabase() {
     date,
     terms: getInputValue('terms'),
     invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
+    invoice_mode: getInputValue('invoiceMode'),
+    invoice_category: getInputValue('invoiceCategory'),
     items,
     extra_columns: extraColumns,
     tax_summary: {
@@ -417,7 +423,7 @@ async function saveToDatabase() {
 
     if (!res.ok) {
       let errBody = null;
-      try { errBody = await res.json(); } catch (e) { /* ignore parse error */ }
+      try { errBody = await res.json(); } catch (e) {}
       const message = (errBody && (errBody.error || errBody.message)) || `${res.status} ${res.statusText}`;
       DBG.error('saveToDatabase server error:', errBody || res.statusText);
       alert('Failed to save invoice: ' + message);
@@ -438,6 +444,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadInvoiceForEdit();
   adjustColumnWidths();
 });
+
 
 /* -------------------- 14. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
 document.addEventListener('DOMContentLoaded', () => {

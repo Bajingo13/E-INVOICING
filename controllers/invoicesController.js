@@ -23,11 +23,11 @@ function normalizeTaxSummary(data) {
   };
 }
 
-// ---------------------- LOAD COMPANY INFO ----------------------
+//---------------------- LOAD COMPANY INFO ----------------------
 async function getCompanyInfo(req, res) {
   try {
     const conn = await getConn();
-    const [rows] = await conn.execute('SELECT * FROM company LIMIT 1');
+    const [rows] = await conn.execute('SELECT * FROM company_info LIMIT 1'); // <- fixed table name
     conn.release();
     if (!rows.length) return res.status(404).json({ message: 'Company info not found' });
     res.json(rows[0]);
@@ -48,10 +48,17 @@ async function createInvoice(req, res) {
   try {
     await conn.beginTransaction();
 
-    const invoiceNo = data.invoice_no || await generateInvoiceNo(conn);
-    const invoiceType = data.invoice_type || 'standard';
+    // Generate invoice number ONLY if not provided
+    let invoiceNo = data.invoice_no;
+    if (!invoiceNo) {
+      invoiceNo = await generateInvoiceNo(conn); // increments safely
+    }
 
-    // Compute extra columns
+    const invoiceMode = data.invoice_mode || 'standard';
+    const invoiceCategory = data.invoice_category || 'service';
+    const invoiceType = data.invoice_type || 'SERVICE INVOICE';
+
+    // Compute extra columns dynamically
     let extraColumns = [];
     if (Array.isArray(data.extra_columns) && data.extra_columns.length) {
       extraColumns = data.extra_columns;
@@ -68,11 +75,13 @@ async function createInvoice(req, res) {
     // Insert invoice
     const [invoiceResult] = await conn.execute(
       `INSERT INTO invoices
-        (invoice_no, invoice_type, bill_to, address, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
+        (invoice_no, invoice_mode, invoice_category, invoice_type, bill_to, address, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
          recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceNo,
+        invoiceMode,
+        invoiceCategory,
         invoiceType,
         data.bill_to,
         data.address || null,
@@ -132,7 +141,7 @@ async function createInvoice(req, res) {
       totalAmount += itemAmount;
     }
 
-    // Update total
+    // Update total amount
     await conn.execute('UPDATE invoices SET total_amount_due = ? WHERE id = ?', [totalAmount, invoiceId]);
 
     // ------------------ INSERT TAX SUMMARY ------------------
@@ -167,7 +176,15 @@ async function createInvoice(req, res) {
     }
 
     await conn.commit();
-    res.status(201).json({ success: true, invoiceId, invoiceNo, total_amount_due: totalAmount });
+    res.status(201).json({
+      success: true,
+      invoiceId,
+      invoiceNo,
+      total_amount_due: totalAmount,
+      invoice_mode: invoiceMode,
+      invoice_category: invoiceCategory,
+      invoice_type: invoiceType
+    });
 
   } catch (err) {
     await conn.rollback().catch(() => {});
@@ -177,6 +194,7 @@ async function createInvoice(req, res) {
     conn.release();
   }
 }
+
 
 // ---------------------- UPDATE INVOICE ----------------------
 async function updateInvoice(req, res) {
@@ -198,7 +216,9 @@ async function updateInvoice(req, res) {
     }
 
     const invoiceId = rows[0].id;
-    const invoiceType = data.invoice_type || 'standard';
+    const invoiceMode = data.invoice_mode || 'standard';
+    const invoiceCategory = data.invoice_category || 'service';
+    const invoiceType = data.invoice_type || 'SERVICE INVOICE';
 
     // Delete old items, tax summary, footer
     await conn.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
@@ -254,8 +274,10 @@ async function updateInvoice(req, res) {
 
     // Update invoice row
     await conn.execute(
-      `UPDATE invoices SET invoice_type=?, bill_to=?, address=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?, status=? WHERE id=?`,
+      `UPDATE invoices SET invoice_mode=?, invoice_category=?, invoice_type=?, bill_to=?, address=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?, status=? WHERE id=?`,
       [
+        invoiceMode,
+        invoiceCategory,
         invoiceType,
         data.bill_to,
         data.address || null,
@@ -302,7 +324,14 @@ async function updateInvoice(req, res) {
     }
 
     await conn.commit();
-    res.json({ success: true, invoiceId, total_amount_due: totalAmount });
+    res.json({
+      success: true,
+      invoiceId,
+      total_amount_due: totalAmount,
+      invoice_mode: invoiceMode,
+      invoice_category: invoiceCategory,
+      invoice_type: invoiceType
+    });
 
   } catch (err) {
     await conn.rollback().catch(() => {});
@@ -318,10 +347,12 @@ async function getInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const conn = await getConn();
   try {
+    // Get invoice
     const [invoiceRows] = await conn.execute('SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
     if (!invoiceRows.length) return res.status(404).json({ error: 'Invoice not found' });
     const invoice = invoiceRows[0];
 
+    // Items
     const [cols] = await conn.execute('SHOW COLUMNS FROM invoice_items');
     const colNames = cols.map(c => c.Field);
     const [items] = await conn.execute(
@@ -329,10 +360,8 @@ async function getInvoice(req, res) {
       [invoice.id]
     );
 
+    // Tax summary
     const [taxRows] = await conn.execute('SELECT * FROM invoice_tax_summary WHERE invoice_id = ? LIMIT 1', [invoice.id]);
-    const [footers] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1', [invoice.id]);
-    const [company] = await conn.execute('SELECT * FROM company LIMIT 1');
-
     const rawTax = taxRows[0] || {};
     const tax_summary = {
       vatable_sales: rawTax.vatable_sales || 0,
@@ -345,13 +374,22 @@ async function getInvoice(req, res) {
       total_payable: rawTax.total_payable || 0
     };
 
+    // Footer
+    const [footers] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1', [invoice.id]);
+
+    // Company info -> correct table
+    const [companyRows] = await conn.execute('SELECT * FROM company_info LIMIT 1'); // <- fixed table name
+
     invoice.items = items;
     invoice.tax_summary = tax_summary;
     invoice.footer = footers[0] || {};
-    invoice.company = company[0] || {};
+    invoice.company = companyRows[0] || {};
     invoice.extra_columns = invoice.extra_columns ? JSON.parse(invoice.extra_columns) : [];
 
     res.json(invoice);
+  } catch (err) {
+    console.error('Error fetching invoice:', err);
+    res.status(500).json({ error: 'Failed to fetch invoice', details: err.message });
   } finally {
     conn.release();
   }
@@ -362,7 +400,7 @@ async function listInvoices(req, res) {
   const conn = await getConn();
   try {
     const { status } = req.query;
-    let sql = `SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, i.total_amount_due, i.logo, i.status FROM invoices i`;
+    let sql = `SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, i.total_amount_due, i.logo, i.status, i.invoice_mode, i.invoice_category, i.invoice_type FROM invoices i`;
     const params = [];
     if (status) {
       sql += ' WHERE i.status = ?';
@@ -400,20 +438,36 @@ async function deleteInvoice(req, res) {
   }
 }
 
-// ---------------------- NEXT INVOICE NO ----------------------
+// ---------------------- NEXT INVOICE NO (preview only) ----------------------
 async function nextInvoiceNo(req, res) {
   const conn = await getConn();
   try {
-    const [rows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1');
-    if (!rows.length) return res.status(500).json({ error: 'Invoice counter not initialized' });
-    const counter = rows[0];
-    const nextNumber = (counter.last_number || 0) + 1;
+    // Get the current invoice counter without incrementing
+    const [counterRows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1');
+    if (!counterRows.length) throw new Error('Invoice counter not initialized');
+    const counter = counterRows[0];
+
+    // Find the highest existing invoice number in the invoices table
+    const [maxRows] = await conn.execute(
+      `SELECT MAX(CAST(SUBSTRING(invoice_no, ?) AS UNSIGNED)) AS max_no FROM invoices`,
+      [counter.prefix.length + 1] // Skip prefix characters
+    );
+    const maxInvoice = maxRows[0].max_no || 0;
+
+    // The next invoice number for preview (does NOT increment last_number)
+    const nextNumber = Math.max(counter.last_number || 0, maxInvoice) + 1;
     const invoiceNo = `${counter.prefix}${String(nextNumber).padStart(6, '0')}`;
+
     res.json({ invoiceNo });
+
+  } catch (err) {
+    console.error('Next invoice number preview error:', err);
+    res.status(500).json({ error: 'Failed to get next invoice number', details: err.message });
   } finally {
     conn.release();
   }
 }
+
 
 module.exports = {
   createInvoice,
