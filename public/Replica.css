@@ -391,3 +391,20 @@ body {
     display: none !important;
   }
 }
+
+@page {
+  size: letter;
+  margin: 0.5in;
+}
+
+.invoice-page {
+  width: 8.5in;
+  min-height: 11in;
+  margin: auto;
+  background: white;
+}
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+}

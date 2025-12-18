@@ -2,8 +2,7 @@ console.log("✅ Invoice-list.js loaded");
 
 let showDraftsOnly = false; // toggle flag
 
-// ---------------- FETCH & POPULATE INVOICES ----------------
-// ---------------- FETCH & POPULATE INVOICES ----------------
+// ---------------- FETCH & POPULATE INVOICES ---------------
 async function fetchInvoices() {
   try {
     const res = await fetch('/api/invoices');
@@ -78,8 +77,12 @@ function populateTable(invoices) {
 
 // ---------------- ACTION BUTTONS ----------------
 function viewInvoice(invoiceNo) {
-  window.location.href = `/replica.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
+  window.open(
+    `/InvoicePreviewViewer.html?invoice_no=${encodeURIComponent(invoiceNo)}`,
+    '_blank'
+  );
 }
+
 
 function editInvoice(invoiceNo) {
   window.location.href = `/invoice?invoice_no=${encodeURIComponent(invoiceNo)}&edit=true`;

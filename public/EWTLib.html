@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="EWTLib.css">
 </head>
 <body>
-
+ 
 <div class="ewt-container">
 
     <h2 class="title">Expanded Withholding Tax (EWT) Library</h2>
@@ -46,9 +46,14 @@
     </div>
 
     <div class="search-section">
-        <input type="text" id="search" placeholder="Search EWT..." />
-        <button class="btn-blue">Search</button>
-    </div>
+    <input type="text" id="search" placeholder="Search EWT..." />
+    <select id="searchFilter">
+        <option value="code">Code</option>
+        <option value="nature">Nature of Income</option>
+    </select>
+    <button id="btnSearch" class="btn-blue">Search</button>
+</div>
+
 
     <table class="ewt-table">
         <thead>
