@@ -11,6 +11,7 @@ const filesRoutes = require('./routes/files');
 const authRoutes = require('./routes/auth');
 const coaRoutes = require('./routes/COA');
 const importRoutes = require('./routes/import');
+const ewtRoutes = require('./routes/ewtRoutes');
 // other routes you already have (auth, coa, import) can still be required here
 
 const app = express();
@@ -21,6 +22,7 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api/ewt', ewtRoutes);
 
 // Session (simple)
 app.use(session({

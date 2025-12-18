@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Invoice Preview</title>
+
+<style>
+/* ===============================
+   GLOBAL
+================================ */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #2b2b2b;
+  color: #fff;
+}
+
+/* ===============================
+   TOP HEADER
+================================ */
+.top-bar {
+  height: 56px;
+  background: #fff;
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid #ccc;
+}
+
+.top-bar .left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.top-bar .title {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.top-bar button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background: #0078d4;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+
+/* ===============================
+   TOOLBAR
+================================ */
+.toolbar {
+  height: 44px;
+  background: #3a3a3a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 13px;
+}
+
+.toolbar button {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+/* ===============================
+   VIEWER
+================================ */
+.viewer {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 0;
+  overflow: auto;
+}
+
+iframe {
+  width: 816px;          
+  height: 1056px;        
+  background: #fff;
+  border: none;
+  box-shadow: 0 0 18px rgba(0,0,0,.55);
+  transform-origin: top center;
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- =================== TOP BAR =================== -->
+<div class="top-bar">
+  <div class="left">
+    <button onclick="closePreview()">✕</button>
+    <span class="title">Invoice preview</span>
+  </div>
+
+  <div class="right">
+    <button onclick="openSettings()">Invoice settings</button>
+    <button class="btn-primary" onclick="downloadPDF()">Download PDF</button>
+    <button>⋮</button>
+  </div>
+</div>
+
+<!-- =================== TOOLBAR =================== -->
+<div class="toolbar">
+  <span id="pageInfo">1 / 1</span>
+  <button onclick="zoomOut()">−</button>
+  <span id="zoomLabel">100%</span>
+  <button onclick="zoomIn()">＋</button>
+  <button onclick="rotate()">⟳</button>
+  <button onclick="resetView()">↺</button>
+  <button onclick="printPDF()">🖨</button>
+</div>
+
+<!-- =================== VIEWER =================== -->
+<div class="viewer">
+  <iframe id="pdfFrame" src="Replica.html"></iframe>
+</div>
+
+<script>
+/* ===============================
+   VIEWER LOGIC
+================================ */
+let zoom = 1;
+let rotation = 0;
+
+const frame = document.getElementById('pdfFrame');
+const zoomLabel = document.getElementById('zoomLabel');
+
+function applyTransform() {
+  frame.style.transform =
+    `scale(${zoom}) rotate(${rotation}deg)`;
+  zoomLabel.textContent = Math.round(zoom * 100) + '%';
+}
+
+function zoomIn() {
+  zoom += 0.1;
+  applyTransform();
+}
+
+function zoomOut() {
+  zoom = Math.max(0.3, zoom - 0.1);
+  applyTransform();
+}
+
+function rotate() {
+  rotation += 90;
+  applyTransform();
+}
+
+function resetView() {
+  zoom = 1;
+  rotation = 0;
+  applyTransform();
+}
+
+/* ===============================
+   ACTIONS
+================================ */
+function printPDF() {
+  frame.contentWindow.print();
+}
+
+function downloadPDF() {
+  frame.contentWindow.print(); // browser PDF save
+}
+
+function closePreview() {
+  window.close();
+}
+
+function openSettings() {
+  alert('Invoice settings (future)');
+}
+</script>
+
+</body>
+</html>
