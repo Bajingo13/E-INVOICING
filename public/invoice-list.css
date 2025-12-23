@@ -233,3 +233,13 @@ tr:hover {
   }
 }
 
+.sortable {
+  cursor: pointer;
+  text-decoration: underline;
+}
+.sortable.asc::after {
+  content: " ▲";
+}
+.sortable.desc::after {
+  content: " ▼";
+}

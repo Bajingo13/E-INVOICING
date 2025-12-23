@@ -82,9 +82,16 @@ function setInvoiceTitleFromURL() {
   const type = params.get('type');
   const typeMap = { sales: 'SALES INVOICE', commercial: 'COMMERCIAL INVOICE', credit: 'CREDIT MEMO', debit: 'DEBIT MEMO' };
   const invoiceTitle = typeMap[type] || 'SERVICE INVOICE';
+
   safeSetText('.invoice-title', invoiceTitle);
+
+  // ✅ update hidden input as well
+  const invoiceTypeInput = document.getElementById('invoice_type');
+  if (invoiceTypeInput) invoiceTypeInput.value = invoiceTitle;
+
   localStorage.setItem('selectedInvoiceType', invoiceTitle);
 }
+
 
 /* -------------------- 5. LOAD INVOICE FOR EDIT -------------------- */
 async function loadInvoiceForEdit() {
@@ -409,6 +416,7 @@ async function saveToDatabase() {
     invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
     invoice_mode: getInputValue('invoiceMode'),
     invoice_category: getInputValue('invoiceCategory'),
+    invoice_type: getInputValue('invoice_type'),
     items,
     extra_columns: extraColumns,
 
@@ -663,3 +671,17 @@ if (form) {
 } else {
   DBG.warn('invoiceForm not found in DOM; live preview and some selectors may not work.');
 }
+
+const invoiceDropdown = document.getElementById('invoiceDropdown');
+  const invoiceTypeInput = document.getElementById('invoice_type');
+  const createInvoiceBtn = document.getElementById('createInvoiceBtn');
+
+  invoiceDropdown.querySelectorAll('a').forEach(a => {
+    a.addEventListener('click', function(e) {
+      e.preventDefault(); // prevent navigation
+      const type = this.getAttribute('href').split('type=')[1];
+      invoiceTypeInput.value = type.toUpperCase().replace(/_/g, ' '); // optional formatting
+      createInvoiceBtn.textContent = this.textContent; // update button label
+      invoiceDropdown.classList.remove('show'); // hide dropdown
+    });
+  });

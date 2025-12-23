@@ -1,6 +1,7 @@
 console.log("✅ Invoice-list.js loaded");
 
 let showDraftsOnly = false; // toggle flag
+let currentSort = { key: 'invoice_no', order: 'desc' };
 
 // ---------------- FETCH & POPULATE INVOICES ---------------
 async function fetchInvoices() {
@@ -14,12 +15,8 @@ async function fetchInvoices() {
       invoices = invoices.filter(inv => inv.status === 'draft');
     }
 
-    // Sort invoices by creation date descending (newest first)
-    invoices.sort((a, b) => {
-      const dateA = new Date(a.date || a.invoice_date || 0);
-      const dateB = new Date(b.date || b.invoice_date || 0);
-      return dateB - dateA; // descending order
-    });
+    // Sort invoices using currentSort
+    invoices = sortInvoices(invoices, currentSort.key, currentSort.order);
 
     populateTable(invoices);
   } catch (err) {
@@ -27,6 +24,38 @@ async function fetchInvoices() {
   }
 }
 
+// ---------------- SORTING FUNCTION ----------------
+function sortInvoices(invoices, key, order) {
+  return invoices.slice().sort((a, b) => {
+    let valA, valB;
+
+    switch (key) {
+      case 'invoice_no':
+        valA = a.invoice_no || '';
+        valB = b.invoice_no || '';
+        return order === 'asc'
+          ? valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+          : valB.localeCompare(valA, undefined, { numeric: true, sensitivity: 'base' });
+
+      case 'bill_to':
+        valA = (a.bill_to || '').toLowerCase();
+        valB = (b.bill_to || '').toLowerCase();
+        return order === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+
+      case 'date':
+        valA = new Date(a.date || a.invoice_date || 0);
+        valB = new Date(b.date || b.invoice_date || 0);
+        return order === 'asc' ? valA - valB : valB - valA;
+
+      case 'due_date':
+        valA = new Date(a.due_date || a.dueDate || 0);
+        valB = new Date(b.due_date || b.dueDate || 0);
+        return order === 'asc' ? valA - valB : valB - valA;
+
+      default: return 0;
+    }
+  });
+}
 
 // ---------------- POPULATE TABLE ----------------
 function populateTable(invoices) {
@@ -42,17 +71,11 @@ function populateTable(invoices) {
     const issueDateFormatted = issueDate ? new Date(issueDate).toLocaleDateString('en-PH') : '';
     const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString('en-PH') : '';
 
-    // Determine status text only (no CSS class for badges)
     let statusText = '';
-    if (inv.status === 'draft') {
-      statusText = 'Draft';
-    } else if (inv.status === 'cancelled') {
-      statusText = 'Cancelled';
-    } else if (inv.is_paid) {
-      statusText = 'Paid';
-    } else {
-      statusText = 'Pending';
-    }
+    if (inv.status === 'draft') statusText = 'Draft';
+    else if (inv.status === 'cancelled') statusText = 'Cancelled';
+    else if (inv.is_paid) statusText = 'Paid';
+    else statusText = 'Pending';
 
     tr.innerHTML = `
       <td><input type="checkbox" class="select-invoice" data-invoice="${inv.invoice_no}"></td>
@@ -74,15 +97,10 @@ function populateTable(invoices) {
   setupSelectAllCheckbox();
 }
 
-
 // ---------------- ACTION BUTTONS ----------------
 function viewInvoice(invoiceNo) {
-  window.open(
-    `/InvoicePreviewViewer.html?invoice_no=${encodeURIComponent(invoiceNo)}`,
-    '_blank'
-  );
+  window.open(`/InvoicePreviewViewer.html?invoice_no=${encodeURIComponent(invoiceNo)}`, '_blank');
 }
-
 
 function editInvoice(invoiceNo) {
   window.location.href = `/invoice?invoice_no=${encodeURIComponent(invoiceNo)}&edit=true`;
@@ -150,6 +168,19 @@ document.getElementById("toggleDrafts")?.addEventListener("click", function() {
   showDraftsOnly = !showDraftsOnly;
   this.textContent = showDraftsOnly ? "Show All" : "Show Drafts";
   fetchInvoices();
+});
+
+// ---------------- SORTABLE HEADERS ----------------
+document.querySelectorAll("#invoiceTable th.sortable").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    let order = 'asc';
+    if (currentSort.key === key) order = currentSort.order === 'asc' ? 'desc' : 'asc';
+    currentSort = { key, order };
+    fetchInvoices();
+    document.querySelectorAll("#invoiceTable th.sortable").forEach(h => h.classList.remove('asc', 'desc'));
+    th.classList.add(order);
+  });
 });
 
 // ---------------- INITIAL LOAD ----------------
