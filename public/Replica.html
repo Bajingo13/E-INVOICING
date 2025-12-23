@@ -69,23 +69,24 @@
 
   <!-- ===================== BILLING INFO ===================== -->
   <table class="info-table">
-    <tr>
-      <td style="width:50%;">
-        <strong>BILL TO:</strong> <span id="billTo"></span>
-      </td>
-      <td style="width:50%;">
-        <strong>VAT Reg. TIN:</strong> <span id="tin"></span>
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <strong>ADDRESS:</strong> <span id="address"></span>
-      </td>
-      <td>
-        <strong>TERMS:</strong> <span id="terms_table"></span>
-      </td>
-    </tr>
-  </table>
+  <tr>
+    <!-- LEFT COLUMN -->
+    <td style="width:65%; vertical-align: top;">
+      <strong>BILL TO:</strong> <span id="billTo"></span><br>
+      <strong>ADDRESS:</strong> <span id="address"></span><br>
+      <strong>VAT Reg. TIN:</strong> <span id="tin"></span>
+    </td>
+
+    <!-- RIGHT COLUMN -->
+    <td style="width:50%; vertical-align: top;">
+      <div style="padding-left: 120px;">
+      <strong>TERMS:</strong> <span id="terms_table"></span><br>
+      <strong>RATE:</strong> <span id="exchange_rate"></span>
+      </div>
+    </td>
+  </tr>
+</table>
+
 
   <!-- ===================== ITEMS TABLE ===================== -->
   <table class="invoice-table">
@@ -117,6 +118,10 @@
 <div id="signature" class="print-signature">
   THIS IS SYSTEM GENERATED. NO SIGNATURE REQUIRED.
 </div>
+ <div id="inputTaxNotice" 
+     style="margin-top:20px; font-weight:bold; text-align:center; width:100%; display:none;">
+  THIS DOCUMENT IS NOT VALID FOR INPUT TAX
+</div>
 <br><br>
   <!-- ===================== FOOTER ===================== -->
   <footer class="footer-info">
@@ -129,17 +134,14 @@
       BIR Permit No.: <span id="footer-bir-permit"></span><br>
       Date Issued: <span id="footer-bir-date"></span><br>
       Approved Serial Nos.: <span id="footer-serial-nos"></span>
-
-      <div id="inputTaxNotice" style="margin-top:20px;font-weight:bold;display:none;">
-        THIS DOCUMENT IS NOT VALID FOR INPUT TAX
-      </div>
     </div>
   </footer>
-</div>
- <div class="print-footer-meta">
+  <div class="print-footer-meta">
   <span class="print-timestamp"></span>
   <span class="print-page"></span>
 </div>
+</div>
+ 
 
 <!-- ===================== SCRIPT ===================== -->
 <script src="Replica.js"></script>

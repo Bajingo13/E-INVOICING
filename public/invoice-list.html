@@ -36,17 +36,20 @@
 
     <!-- Invoice table -->
     <table id="invoiceTable">
-      <thead>
-        <tr>
-          <th><input type="checkbox" id="selectAllInvoices"></th>
-          <th>Invoice No</th>
-          <th>Client</th>
-          <th>Date</th>
-          <th>Due Date</th>
-          <th>Total Amount</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
+  <thead>
+    <tr>
+      <th><input type="checkbox" id="selectAllInvoices"></th>
+      <th data-sort="invoice_no" class="sortable">Invoice No</th>
+      <th data-sort="bill_to" class="sortable">Client</th>
+      <th data-sort="date" class="sortable">Date</th>
+      <th data-sort="due_date" class="sortable">Due Date</th>
+      <th>Total</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
       </thead>
       <tbody>
         <!-- Invoice rows populated by JS -->
