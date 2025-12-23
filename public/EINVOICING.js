@@ -365,6 +365,14 @@ function removeLogo() {
   if (btn) btn.style.display = 'none';
   if (input) input.value = '';
 }
+// ===============================
+// Footer helpers
+// ===============================
+function getFooterValue(name) {
+  const el = document.querySelector(`[name="${name}"]`);
+  return el ? el.value : null;
+}
+
 
 /* -------------------- 12. SAVE INVOICE -------------------- */
 async function saveToDatabase() {
@@ -403,14 +411,23 @@ async function saveToDatabase() {
     invoice_category: getInputValue('invoiceCategory'),
     items,
     extra_columns: extraColumns,
+
     tax_summary: {
       subtotal: parseFloat($('#subtotal')?.value) || 0,
       vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
       vat_amount: parseFloat($('#vatAmount')?.value) || 0,
       withholding: parseFloat($('#withholdingTax')?.value) || 0,
       total_payable: parseFloat($('#totalPayable')?.value) || 0
-    }
-  };
+    },
+
+   footer: {
+    atp_no: getFooterValue('footerAtpNo'),
+    atp_date: getFooterValue('footerAtpDate'),
+    bir_permit_no: getFooterValue('footerBirPermit'),
+    bir_date: getFooterValue('footerBirDate'),
+    serial_nos: getFooterValue('footerSerialNos')
+  }
+};
 
   DBG.log('Saving invoice payload:', payload);
 
@@ -421,7 +438,7 @@ async function saveToDatabase() {
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
+    if (!res.ok) { 
       let errBody = null;
       try { errBody = await res.json(); } catch (e) {}
       const message = (errBody && (errBody.error || errBody.message)) || `${res.status} ${res.statusText}`;
@@ -434,6 +451,7 @@ async function saveToDatabase() {
     window.location.reload();
   } catch (err) { DBG.error('saveToDatabase error:', err); alert('Failed to save invoice'); }
 }
+
 
 /* -------------------- 13. INIT -------------------- */
 window.addEventListener('DOMContentLoaded', async () => {

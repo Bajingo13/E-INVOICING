@@ -1,83 +1,95 @@
-/* =============================
+/* ==============================
+   GENERAL RESET
+============================== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: "Times New Roman", Times, serif;
+  font-size: 12px; /* slightly smaller for print fit */
+  color: #000;
+  background: #fff;
+}
+
+/* ==============================
+   CONTAINER
+============================== */
+.invoice-container {
+  width: 100%;      
+  max-width: 8.25in; /* slightly smaller than Letter width */
+  margin: 0 auto;
+  padding: 0.15in 0.15in; /* compact padding */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+/* ==============================
    TOOLBAR & DROPDOWN
-============================= */
+============================== */
 .invoice-toolbar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fff;
-  padding: 12px 24px;
-  border-bottom: 1px solid #eee;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  padding: 5px 0;
 }
 
 .invoice-toolbar-title {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   font-weight: 600;
-  display: flex;
-  align-items: center;
-}
-
-.close-btn {
-  margin-right: 16px;
-  background: none;
-  border: none;
-  font-size: 1.8rem;
-  cursor: pointer;
 }
 
 .invoice-toolbar-actions button {
-  margin-left: 12px;
-  padding: 8px 16px;
-  font-size: 1rem;
-  background: #0074d9;
-  color: white;
-  border: none;
-  border-radius: 5px;
+  margin-left: 6px;
+  padding: 5px 10px;
+  font-size: 0.85rem;
+  border-radius: 4px;
   cursor: pointer;
 }
 
-.settings-btn {
-  background: #fff;
-  color: #0074d9;
-  border: 1px solid #0074d9;
-}
-
-/* Dropdown Styles */
-.dropdown {
-  position: relative;
-  display: inline-block;
-}
+.settings-btn,
 .export-btn {
   background: #fff;
   color: #0074d9;
   border: 1px solid #0074d9;
-  margin-left: 12px;
 }
+
 .dropdown-content {
   display: none;
   position: absolute;
   right: 0;
+  top: 100%;
+  min-width: 130px;
+  max-width: 160px;
   background-color: #f9f9f9;
-  min-width: 160px;
-  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.12);
-  z-index: 10;
   border-radius: 4px;
+  box-shadow: 0px 6px 12px rgba(0,0,0,0.12);
+  z-index: 10;
 }
+
 .dropdown-content a {
   color: #0074d9;
-  padding: 10px 20px;
+  padding: 6px 12px;
   text-decoration: none;
   display: block;
   border-bottom: 1px solid #eee;
   transition: background 0.2s;
 }
+
 .dropdown-content a:last-child {
   border-bottom: none;
 }
+
 .dropdown-content a:hover {
   background-color: #e6f0fa;
 }
+
 .dropdown.show .dropdown-content {
   display: block;
 }
@@ -85,80 +97,55 @@
 .more-btn {
   background: none;
   color: #444;
-  font-size: 1.4rem;
+  font-size: 1.2rem;
 }
 
-/* =============================
-   GENERAL STYLES
-============================= */
-body {
-  font-family: "Times New Roman", Times, serif;
-  font-size: 14px;
-  margin: 5px;
-  color: #000;
-}
-
-.invoice-container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 10px;
-  overflow-x: auto; /* allow horizontal scroll if table too wide */
-}
-
-/* =============================
-   HEADER SECTION
-============================= */
+/* ==============================
+   HEADER
+============================== */
 .header {
   display: flex;
   align-items: flex-start;
   border-bottom: 1px solid #000;
-  padding-bottom: 10px;
-  margin-bottom: 10px;
+  padding-bottom: 2px;
+  margin-bottom: 2px;
 }
 
 .logo {
-  width: 160px;
+  width: 130px;
   text-align: center;
-  font-size: 12px;
-  line-height: 1.2;
-  margin-right: 20px;
+  margin-right: 8px;
 }
 
 .logo img {
-  max-width: 150px;
-  margin-bottom: 5px;
-}
-
-.logo strong {
-  font-size: 16px;
+  max-width: 120px;
 }
 
 .company-info {
   flex: 1;
-  font-size: 14px;
   text-align: center;
-  line-height: 1.2;
+  font-size: 12px;
 }
 
 .company-info h1 {
-  font-size: 18px;
-  margin: 0 0 4px 0;
+  font-size: 14px;
+  margin-bottom: 1px;
   font-weight: normal;
 }
 
 .company-info p {
   margin: 0;
-  font-size: 14px;
+  line-height: 1.1;
 }
 
-/* =============================
+/* ==============================
    INVOICE INFO
-============================= */
+============================== */
 .invoice-info {
   display: flex;
   justify-content: space-between;
-  gap: 30px;
-  margin-bottom: 15px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .left-info,
@@ -169,98 +156,43 @@ body {
 .field {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
-  font-size: 14px;
+  margin-bottom: 2px;
 }
 
 .label {
   font-weight: bold;
-  width: 100px;
-  margin-right: 0px;
-  white-space: nowrap;
-}
-
-.line {
-  flex: 1;
-}
-
-.bill-to label,
-.address label,
-.terms label,
-.date-no label {
-  font-weight: bold;
   width: 80px;
-  display: inline-block;
+  flex-shrink: 0;
+  font-size: 11px;
 }
 
 .invoice-info input {
   border: none;
   border-bottom: 1px solid #000;
   width: 100%;
-  font-size: 14px;
-  padding: 2px 4px;
+  font-size: 11px;
+  padding: 1px 2px;
   box-sizing: border-box;
 }
 
-/* TIN & TERMS */
-.tin-terms {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 2px;
-}
-
-.tin-terms .tin,
-.tin-terms .terms {
-  margin-top: 2px;
-}
-
-.date-no {
-  text-align: right;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.date-no input {
-  width: 60px;
-  border-bottom: 1px solid #000;
-  margin-left: 5px;
-}
-
-.small-zero {
-  font-size: 10px;
-  vertical-align: super;
-}
-
-.right-fields {
-  margin-left: 20px;
-}
-
-/* =============================
+/* ==============================
    SECTION TITLE
-============================= */
-.service-invoice-title {
+============================== */
+.invoice-title {
   text-align: center;
   font-weight: bold;
-  margin: 0 0 10px 0;
-  font-size: 18px;
+  margin: 3px 0 6px 0;
+  font-size: 26px;
 }
 
-/* =============================
-   TABLES
-============================= */
-.invoice-table,
-.payment-table {
+/* ==============================
+   INVOICE TABLE
+============================== */
+.invoice-table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 10px;
-  font-size: 13px;
-}
-
-.invoice-table {
-  table-layout: fixed; /* force columns to respect width */
+  font-size: 10pt;
+  table-layout: fixed;
 }
 
 .invoice-table th,
@@ -269,11 +201,8 @@ body {
   border-right: 1px solid #000;
   border-top: none;
   border-bottom: none;
-  padding: 4px 8px;
-  vertical-align: top;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  white-space: normal; /* allow wrapping */
+  padding: 2px 3px;
+  word-wrap: break-word;
   text-align: center;
 }
 
@@ -287,33 +216,35 @@ body {
 }
 
 .invoice-table td.desc {
-  width: 30%; /* matches JS column width */
+  width: 28%;
   text-align: left;
-  vertical-align: top;
-  word-break: break-word;
 }
 
-/* Small unit-cost column */
 .invoice-table .unit-cost {
-  width: 12%;
-  font-size: 11px;
-  line-height: 1.1;
+  width: 11%;
+  font-size: 9pt;
 }
 
-/* ===== PAYMENT / TAX SUMMARY TABLE ===== */
+/* Prevent rows from breaking across pages */
+.invoice-table tr {
+  page-break-inside: avoid;
+}
+
+/* ==============================
+   PAYMENT / TAX SUMMARY TABLE
+============================== */
 .payment-table {
   width: 400px;
-  margin-left: 0;
-  margin-top: 15px;
+  margin-top: 6px;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .payment-table th,
 .payment-table td {
   border: 1px solid #000;
-  padding: 6px 8px;
+  padding: 4px 6px;
   vertical-align: top;
   word-break: break-word;
   text-align: left;
@@ -330,19 +261,18 @@ body {
   text-align: right;
 }
 
-/* =============================
+/* ==============================
    SIGNATURES
-============================= */
+============================== */
 .signatures-box {
-  padding: 15px;
-  margin-top: 20px;
+  margin-top: 6px;
 }
 
 .signatures {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   text-align: center;
-  font-size: 12px;
+  font-size: 10pt;
 }
 
 .signatures > div {
@@ -354,57 +284,104 @@ body {
 
 .signatures .label {
   font-weight: bold;
-  margin-bottom: 25px;
+  margin-bottom: 6px;
 }
 
 .signatures .line {
-  width: 80%;
+  width: 70%;
   border-bottom: 1px solid #000;
-  margin-top: 10px;
-  height: 50px;
+  margin-top: 4px;
+  height: 35px;
 }
 
-/* =============================
+/* ==============================
    FOOTER
-============================= */
+============================== */
 .footer-info {
-  width: 900px;
-  margin: 0 auto;
+  width: 100%;
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  margin-top: 10px;
-  line-height: 1.2;
+  font-size: 10pt;
+  margin-top: 4px;
 }
 
-.footer-info .left-footer,
-.footer-info .right-footer {
-  width: 50%;
-  line-height: 1.0;
+/* ==============================
+   PRINT STYLES
+============================== */
+@page {
+  size: letter;
+  margin: 0.4in; /* compact */
 }
 
-/* =============================
-   PRINT
-============================= */
 @media print {
+  body, html {
+    width: 8.5in;
+    height: 11in;
+    margin: 0;
+    overflow: visible;
+    font-size: 11pt;
+  }
+
   .no-print {
     display: none !important;
   }
+
+  .invoice-container {
+    max-height: 10.9in;
+    overflow: hidden;
+  }
+
+  table.invoice-table tr {
+    page-break-inside: avoid;
+  }
+
+  .header, .signatures-box, .payment-table {
+    page-break-inside: avoid;
+  }
 }
 
-@page {
-  size: letter;
-  margin: 0.5in;
+/* ==============================
+   UTILITY CLASSES
+============================== */
+.text-right {
+  text-align: right;
 }
 
-.invoice-page {
-  width: 8.5in;
-  min-height: 11in;
-  margin: auto;
-  background: white;
+.text-center {
+  text-align: center;
 }
-html, body {
-  margin: 0;
-  padding: 0;
-  background: #fff;
+
+.print-signature {
+  margin-top: 20px;
+  font-weight: bold;
+  text-align: center;
 }
+
+.print-footer-meta {
+  position: fixed;
+  bottom: 10mm;
+  left: 15mm;
+  right: 15mm;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-family: Arial, sans-serif;
+  color: #000;
+  pointer-events: none;
+  z-index: 999;
+}
+
+@media screen {
+  .print-footer-meta {
+    position: fixed;
+  }
+}
+
+@media print {
+  .print-footer-meta {
+    position: fixed;
+    bottom: 10mm;
+  }
+}
+
+

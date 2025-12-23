@@ -44,7 +44,7 @@
 </head>
 
 <body>
-
+<div id="invoiceContent">
 <div class="invoice-page">
 
   <!-- ===================== HEADER ===================== -->
@@ -114,7 +114,10 @@
       <tr><td><strong>Total Amount Due</strong></td><td id="totalPayable"></td></tr>
     </tbody>
   </table>
-
+<div id="signature" class="print-signature">
+  THIS IS SYSTEM GENERATED. NO SIGNATURE REQUIRED.
+</div>
+<br><br>
   <!-- ===================== FOOTER ===================== -->
   <footer class="footer-info">
     <div class="left-footer">
@@ -132,7 +135,10 @@
       </div>
     </div>
   </footer>
-
+</div>
+ <div class="print-footer-meta">
+  <span class="print-timestamp"></span>
+  <span class="print-page"></span>
 </div>
 
 <!-- ===================== SCRIPT ===================== -->

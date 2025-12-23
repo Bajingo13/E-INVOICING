@@ -59,8 +59,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
+
+    // 🔴 CLOSE ALL OTHER DROPDOWNS
+    document.querySelectorAll('.dropdown-menu.show').forEach(openMenu => {
+      if (openMenu !== menu) {
+        openMenu.classList.remove('show');
+      }
+    });
+
+    // 🟢 TOGGLE CURRENT DROPDOWN
     menu.classList.toggle('show');
 
+    // Reset positioning
     menu.style.left = '';
     menu.style.right = '';
 
@@ -73,7 +83,6 @@ window.addEventListener('DOMContentLoaded', () => {
     menu.style.left = 'auto';
 
     if (dropdownWidth > spaceRight && dropdownWidth <= spaceLeft) {
-      
       menu.style.left = '-48px';
       menu.style.right = 'auto';
     }
@@ -91,6 +100,8 @@ setupDropdown('accountingBtn', 'accountingDropdown');
 setupDropdown('createInvoiceBtn', 'invoiceDropdown');
 setupDropdown('SystemconfigBtn', 'systemConfigDropdown');
 setupDropdown('profileBtn', 'profileDropdown');
+setupDropdown('reportsBtn', 'reportsDropdown');
+
 
 
 
@@ -129,5 +140,12 @@ setupDropdown('profileBtn', 'profileDropdown');
       if (e.target === modal) modal.classList.remove('show');
     });
   }
+});
+document.querySelectorAll('.submenu-toggle').forEach(toggle => {
+  toggle.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggle.nextElementSibling.classList.toggle('show');
+  });
 });
 
