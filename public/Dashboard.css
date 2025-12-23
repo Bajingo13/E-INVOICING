@@ -344,3 +344,23 @@ main {
 }
 
 #closeModal:hover { opacity: 0.8; }
+
+.dropdown-submenu {
+  position: relative;
+}
+
+.dropdown-submenu .submenu {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 100%;
+  min-width: 200px;
+  z-index: 1000;
+}
+
+.dropdown-submenu:hover .submenu {
+  display: block;
+}
+.submenu.show {
+  display: block;
+}

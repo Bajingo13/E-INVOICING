@@ -1,4 +1,6 @@
+// ===============================
 // public/COA.js
+// ===============================
 
 const codeInput = document.getElementById("codeInput");
 const dateInput = document.getElementById("dateInput");
@@ -6,6 +8,7 @@ const titleInput = document.getElementById("titleInput");
 const classSelect = document.getElementById("classSelect");
 const taxRateSelect = document.getElementById("taxRateSelect");
 const customTaxInput = document.getElementById("customTaxInput");
+const ewtSelect = document.getElementById("ewtSelect");
 
 const addBtn = document.getElementById("addBtn");
 const editBtn = document.getElementById("editBtn");
@@ -21,6 +24,7 @@ const searchInput = document.getElementById("searchInput");
 const searchBtn = document.getElementById("searchBtn");
 
 let accounts = [];
+let ewtList = [];
 let editingIndex = null;
 let sortColumn = null;
 let sortAsc = true;
@@ -34,30 +38,20 @@ const CLASS_MAP = {
   "C": "Equity"
 };
 
-function letterToClass(letter) {
-  return CLASS_MAP[letter] || letter;
-}
-
+function letterToClass(letter) { return CLASS_MAP[letter] || letter; }
 function classToLetter(name) {
-  for (let key in CLASS_MAP) {
-    if (CLASS_MAP[key] === name) return key;
-  }
+  for (let key in CLASS_MAP) { if (CLASS_MAP[key] === name) return key; }
   return name;
 }
 
 // --- Form Control ---
 disableForm();
-
 function disableForm() {
-  codeInput.disabled = dateInput.disabled = titleInput.disabled = true;
-  classSelect.disabled = taxRateSelect.disabled = customTaxInput.disabled = true;
+  [codeInput, dateInput, titleInput, classSelect, taxRateSelect, customTaxInput, ewtSelect].forEach(el => el.disabled = true);
 }
-
 function enableForm() {
-  codeInput.disabled = dateInput.disabled = titleInput.disabled = false;
-  classSelect.disabled = taxRateSelect.disabled = customTaxInput.disabled = false;
+  [codeInput, dateInput, titleInput, classSelect, taxRateSelect, customTaxInput, ewtSelect].forEach(el => el.disabled = false);
 }
-
 function clearForm() {
   codeInput.value = "";
   dateInput.value = "";
@@ -66,9 +60,10 @@ function clearForm() {
   taxRateSelect.value = "0";
   customTaxInput.value = "";
   customTaxInput.style.display = "none";
+  ewtSelect.value = "";
 }
 
-// Show custom VAT input
+// --- Tax Rate change ---
 taxRateSelect.addEventListener("change", () => {
   if (taxRateSelect.value === "custom") {
     customTaxInput.style.display = "block";
@@ -78,6 +73,24 @@ taxRateSelect.addEventListener("change", () => {
     customTaxInput.value = "";
   }
 });
+
+// --- Load EWT ---
+async function loadEWT() {
+  try {
+    const res = await fetch("/api/ewt"); // Must return JSON: [{id, code, rate, nature_of_income}]
+    ewtList = await res.json();
+
+    ewtSelect.innerHTML = `<option value="">-- Select EWT --</option>`;
+    ewtList.forEach(e => {
+      const opt = document.createElement("option");
+      opt.value = e.id;
+      opt.textContent = `${e.code} - ${e.nature_of_income} (${e.rate}%)`;
+      ewtSelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error("Failed to load EWT:", err);
+  }
+}
 
 // --- Load COA ---
 async function loadCOA() {
@@ -92,6 +105,7 @@ async function loadCOA() {
       title: acc.title,
       classType: acc.class_type,
       taxRate: acc.tax_rate || "0",
+      ewtId: acc.ewt_id || null, // consistent naming
       archived: acc.archived || 0
     }));
 
@@ -100,9 +114,12 @@ async function loadCOA() {
     console.error("Failed to load COA:", err);
   }
 }
+
+// --- Initial load ---
+loadEWT();
 loadCOA();
 
-// --- ADD / EDIT / DELETE ---
+// --- Add / Edit ---
 addBtn.addEventListener("click", () => { enableForm(); clearForm(); editingIndex = null; });
 
 editBtn.addEventListener("click", () => {
@@ -117,6 +134,7 @@ editBtn.addEventListener("click", () => {
   titleInput.value = acc.title;
   classSelect.value = acc.classType;
 
+  // Tax rate
   if (["0","1","5","12","18"].includes(acc.taxRate)) {
     taxRateSelect.value = acc.taxRate;
     customTaxInput.style.display = "none";
@@ -125,27 +143,27 @@ editBtn.addEventListener("click", () => {
     customTaxInput.style.display = "block";
     customTaxInput.value = acc.taxRate;
   }
+
+  // EWT
+  ewtSelect.value = acc.ewtId || "";
 });
 
-// DELETE (hard delete)
+// --- Delete ---
 deleteBtn.addEventListener("click", async () => {
   const selected = document.querySelector(".row-selected");
   if (!selected) return alert("Select a row to delete!");
+  const acc = accounts[selected.dataset.index];
+  if (!confirm("Are you sure you want to delete this account?")) return;
 
-  const index = selected.dataset.index;
-  const acc = accounts[index];
-
-  if (confirm("Are you sure you want to delete this account?")) {
-    await fetch(`/api/coa/${acc.id}`, { method: "DELETE" });
-    accounts.splice(index,1);
-    refreshTable(document.querySelector(".tab.active").textContent.trim());
-    editingIndex = null;
-    clearForm();
-    disableForm();
-  }
+  await fetch(`/api/coa/${acc.id}`, { method: "DELETE" });
+  accounts.splice(selected.dataset.index,1);
+  refreshTable(document.querySelector(".tab.active").textContent.trim());
+  editingIndex = null;
+  clearForm();
+  disableForm();
 });
 
-// ROW SELECTION
+// --- Row selection ---
 tableBody.addEventListener("click", e => {
   const tr = e.target.closest("tr");
   if (!tr) return;
@@ -153,7 +171,7 @@ tableBody.addEventListener("click", e => {
   tr.classList.add("row-selected");
 });
 
-// --- SAVE ---
+// --- Save ---
 saveBtn.addEventListener("click", async (e) => {
   e.preventDefault();
   if (!codeInput.value.trim() || !dateInput.value.trim() || !titleInput.value.trim())
@@ -171,13 +189,13 @@ saveBtn.addEventListener("click", async (e) => {
     date: dateInput.value,
     title: titleInput.value,
     classType: classSelect.value,
-    taxRate: tax
+    taxRate: tax,
+    ewtId: ewtSelect.value || null
   };
 
   try {
     if (editingIndex !== null) {
       const id = accounts[editingIndex].id;
-
       await fetch(`/api/coa/${id}`, {
         method: "PUT",
         headers: { 'Content-Type': 'application/json' },
@@ -186,14 +204,14 @@ saveBtn.addEventListener("click", async (e) => {
           date: acc.date,
           title: acc.title,
           class_type: acc.classType,
-          tax_rate: acc.taxRate
+          tax_rate: acc.taxRate,
+          ewt_id: acc.ewtId
         })
       });
 
       acc.id = id;
       acc.archived = accounts[editingIndex].archived;
       accounts[editingIndex] = acc;
-
     } else {
       const res = await fetch('/api/coa', {
         method: "POST",
@@ -203,10 +221,10 @@ saveBtn.addEventListener("click", async (e) => {
           date: acc.date,
           title: acc.title,
           class_type: acc.classType,
-          tax_rate: acc.taxRate
+          tax_rate: acc.taxRate,
+          ewt_id: acc.ewtId
         })
       });
-
       const result = await res.json();
       acc.id = result.id;
       acc.archived = 0;
@@ -216,50 +234,38 @@ saveBtn.addEventListener("click", async (e) => {
     refreshTable(document.querySelector(".tab.active").textContent.trim());
     disableForm();
     clearForm();
-
   } catch(err) {
     console.error(err);
     alert("Failed to save. Check console.");
   }
 });
 
-// --- CANCEL ---
+// --- Cancel ---
 cancelBtn.addEventListener("click", () => { clearForm(); disableForm(); editingIndex = null; });
 
-// --- ARCHIVE / UNARCHIVE ---
+// --- Archive / Unarchive ---
 async function archiveAccount(id) {
   if (!confirm("Archive this account?")) return;
-
   await fetch(`/api/coa/archive/${id}`, { method: "PUT" });
-
   const idx = accounts.findIndex(a => a.id == id);
   accounts[idx].archived = 1;
-
   refreshTable(document.querySelector(".tab.active").textContent.trim());
 }
 
 async function unarchiveAccount(id) {
   if (!confirm("Restore this account?")) return;
-
   await fetch(`/api/coa/unarchive/${id}`, { method: "PUT" });
-
   const idx = accounts.findIndex(a => a.id == id);
   accounts[idx].archived = 0;
-
   refreshTable("Archive");
 }
 
-// LISTEN BUTTONS
-document.addEventListener("click", (e) => {
-  if (e.target.classList.contains("archive-btn")) {
-    archiveAccount(e.target.dataset.id);
-  }
-  if (e.target.classList.contains("unarchive-btn")) {
-    unarchiveAccount(e.target.dataset.id);
-  }
+document.addEventListener("click", e => {
+  if (e.target.classList.contains("archive-btn")) archiveAccount(e.target.dataset.id);
+  if (e.target.classList.contains("unarchive-btn")) unarchiveAccount(e.target.dataset.id);
 });
 
-// --- SORTING ---
+// --- Sorting ---
 tableHeaders.forEach(th => {
   th.addEventListener("click", () => {
     const column = th.dataset.sort;
@@ -270,7 +276,7 @@ tableHeaders.forEach(th => {
   });
 });
 
-// --- TABS ---
+// --- Tabs ---
 tabs.forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelector(".tab.active").classList.remove("active");
@@ -279,12 +285,12 @@ tabs.forEach(tab => {
   });
 });
 
-// --- IMPORT BTN ---
+// --- Import button ---
 document.getElementById("importBtn").addEventListener("click", () => {
   window.location.href = "coaImport.html";
 });
 
-// --- REFRESH TABLE (UPDATED WITH ARCHIVE TAB) ---
+// --- Refresh table ---
 function refreshTable(filter="All Accounts") {
   tableBody.innerHTML = "";
   const search = searchInput.value.trim().toLowerCase();
@@ -292,25 +298,15 @@ function refreshTable(filter="All Accounts") {
 
   let filtered = accounts.filter(acc => {
     const className = letterToClass(acc.classType);
-
     if (isArchiveTab && acc.archived != 1) return false;
     if (!isArchiveTab && acc.archived == 1) return false;
 
-    const matchesTab =
-      filter === "All Accounts" ||
-      filter === "Archive" ||
-      className === filter;
-
-    const matchesSearch =
-      acc.code.toLowerCase().includes(search) ||
-      acc.title.toLowerCase().includes(search) ||
-      className.toLowerCase().includes(search) ||
-      acc.taxRate.toString().includes(search);
+    const matchesTab = filter === "All Accounts" || filter === "Archive" || className === filter;
+    const matchesSearch = acc.code.toLowerCase().includes(search) || acc.title.toLowerCase().includes(search) || className.toLowerCase().includes(search) || acc.taxRate.toString().includes(search);
 
     return matchesTab && matchesSearch;
   });
 
-  // Sorting
   if (sortColumn) {
     filtered.sort((a,b) => {
       let valA = a[sortColumn], valB = b[sortColumn];
@@ -323,36 +319,33 @@ function refreshTable(filter="All Accounts") {
     });
   }
 
-  // Build rows
-  filtered.forEach((acc) => {
+  filtered.forEach(acc => {
     const tr = document.createElement("tr");
     tr.dataset.index = accounts.indexOf(acc);
 
     const taxLabel = acc.taxRate === "0" ? "Tax Exempt (0%)" : parseFloat(acc.taxRate) + "%";
+
+    let ewtLabel = "-";
+    if (acc.ewtId) {
+      const ewt = ewtList.find(e => String(e.id) === String(acc.ewtId));
+      if (ewt) ewtLabel = `${ewt.code} (${ewt.rate}%)`;
+    }
 
     tr.innerHTML = `
       <td>${acc.code}</td>
       <td>${acc.title}</td>
       <td>${letterToClass(acc.classType)}</td>
       <td>${taxLabel}</td>
-      <td>
-        ${
-          isArchiveTab
-            ? `<button class="tb-btn unarchive-btn" data-id="${acc.id}">Unarchive</button>`
-            : `<button class="tb-btn archive-btn" data-id="${acc.id}">Archive</button>`
-        }
+      <td>${ewtLabel}</td>
+      <td>${isArchiveTab 
+            ? `<button class="tb-btn unarchive-btn" data-id="${acc.id}">Unarchive</button>` 
+            : `<button class="tb-btn archive-btn" data-id="${acc.id}">Archive</button>`}
       </td>
     `;
-
     tableBody.appendChild(tr);
   });
 }
 
-// --- SEARCH EVENTS ---
-searchInput.addEventListener("input", () => {
-  refreshTable(document.querySelector(".tab.active").textContent.trim());
-});
-
-searchBtn.addEventListener("click", () => {
-  refreshTable(document.querySelector(".tab.active").textContent.trim());
-});
+// --- Search events ---
+searchInput.addEventListener("input", () => refreshTable(document.querySelector(".tab.active").textContent.trim()));
+searchBtn.addEventListener("click", () => refreshTable(document.querySelector(".tab.active").textContent.trim()));

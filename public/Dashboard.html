@@ -40,21 +40,43 @@
         </div>
       </div>  
 
-      <div class="navbar-right">
-        <a href="/reports.html" class="btn">Reports</a>
+      <div class="dropdown">
+  <button class="btn dropdown-toggle" id="reportsBtn">
+    Reports
+  </button>
 
-        <div class="dropdown">
-          <button class="btn dropdown-toggle" id="SystemconfigBtn">
-            System Configuration
-          </button>
-          <div class="dropdown-menu" id="systemConfigDropdown">
-            <a href="/Company_info.html" class="dropdown-item">Company Info</a>
-            <a href="/TransLock.html" class="dropdown-item">Transaction Locking</a>
-            <a href="/invoiceSettings.html" class="dropdown-item">Invoice Settings</a>
-            <a href="/EWTLib.html" class="dropdown-item">EWT Library</a>
+  <div class="dropdown-menu" id="reportsDropdown">
+    <a href="/reports.html" class="dropdown-item">Sales Tax Summary Report</a>
+    <a href="/reports/sales.html" class="dropdown-item">Sales Report</a>
+    <a href="/reports/ewt.html" class="dropdown-item">EWT Report</a>
 
-          </div>
-        </div>
+    <!-- VAT Sub Dropdown -->
+    <div class="dropdown-submenu">
+      <a href="#" class="dropdown-item submenu-toggle">
+        VAT Report ▸
+      </a>
+      <div class="dropdown-menu submenu">
+        <a href="/reports/vat-output.html" class="dropdown-item">Output VAT</a>
+        <a href="/reports/vat-input.html" class="dropdown-item">Input VAT</a>
+        <a href="/reports/vat-summary.html" class="dropdown-item">VAT Summary</a>
+      </div>
+    </div>
+
+    <a href="/reports/summary.html" class="dropdown-item">Summary Report</a>
+  </div>
+</div>
+
+<div class="dropdown">
+  <button class="btn dropdown-toggle" id="SystemconfigBtn">
+    System Configuration
+  </button>
+  <div class="dropdown-menu" id="systemConfigDropdown">
+    <a href="/Company_info.html" class="dropdown-item">Company Info</a>
+    <a href="/TransLock.html" class="dropdown-item">Transaction Locking</a>
+    <a href="/invoiceSettings.html" class="dropdown-item">Invoice Settings</a>
+    <a href="/EWTLib.html" class="dropdown-item">EWT Library</a>
+  </div>
+</div>
 
         <!-- Profile Dropdown -->
         <div class="dropdown profile-dropdown">

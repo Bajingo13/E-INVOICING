@@ -8,25 +8,33 @@
 /* ===============================
    GLOBAL
 ================================ */
-body {
+html, body {
+  height: 100%;
   margin: 0;
   font-family: Arial, sans-serif;
   background: #2b2b2b;
   color: #fff;
+  overflow: auto; /* single scrollbar */
 }
 
 /* ===============================
-   TOP HEADER
+   TOP BAR
 ================================ */
 .top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
   height: 56px;
-  background: #fff;
-  color: #000;
+  background: #6F75E2;
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
   border-bottom: 1px solid #ccc;
+  overflow: visible; /* allow dropdown */
 }
 
 .top-bar .left {
@@ -52,25 +60,31 @@ body {
   color: #fff;
   padding: 6px 12px;
   border-radius: 4px;
+  cursor: pointer;
 }
 
 /* ===============================
    TOOLBAR
 ================================ */
 .toolbar {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  right: 0;
   height: 44px;
-  background: #3a3a3a;
+  background: #6c6a6a;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 14px;
   font-size: 13px;
+  z-index: 999;
 }
 
 .toolbar button {
   background: none;
   border: none;
-  color: #fff;
+  color: #000000;
   cursor: pointer;
   font-size: 14px;
 }
@@ -81,23 +95,93 @@ body {
 .viewer {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 24px 0;
-  overflow: auto;
+  padding: 124px 0 24px 0; /* top bar + toolbar */
+}
+
+.page-container {
+  width: 816px;
+  height: 1056px;
+  background: #fff;
+  box-shadow: 0 0 18px rgba(0,0,0,.55);
+  display: flex;
+  flex-direction: column;
+  transform-origin: top center;
+  transition: transform 0.12s ease-out;
+  transform: scale(1) rotate(0deg);
 }
 
 iframe {
-  width: 816px;          
-  height: 1056px;        
-  background: #fff;
+  width: 100%;
+  height: 100%;
   border: none;
-  box-shadow: 0 0 18px rgba(0,0,0,.55);
-  transform-origin: top center;
+  background: #fff;
 }
 
+/* ===============================
+   EXPORT DROPDOWN
+================================ */
+.export-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.export-toggle {
+  background: #0078d4;
+  color: #000;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.export-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: #ffffff;
+  color: #000;
+  min-width: 150px;
+  border-radius: 6px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  z-index: 3000;
+  overflow: hidden;
+}
+
+.export-menu div {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.export-menu div:hover {
+  background: #f1f1f1;
+}
+
+.export-menu.show {
+  display: block;
+}
+
+/* ===============================
+   PRINT CLEAN
+================================ */
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .top-bar, .toolbar, .btn-primary, .export-menu {
+    display: none !important;
+  }
+  .page-container {
+    box-shadow: none !important;
+    width: 100%;
+    height: auto;
+  }
+}
 </style>
 </head>
-
 <body>
 
 <!-- =================== TOP BAR =================== -->
@@ -109,8 +193,19 @@ iframe {
 
   <div class="right">
     <button onclick="openSettings()">Invoice settings</button>
-    <button class="btn-primary" onclick="downloadPDF()">Download PDF</button>
-    <button>⋮</button>
+
+    <div class="export-dropdown">
+      <button class="btn-primary export-toggle" onclick="toggleExportMenu()">
+        Export ▾
+      </button>
+
+      <div class="export-menu" id="exportMenu">
+        <div onclick="downloadPDF()">Download PDF</div>
+        <div onclick="printPDF()">Print</div>
+      </div>
+    </div>
+
+    <button class="more-btn">⋮</button>
   </div>
 </div>
 
@@ -121,49 +216,55 @@ iframe {
   <span id="zoomLabel">100%</span>
   <button onclick="zoomIn()">＋</button>
   <button onclick="rotate()">⟳</button>
-  <button onclick="resetView()">↺</button>
+  <button onclick="resetView()">↺</button> 
   <button onclick="printPDF()">🖨</button>
 </div>
 
 <!-- =================== VIEWER =================== -->
 <div class="viewer">
-  <iframe id="pdfFrame" src="Replica.html"></iframe>
+  <div class="page-container" id="pageContainer">
+    <iframe id="pdfFrame"></iframe>
+  </div>
 </div>
 
 <script>
 /* ===============================
    VIEWER LOGIC
 ================================ */
+const container = document.getElementById('pageContainer');
+const zoomLabel = document.getElementById('zoomLabel');
+const frame = document.getElementById('pdfFrame');
+
 let zoom = 1;
 let rotation = 0;
 
-const frame = document.getElementById('pdfFrame');
-const zoomLabel = document.getElementById('zoomLabel');
-
 function applyTransform() {
-  frame.style.transform =
-    `scale(${zoom}) rotate(${rotation}deg)`;
+  container.style.transform = `scale(${zoom}) rotate(${rotation}deg)`;
   zoomLabel.textContent = Math.round(zoom * 100) + '%';
 }
 
-function zoomIn() {
-  zoom += 0.1;
-  applyTransform();
-}
-
-function zoomOut() {
-  zoom = Math.max(0.3, zoom - 0.1);
-  applyTransform();
-}
+function zoomIn() { zoom = Math.min(2, zoom + 0.1); applyTransform(); }
+function zoomOut() { zoom = Math.max(0.4, zoom - 0.1); applyTransform(); }
 
 function rotate() {
-  rotation += 90;
+  rotation = (rotation + 90) % 360;
+
+  if (rotation % 180 !== 0) {
+    container.style.width = '1056px';
+    container.style.height = '816px';
+  } else {
+    container.style.width = '816px';
+    container.style.height = '1056px';
+  }
+
   applyTransform();
 }
 
 function resetView() {
   zoom = 1;
   rotation = 0;
+  container.style.width = '816px';
+  container.style.height = '1056px';
   applyTransform();
 }
 
@@ -171,20 +272,42 @@ function resetView() {
    ACTIONS
 ================================ */
 function printPDF() {
-  frame.contentWindow.print();
+  if (!frame || !frame.contentWindow) return;
+  frame.contentWindow.focus();
+  setTimeout(() => frame.contentWindow.print(), 150);
 }
 
 function downloadPDF() {
-  frame.contentWindow.print(); // browser PDF save
+  if (!frame || !frame.contentWindow) return;
+  frame.contentWindow.focus();
+  frame.contentWindow.print();
 }
 
-function closePreview() {
-  window.close();
+function closePreview() { window.close(); }
+function openSettings() { alert('Invoice settings (future)'); }
+
+/* ===============================
+   PASS INVOICE NO TO IFRAME
+================================ */
+const params = new URLSearchParams(window.location.search);
+const invoiceNo = params.get('invoice_no');
+
+if (!invoiceNo) alert('No invoice number provided in the URL.');
+else frame.src = `Replica.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
+
+/* ===============================
+   EXPORT DROPDOWN TOGGLE
+================================ */
+function toggleExportMenu() {
+  document.getElementById('exportMenu')?.classList.toggle('show');
 }
 
-function openSettings() {
-  alert('Invoice settings (future)');
-}
+window.addEventListener('click', function (e) {
+  const dropdown = document.querySelector('.export-dropdown');
+  if (!dropdown.contains(e.target)) {
+    document.getElementById('exportMenu')?.classList.remove('show');
+  }
+});
 </script>
 
 </body>
