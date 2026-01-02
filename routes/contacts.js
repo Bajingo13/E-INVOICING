@@ -1,10 +1,7 @@
+// routes/contacts.js
 const express = require('express');
 const router = express.Router();
-const { pool, asyncHandler } = require('../Server.js'); 
-
-async function getConn() {
-  return await pool.getConnection();
-}
+const { getConn, asyncHandler } = require('../db/pool'); // ✅ import helpers
 
 // ----------------- GET all contacts -----------------
 router.get('/', asyncHandler(async (req, res) => {
@@ -20,10 +17,16 @@ router.get('/', asyncHandler(async (req, res) => {
 // ----------------- POST add new contact -----------------
 router.post('/', asyncHandler(async (req, res) => {
   const { type, code, name, phone, business, address, vat_registration, tin, email } = req.body;
+  
+  if (!code || !name) {
+    return res.status(400).json({ error: "Code and Name are required" });
+  }
+
   const conn = await getConn();
   try {
     const [result] = await conn.execute(
-      `INSERT INTO contacts (type, code, name, phone, business, address, vat_registration, tin, email)
+      `INSERT INTO contacts 
+       (type, code, name, phone, business, address, vat_registration, tin, email)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [type, code, name, phone, business, address, vat_registration, tin, email]
     );
@@ -37,6 +40,11 @@ router.post('/', asyncHandler(async (req, res) => {
 router.put('/:id', asyncHandler(async (req, res) => {
   const id = req.params.id;
   const { type, code, name, phone, business, address, vat_registration, tin, email } = req.body;
+
+  if (!code || !name) {
+    return res.status(400).json({ error: "Code and Name are required" });
+  }
+
   const conn = await getConn();
   try {
     await conn.execute(

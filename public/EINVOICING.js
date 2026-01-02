@@ -383,7 +383,37 @@ function getFooterValue(name) {
 
 /* -------------------- 12. SAVE INVOICE -------------------- */
 async function saveToDatabase() {
-  const billTo = getInputValue('billTo');
+const billToSelect = document.getElementById('billTo');
+const billToId = billToSelect?.value || '';
+const billToName = billToSelect?.selectedOptions?.[0]?.textContent || '';
+
+const payload = {
+  invoice_no: invoiceNo,
+  bill_to: billToName,    // save name for printable
+  bill_to_id: billToId,   // keep ID for reference
+  address: getInputValue('address'),
+  tin: getInputValue('tin'),
+  date,
+  terms: getInputValue('terms'),
+  invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
+  items,
+  extra_columns: extraColumns,
+  tax_summary: {
+    subtotal: parseFloat($('#subtotal')?.value) || 0,
+    vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
+    vat_amount: parseFloat($('#vatAmount')?.value) || 0,
+    withholding: parseFloat($('#withholdingTax')?.value) || 0,
+    total_payable: parseFloat($('#totalPayable')?.value) || 0
+  },
+  footer: {
+    atp_no: getFooterValue('footerAtpNo'),
+    atp_date: getFooterValue('footerAtpDate'),
+    bir_permit_no: getFooterValue('footerBirPermit'),
+    bir_date: getFooterValue('footerBirDate'),
+    serial_nos: getFooterValue('footerSerialNos')
+  }
+};
+
   const invoiceNo = getInputValue('invoiceNo');
   const date = getInputValue('date');
   if (!billTo || !invoiceNo || !date) return alert("Fill Bill To, Invoice No, Date.");
@@ -405,37 +435,6 @@ async function saveToDatabase() {
     extraColumns.forEach(col => item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '');
     return item;
   });
-
-  const payload = {
-    invoice_no: invoiceNo,
-    bill_to: billTo,
-    address: getInputValue('address'),
-    tin: getInputValue('tin'),
-    date,
-    terms: getInputValue('terms'),
-    invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
-    invoice_mode: getInputValue('invoiceMode'),
-    invoice_category: getInputValue('invoiceCategory'),
-    invoice_type: getInputValue('invoice_type'),
-    items,
-    extra_columns: extraColumns,
-
-    tax_summary: {
-      subtotal: parseFloat($('#subtotal')?.value) || 0,
-      vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
-      vat_amount: parseFloat($('#vatAmount')?.value) || 0,
-      withholding: parseFloat($('#withholdingTax')?.value) || 0,
-      total_payable: parseFloat($('#totalPayable')?.value) || 0
-    },
-
-   footer: {
-    atp_no: getFooterValue('footerAtpNo'),
-    atp_date: getFooterValue('footerAtpDate'),
-    bir_permit_no: getFooterValue('footerBirPermit'),
-    bir_date: getFooterValue('footerBirDate'),
-    serial_nos: getFooterValue('footerSerialNos')
-  }
-};
 
   DBG.log('Saving invoice payload:', payload);
 
@@ -468,9 +467,48 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadNextInvoiceNo();
   setInvoiceTitleFromURL();
   await loadInvoiceForEdit();
+
+  // -------------------- LOAD CONTACTS FOR BILLING --------------------
+  const billToSelect = document.getElementById("billTo");
+  const tinInput = document.getElementById("tin");
+  const addressInput = document.getElementById("address");
+  const termsInput = document.getElementById("terms"); // optional
+
+  let contacts = [];
+  try {
+    const res = await fetch('/api/contacts?type=Customer'); // adjust type if needed
+    contacts = await res.json();
+
+    // populate select
+    billToSelect.innerHTML = '<option value="">-- Select Customer --</option>';
+    contacts.forEach(c => {
+      const option = document.createElement("option");
+      option.value = c.id;
+      option.textContent = c.name;
+      billToSelect.appendChild(option);
+    });
+  } catch (err) {
+    console.error('Failed to load contacts:', err);
+  }
+
+  // auto-fill fields on selection
+  billToSelect.addEventListener("change", () => {
+    const selectedId = billToSelect.value;
+    const contact = contacts.find(c => c.id == selectedId);
+    if (contact) {
+      tinInput.value = contact.tin || "";
+      addressInput.value = contact.address || "";
+      if (termsInput) termsInput.value = contact.terms || ""; // optional
+    } else {
+      tinInput.value = "";
+      addressInput.value = "";
+      if (termsInput) termsInput.value = "";
+    }
+  });
+  // -------------------- END CONTACTS --------------------
+
   adjustColumnWidths();
 });
-
 
 /* -------------------- 14. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
 document.addEventListener('DOMContentLoaded', () => {

@@ -12,10 +12,14 @@ const pool = mysql.createPool({
   dateStrings: true
 });
 
-async function getConn() {
+// helper to get a connection
+const getConn = async () => {
   const conn = await pool.getConnection();
-  // helpful wrapper: release on error should be handled by caller
   return conn;
-}
+};
 
-module.exports = { pool, getConn };
+// helper to wrap async routes in Express
+const asyncHandler = fn => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+module.exports = { pool, getConn, asyncHandler };

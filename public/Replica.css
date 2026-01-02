@@ -139,6 +139,52 @@ html, body {
 }
 
 /* ==============================
+   HEADER ALIGNMENT MODES
+   (Controlled by settings)
+============================== */
+
+/* HEADER TEXT ALIGNMENT */
+.header.align-left .company-info {
+  text-align: left;
+}
+
+.header.align-center .company-info {
+  text-align: center;
+}
+
+.header.align-right .company-info {
+  text-align: right;
+}
+
+/* LOGO ALIGNMENT */
+.header.logo-left {
+  justify-content: flex-start;
+}
+
+.header.logo-center {
+  justify-content: center;
+}
+
+.header.logo-right {
+  justify-content: flex-end;
+}
+
+/* Prevent logo spacing issues */
+.header.logo-center .logo,
+.header.logo-right .logo {
+  margin-right: 0;
+}
+
+.header.logo-center .logo {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.header.logo-right .logo {
+  margin-left: auto;
+}
+
+/* ==============================
    INVOICE INFO
 ============================== */
 .invoice-info {
