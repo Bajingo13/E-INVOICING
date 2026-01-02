@@ -12,6 +12,10 @@ const authRoutes = require('./routes/auth');
 const coaRoutes = require('./routes/COA');
 const importRoutes = require('./routes/import');
 const ewtRoutes = require('./routes/ewtRoutes');
+const dashboardRoutes = require('./routes/dashboard');
+const contactsRoutes = require('./routes/contacts');
+
+
 // other routes you already have (auth, coa, import) can still be required here
 
 const app = express();
@@ -23,6 +27,11 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/ewt', ewtRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/contacts', contactsRoutes);
+
+
+
 
 // Session (simple)
 app.use(session({

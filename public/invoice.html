@@ -109,17 +109,32 @@
       </div>
     </div>
 
-    <!-- === BILLING INFO === -->
-    <table class="info-table">
-      <tr>
-        <td><strong>BILL TO:</strong> <input type="text" name="billTo" class="input-long" /></td>
-        <td><strong>VAT Reg. TIN:</strong> <input type="text" name="tin" /></td>
-      </tr>
-      <tr>
-        <td><strong>ADDRESS :</strong> <input type="text" name="address" class="input-long" /></td>
-        <td><strong>TERMS:</strong> <input type="text" name="terms" /></td>
-      </tr>
-    </table>
+   <!-- === BILLING INFO === -->
+<table class="info-table">
+  <tr>
+    <td>
+      <strong>SOLD TO:</strong>
+      <select name="billTo" id="billTo" class="input-long">
+        <option value="">-- Select Customer --</option>
+      </select>
+    </td>
+    <td>
+      <strong>VAT Reg. TIN:</strong>
+      <input type="text" name="tin" id="tin" readonly />
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <strong>ADDRESS :</strong>
+      <input type="text" name="address" id="address" class="input-long" readonly />
+    </td>
+    <td>
+      <strong>TERMS:</strong>
+      <input type="text" name="terms" id="terms" />
+    </td>
+  </tr>
+</table>
+
 
     <!-- === ROW & COLUMN CONTROLS === -->
     <div class="row-controls">
@@ -136,7 +151,7 @@
           <th class="desc-col">ITEM DESCRIPTION/ <br> NATURE OF SERVICE </th>
           <th class="Acc-col">ACCOUNT</th>
           <th class="qty-col">QUANTITY</th>
-          <th class="unit-col">UNIT PRICE</th>
+          <th class="unit-col">UNIT PRICE/ RATE</th>
           <th class="amt-col">AMOUNT</th>
         </tr>
       </thead>

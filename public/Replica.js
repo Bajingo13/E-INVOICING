@@ -38,7 +38,7 @@ const buildTable = (items, extraColumns = []) => {
   const MAIN_COLUMNS = [
   { key: "description", label: "Item Description / Nature Of Service", width: 30 },
   { key: "quantity", label: "Quantity", width: 10 },
-  { key: "unit_price", label: "Unit Price", width: 15 },
+  { key: "unit_price", label: "Unit Price/ Rate", width: 15 },
   { key: "amount", label: "Amount", width: 15 }
 ];
 
@@ -335,5 +335,7 @@ function updateOnScreenFooter() {
     .forEach(el => el.textContent = 'Page 1 of 1');
 }
 
+
 window.addEventListener('DOMContentLoaded', updateOnScreenFooter);
 window.addEventListener('beforeprint', updateOnScreenFooter);
+
