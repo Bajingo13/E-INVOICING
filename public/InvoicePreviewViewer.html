@@ -202,6 +202,7 @@ iframe {
       <div class="export-menu" id="exportMenu">
         <div onclick="downloadPDF()">Download PDF</div>
         <div onclick="printPDF()">Print</div>
+        <div onclick="exportExcel()">Export to Excel (.xlsx)</div>
       </div>
     </div>
 
@@ -308,7 +309,189 @@ window.addEventListener('click', function (e) {
     document.getElementById('exportMenu')?.classList.remove('show');
   }
 });
+
+async function exportExcel() {
+  if (!invoiceNo) {
+    alert('Invoice number missing');
+    return;
+  }
+
+  /* ===============================
+     FETCH INVOICE DATA
+  ================================ */
+  const res = await fetch(`/api/invoices/${invoiceNo}`);
+  const inv = await res.json();
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Invoice');
+
+  /* ===============================
+     PAGE SETUP (PRINT SAFE)
+  ================================ */
+  ws.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 1,
+    margins: {
+      left: 0.5,
+      right: 0.5,
+      top: 0.75,
+      bottom: 0.75
+    }
+  };
+
+  /* ===============================
+     GRID SYSTEM (DO NOT CHANGE)
+     A–J = FULL PAGE WIDTH
+  ================================ */
+  ws.columns = [
+    { width: 4 },   // A
+    { width: 14 },  // B
+    { width: 18 },  // C
+    { width: 10 },  // D
+    { width: 10 },  // E
+    { width: 10 },  // F
+    { width: 10 },  // G
+    { width: 10 },  // H
+    { width: 12 },  // I
+    { width: 14 }   // J
+  ];
+
+  let r = 1;
+
+  /* ===============================
+     COMPANY HEADER
+  ================================ */
+  ws.mergeCells(`A${r}:J${r}`);
+  ws.getCell(`A${r}`).value = inv.company_name;
+  ws.getCell(`A${r}`).font = { size: 16, bold: true };
+  ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
+  r++;
+
+  ws.mergeCells(`A${r}:J${r}`);
+  ws.getCell(`A${r}`).value = inv.company_address;
+  ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
+  r++;
+
+  ws.mergeCells(`A${r}:J${r}`);
+  ws.getCell(`A${r}`).value = `TIN: ${inv.company_tin || ''}`;
+  ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
+  r += 2;
+
+  /* ===============================
+     BILL TO / SOLD TO
+  ================================ */
+  ws.mergeCells(`A${r}:E${r}`);
+  ws.mergeCells(`F${r}:J${r}`);
+
+  ws.getCell(`A${r}`).value = 'BILL TO';
+  ws.getCell(`F${r}`).value = 'SOLD TO';
+  ws.getCell(`A${r}`).font = ws.getCell(`F${r}`).font = { bold: true };
+
+  r++;
+
+  ws.mergeCells(`A${r}:E${r}`);
+  ws.mergeCells(`F${r}:J${r}`);
+
+  ws.getCell(`A${r}`).value = inv.bill_to_name;
+  ws.getCell(`F${r}`).value = inv.sold_to_name;
+  r++;
+
+  ws.mergeCells(`A${r}:E${r}`);
+  ws.mergeCells(`F${r}:J${r}`);
+
+  ws.getCell(`A${r}`).value = inv.bill_to_address;
+  ws.getCell(`F${r}`).value = inv.sold_to_address;
+  r += 2;
+
+  /* ===============================
+     ITEMS TABLE HEADER
+  ================================ */
+  const headerRow = ws.addRow([
+    '#', 'Description', '', '', 'Qty', 'Unit', 'Price', '', 'Amount', ''
+  ]);
+  ws.mergeCells(`B${r}:D${r}`);
+  ws.mergeCells(`H${r}:I${r}`);
+
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true };
+    cell.alignment = { horizontal: 'center' };
+    cell.border = {
+      top: { style: 'thin' },
+      bottom: { style: 'thin' }
+    };
+  });
+  r++;
+
+  /* ===============================
+     ITEMS
+  ================================ */
+  inv.items.forEach((item, i) => {
+    const row = ws.addRow([
+      i + 1,
+      item.description, '', '',
+      item.qty,
+      item.unit || '',
+      item.price,
+      '',
+      item.total,
+      ''
+    ]);
+
+    ws.mergeCells(`B${r}:D${r}`);
+    ws.mergeCells(`H${r}:I${r}`);
+
+    row.eachCell(cell => {
+      cell.border = {
+        bottom: { style: 'hair' }
+      };
+    });
+
+    r++;
+  });
+
+  /* ===============================
+     TOTALS
+  ================================ */
+  r++;
+
+  ws.mergeCells(`A${r}:H${r}`);
+  ws.getCell(`A${r}`).value = 'TOTAL';
+  ws.getCell(`A${r}`).alignment = { horizontal: 'right' };
+  ws.getCell(`A${r}`).font = { bold: true };
+
+  ws.mergeCells(`I${r}:J${r}`);
+  ws.getCell(`I${r}`).value = inv.total_amount;
+  ws.getCell(`I${r}`).font = { bold: true };
+  ws.getCell(`I${r}`).alignment = { horizontal: 'right' };
+
+  ws.getRow(r).eachCell(cell => {
+    cell.border = { top: { style: 'thin' } };
+  });
+
+  /* ===============================
+     PRINT AREA
+  ================================ */
+  ws.printTitlesRow = '1:1';
+  ws.printArea = `A1:J${r + 2}`;
+
+  /* ===============================
+     DOWNLOAD
+  ================================ */
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `Invoice-${invoiceNo}.xlsx`;
+  link.click();
+}
 </script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
 
 </body>
 </html>

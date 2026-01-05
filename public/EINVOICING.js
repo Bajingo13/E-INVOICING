@@ -383,37 +383,7 @@ function getFooterValue(name) {
 
 /* -------------------- 12. SAVE INVOICE -------------------- */
 async function saveToDatabase() {
-const billToSelect = document.getElementById('billTo');
-const billToId = billToSelect?.value || '';
-const billToName = billToSelect?.selectedOptions?.[0]?.textContent || '';
-
-const payload = {
-  invoice_no: invoiceNo,
-  bill_to: billToName,    // save name for printable
-  bill_to_id: billToId,   // keep ID for reference
-  address: getInputValue('address'),
-  tin: getInputValue('tin'),
-  date,
-  terms: getInputValue('terms'),
-  invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
-  items,
-  extra_columns: extraColumns,
-  tax_summary: {
-    subtotal: parseFloat($('#subtotal')?.value) || 0,
-    vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
-    vat_amount: parseFloat($('#vatAmount')?.value) || 0,
-    withholding: parseFloat($('#withholdingTax')?.value) || 0,
-    total_payable: parseFloat($('#totalPayable')?.value) || 0
-  },
-  footer: {
-    atp_no: getFooterValue('footerAtpNo'),
-    atp_date: getFooterValue('footerAtpDate'),
-    bir_permit_no: getFooterValue('footerBirPermit'),
-    bir_date: getFooterValue('footerBirDate'),
-    serial_nos: getFooterValue('footerSerialNos')
-  }
-};
-
+  const billTo = getInputValue('billTo');
   const invoiceNo = getInputValue('invoiceNo');
   const date = getInputValue('date');
   if (!billTo || !invoiceNo || !date) return alert("Fill Bill To, Invoice No, Date.");
@@ -435,6 +405,37 @@ const payload = {
     extraColumns.forEach(col => item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '');
     return item;
   });
+
+  const payload = {
+    invoice_no: invoiceNo,
+    bill_to: billTo,
+    address: getInputValue('address'),
+    tin: getInputValue('tin'),
+    date,
+    terms: getInputValue('terms'),
+    invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
+    invoice_mode: getInputValue('invoiceMode'),
+    invoice_category: getInputValue('invoiceCategory'),
+    invoice_type: getInputValue('invoice_type'),
+    items,
+    extra_columns: extraColumns,
+
+    tax_summary: {
+      subtotal: parseFloat($('#subtotal')?.value) || 0,
+      vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
+      vat_amount: parseFloat($('#vatAmount')?.value) || 0,
+      withholding: parseFloat($('#withholdingTax')?.value) || 0,
+      total_payable: parseFloat($('#totalPayable')?.value) || 0
+    },
+
+   footer: {
+    atp_no: getFooterValue('footerAtpNo'),
+    atp_date: getFooterValue('footerAtpDate'),
+    bir_permit_no: getFooterValue('footerBirPermit'),
+    bir_date: getFooterValue('footerBirDate'),
+    serial_nos: getFooterValue('footerSerialNos')
+  }
+};
 
   DBG.log('Saving invoice payload:', payload);
 
@@ -509,6 +510,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   adjustColumnWidths();
 });
+
 
 /* -------------------- 14. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
 document.addEventListener('DOMContentLoaded', () => {
