@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const API_BASE = 'http://localhost:3000'; // ✅ FIX: absolute API base
+
   const usersTable = document.querySelector('#users-table tbody');
   const usersSection = document.getElementById('users-section');
   const historyContainer = document.getElementById('login-history-container');
@@ -24,9 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => { successToast.style.display = 'none'; }, 3000);
   }
 
+  // Load users
   async function loadUsers() {
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch(`${API_BASE}/api/users`);
       const users = await res.json();
       usersTable.innerHTML = users.map(u => `
         <tr>
@@ -86,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.disabled = true;
 
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetch(`${API_BASE}/api/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, role })
@@ -111,48 +114,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
- 
   // Show Login History
-showLoginBtn.addEventListener('click', async () => {
-  createModal.classList.remove('show');
-  usersSection.style.display = 'none';
-  historyContainer.style.display = 'block';
+  showLoginBtn.addEventListener('click', async () => {
+    createModal.classList.remove('show');
+    usersSection.style.display = 'none';
+    historyContainer.style.display = 'block';
 
-  const historyTable = document.querySelector('#login-history-table tbody');
+    const historyTable = document.querySelector('#login-history-table tbody');
 
-  // Show loading message
-  historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:#666;">Loading login history...</td></tr>`;
+    // Show loading message
+    historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:#666;">Loading login history...</td></tr>`;
 
-  try {
-    const res = await fetch('/api/login-history'); // make sure this endpoint exists
-    if (!res.ok) throw new Error('Failed to fetch login history');
+    try {
+      const res = await fetch(`${API_BASE}/api/login-history`);
+      if (!res.ok) throw new Error('Failed to fetch login history');
 
-    const history = await res.json();
+      const history = await res.json();
 
-    if (!Array.isArray(history) || history.length === 0) {
-      historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:#666;">No login history found.</td></tr>`;
-      return;
+      if (!Array.isArray(history) || history.length === 0) {
+        historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:#666;">No login history found.</td></tr>`;
+        return;
+      }
+
+      historyTable.innerHTML = history.map(h => `
+        <tr>
+          <td>${h.username}</td>
+          <td>${h.success ? 'Yes' : 'No'}</td>
+          <td>${h.ip_address || ''}</td>
+          <td>${h.timestamp || ''}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      console.error(err);
+      historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:red;">Failed to load login history.</td></tr>`;
     }
-
-    historyTable.innerHTML = history.map(h => `
-      <tr>
-        <td>${h.username}</td>
-        <td>${h.success ? 'Yes' : 'No'}</td>
-        <td>${h.ip_address || ''}</td>
-        <td>${h.timestamp || ''}</td>
-      </tr>
-    `).join('');
-  } catch (err) {
-    console.error(err);
-    historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:red;">Failed to load login history.</td></tr>`;
-  }
-});
-
+  });
 
   // Back to Dashboard
   document.getElementById('back-dashboard').addEventListener('click', () => {
     window.location.href = '/dashboard';
   });
 
+  // Initial load
   loadUsers();
 });

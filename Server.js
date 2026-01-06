@@ -14,6 +14,9 @@ const importRoutes = require('./routes/import');
 const ewtRoutes = require('./routes/ewtRoutes');
 const dashboardRoutes = require('./routes/dashboard');
 const contactsRoutes = require('./routes/contacts');
+const usersRoutes = require('./routes/users');
+const loginHistoryRoutes = require('./routes/loginHistory');
+
 
 
 // other routes you already have (auth, coa, import) can still be required here
@@ -29,6 +32,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/ewt', ewtRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/contacts', contactsRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/login-history', loginHistoryRoutes);
 
 
 
