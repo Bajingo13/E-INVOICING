@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Input VAT</title>
+  <link rel="stylesheet" href="Input.css">
+</head>
+<body>
+
+<header>
+  <h1>Input VAT Register</h1>
+</header>
+
+<section class="filters">
+  <div>
+    <label>From</label>
+    <input type="date" id="from-date">
+  </div>
+  <div>
+    <label>To</label>
+    <input type="date" id="to-date">
+  </div>
+
+  <button onclick="loadInputVAT()">Load</button>
+  <button class="excel" onclick="exportInputExcel()">Export Excel</button>
+</section>
+
+<section class="summary">
+  <div class="card">
+    <h3>Total Input VAT</h3>
+    <p id="total-input-vat">0.00</p>
+  </div>
+</section>
+
+<section class="table-section">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Invoice No</th>
+        <th>Supplier</th>
+        <th>TIN</th>
+        <th>Net</th>
+        <th>VAT</th>
+        <th>Gross</th>
+      </tr>
+    </thead>
+    <tbody id="input-vat-table"></tbody>
+  </table>
+</section>
+
+<script src="Input.js"></script>
+</body>
+</html>

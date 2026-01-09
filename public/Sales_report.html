@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sales Report</title>
+  <link rel="stylesheet" href="Sales_report.css">
+</head>
+<body>
+
+<header class="header">
+  <h1>Sales Report</h1>
+</header>
+
+<section class="filters">
+  <div>
+    <label>From</label>
+    <input type="date" id="from-date">
+  </div>
+
+  <div>
+    <label>To</label>
+    <input type="date" id="to-date">
+  </div>
+
+  <div>
+    <label>Customer</label>
+    <input type="text" id="customer-filter" placeholder="All customers">
+  </div>
+
+  <button onclick="loadSales()">Load</button>
+  <button class="excel" onclick="exportSales()">Export Excel</button>
+</section>
+
+<section class="summary">
+  <div class="card">
+    <h3>Total Sales</h3>
+    <p id="total-sales">0.00</p>
+  </div>
+  <div class="card">
+    <h3>Total VAT</h3>
+    <p id="total-vat">0.00</p>
+  </div>
+  <div class="card">
+    <h3>Total Gross</h3>
+    <p id="total-gross">0.00</p>
+  </div>
+</section>
+
+<section class="table-section">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Invoice No</th>
+        <th>Customer</th>
+        <th>TIN</th>
+        <th>Net Sales</th>
+        <th>VAT</th>
+        <th>Gross</th>
+      </tr>
+    </thead>
+    <tbody id="sales-table"></tbody>
+  </table>
+</section>
+
+<script src="Sales_report.js"></script>
+</body>
+</html>
