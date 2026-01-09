@@ -114,19 +114,19 @@
   <tr>
     <td>
       <strong>SOLD TO:</strong>
-      <select name="billTo" id="billTo" class="input-long">
-        <option value="">-- Select Customer --</option>
-      </select>
+      <input type="text" id="billTo" name="billTo" class="input-long" autocomplete="off">
+<input type="hidden" id="billToId" name="billToId">
+<div id="billToDropdown" class="combo-dropdown"></div>
     </td>
     <td>
       <strong>VAT Reg. TIN:</strong>
-      <input type="text" name="tin" id="tin" readonly />
+      <input type="text" name="tin" id="tin" />
     </td>
   </tr>
   <tr>
     <td>
       <strong>ADDRESS :</strong>
-      <input type="text" name="address" id="address" class="input-long" readonly />
+      <input type="text" name="address" id="address" class="input-long" />
     </td>
     <td>
       <strong>TERMS:</strong>
