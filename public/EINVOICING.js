@@ -206,7 +206,7 @@ function populateAccountSelect(selectEl, accounts) {
 function addRow() {
   const tbody = $("#items-body");
   if (!tbody) return;
-  const ths = $("#items-table thead tr").children;
+  const ths = $("#items-table thead tr").children; 
   const row = document.createElement("tr");
 
   row.innerHTML = Array.from(ths).map((th, i) => {
@@ -469,43 +469,68 @@ window.addEventListener('DOMContentLoaded', async () => {
   setInvoiceTitleFromURL();
   await loadInvoiceForEdit();
 
-  // -------------------- LOAD CONTACTS FOR BILLING --------------------
-  const billToSelect = document.getElementById("billTo");
-  const tinInput = document.getElementById("tin");
-  const addressInput = document.getElementById("address");
-  const termsInput = document.getElementById("terms"); // optional
+/* -------------------- LOAD CONTACTS FOR BILLING (AUTOCOMPLETE) -------------------- */
+const billToInput = document.getElementById("billTo");
+const billToIdInput = document.getElementById("billToId");
+const billToDropdown = document.getElementById("billToDropdown");
 
-  let contacts = [];
+const tinInput = document.getElementById("tin");
+const addressInput = document.getElementById("address");
+const termsInput = document.getElementById("terms"); // optional
+
+let contacts = [];
+
+(async function loadContacts() {
   try {
-    const res = await fetch('/api/contacts?type=Customer'); // adjust type if needed
+    const res = await fetch('/api/contacts?type=Customer');
+    if (!res.ok) throw new Error('Failed to fetch contacts');
     contacts = await res.json();
-
-    // populate select
-    billToSelect.innerHTML = '<option value="">-- Select Customer --</option>';
-    contacts.forEach(c => {
-      const option = document.createElement("option");
-      option.value = c.id;
-      option.textContent = c.name;
-      billToSelect.appendChild(option);
-    });
   } catch (err) {
     console.error('Failed to load contacts:', err);
   }
+})();
 
-  // auto-fill fields on selection
-  billToSelect.addEventListener("change", () => {
-    const selectedId = billToSelect.value;
-    const contact = contacts.find(c => c.id == selectedId);
-    if (contact) {
-      tinInput.value = contact.tin || "";
-      addressInput.value = contact.address || "";
-      if (termsInput) termsInput.value = contact.terms || ""; // optional
-    } else {
-      tinInput.value = "";
-      addressInput.value = "";
-      if (termsInput) termsInput.value = "";
-    }
-  });
+// Show & filter dropdown while typing
+billToInput.addEventListener('input', () => {
+  const value = billToInput.value.toLowerCase();
+  billToDropdown.innerHTML = '';
+
+  if (!value) {
+    billToDropdown.style.display = 'none';
+    billToIdInput.value = '';
+    return;
+  }
+
+  contacts
+    .filter(c => c.name && c.name.toLowerCase().includes(value))
+    .forEach(c => {
+      const item = document.createElement('div');
+      item.textContent = c.name;
+
+      item.addEventListener('click', () => {
+        billToInput.value = c.name;
+        billToIdInput.value = c.id;
+
+        tinInput.value = c.tin || '';
+        addressInput.value = c.address || '';
+        if (termsInput) termsInput.value = c.terms || '';
+
+        billToDropdown.style.display = 'none';
+      });
+
+      billToDropdown.appendChild(item);
+    });
+
+  billToDropdown.style.display = billToDropdown.children.length ? 'block' : 'none';
+});
+
+// Hide dropdown when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('#billTo') && !e.target.closest('#billToDropdown')) {
+    billToDropdown.style.display = 'none';
+  }
+});
+
   // -------------------- END CONTACTS --------------------
 
   adjustColumnWidths();
