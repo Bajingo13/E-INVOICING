@@ -37,6 +37,7 @@
     border-radius: 6px;
     border: none;
     margin-left: auto;
+    cursor: pointer;
 }
 
 .btn-green {

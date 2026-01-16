@@ -66,7 +66,7 @@ async function loadCompanyInfo() {
     }
   } catch (err) { DBG.warn('Failed to load company info:', err); }
 }
-
+ 
 /* -------------------- 3. NEXT INVOICE NO -------------------- */
 async function loadNextInvoiceNo() {
   try {
@@ -237,50 +237,93 @@ function removeRow() {
   adjustColumnWidths();
 }
 
-/* -------------------- 8. AMOUNT & TOTALS -------------------- */
+/* -------------------- 8. AMOUNT & TOTALS (PER-ACCOUNT TAX) -------------------- */
+
+// Called when quantity or rate changes
 function updateAmount(input) {
   const row = input.closest("tr");
   if (!row) return;
+
   const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
   const rate = parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0;
   const amtEl = row.querySelector('[name="amt[]"]');
-  if (amtEl) amtEl.value = (qty * rate).toFixed(2);
+
+  const amount = qty * rate;
+  if (amtEl) amtEl.value = amount.toFixed(2);
+
+  // Recalculate totals automatically
   calculateTotals();
 }
 
+// Recalculate totals, VAT, EWT, discount, and final total
 function calculateTotals() {
-  let total = 0;
-  $$('input[name="amt[]"]').forEach(a => total += parseFloat(a.value) || 0);
-  const discountPercent = parseFloat($('#discount')?.value) || 0;
-  const discountFraction = (discountPercent > 1 ? discountPercent / 100 : discountPercent);
-  const totalAfterDiscount = total - (total * discountFraction);
+  const rows = $$('tr', document.querySelector('#items-body'));
+  let subtotal = 0;
+  let totalVat = 0;
+  let totalEwt = 0;
 
+  // Sum amounts and calculate VAT/EWT per row
+  rows.forEach(row => {
+    const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
+    subtotal += amt;
+
+    const accountId = row.querySelector('[name="account[]"]')?.value;
+    const account = window._coaAccounts?.find(acc => acc.id == accountId);
+
+    // VAT per row
+    const vatRate = account ? parseFloat(account.tax_rate || 0) / 100 : 0;
+    totalVat += amt * vatRate;
+
+    // EWT per row
+    let ewtRate = 0;
+    if (account?.ewt_id && Array.isArray(window._ewtRates)) {
+      const ewt = window._ewtRates.find(e => e.id == account.ewt_id);
+      ewtRate = ewt ? parseFloat(ewt.rate || 0) / 100 : 0;
+    }
+    totalEwt += amt * ewtRate;
+  });
+
+  // Get discount
+  let discountRate = parseFloat($('#discount')?.value) || 0;
+  if (discountRate > 1) discountRate /= 100;
+  const discountAmount = subtotal * discountRate;
+
+  // Subtotal after discount affects only final total
+  const subtotalAfterDiscount = subtotal - discountAmount;
+
+  // Determine VATable and final total based on VAT type
   const vatType = $('#vatType')?.value || 'inclusive';
-  let vatable = 0, vat = 0, withholding = 0, finalTotal = 0;
+  let vatable = 0, vatAmount = totalVat, finalTotal = 0;
 
-  if (vatType === 'inclusive') {
-    vatable = totalAfterDiscount / 1.12;
-    vat = totalAfterDiscount - vatable;
-    withholding = vatable * 0.02;
-    finalTotal = totalAfterDiscount - withholding;
-  } else if (vatType === 'exclusive') {
-    vatable = totalAfterDiscount;
-    vat = vatable * 0.12;
-    withholding = vatable * 0.02;
-    finalTotal = vatable + vat - withholding;
-  } else {
-    vatable = totalAfterDiscount;
-    finalTotal = totalAfterDiscount;
+  switch (vatType) {
+    case 'inclusive':
+      vatable = subtotal - totalVat; // VATable Sales stays original
+      finalTotal = subtotalAfterDiscount - totalEwt;
+      break;
+
+    case 'exclusive':
+      vatable = subtotal;
+      finalTotal = subtotalAfterDiscount + vatAmount - totalEwt;
+      break;
+
+    default: // non-VAT
+      vatable = subtotal;
+      finalTotal = subtotalAfterDiscount - totalEwt;
+      break;
   }
 
-  safeSetValue('#subtotal', total.toFixed(2));
+  // Update DOM
+  safeSetValue('#subtotal', subtotal.toFixed(2));
   safeSetValue('#vatableSales', vatable.toFixed(2));
-  safeSetValue('#vatAmount', vat.toFixed(2));
-  safeSetValue('#withholdingTax', withholding.toFixed(2));
+  safeSetValue('#vatAmount', vatAmount.toFixed(2));
+  safeSetValue('#withholdingTax', totalEwt.toFixed(2));
   safeSetValue('#totalPayable', finalTotal.toFixed(2));
 }
 
-$('#discount')?.addEventListener('change', calculateTotals);
+// Auto-update totals when discount changes
+const discountEl = document.getElementById('discount');
+if (discountEl) discountEl.addEventListener('change', calculateTotals);
+
 
 /* -------------------- 9. ADJUST COLUMN WIDTHS -------------------- */
 function adjustColumnWidths() {

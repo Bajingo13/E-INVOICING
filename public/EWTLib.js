@@ -169,6 +169,12 @@ btnDelete.addEventListener("click", async () => {
     }
 });
 
+// ----------------- Import ------------------
+btnImport.addEventListener("click", () => {
+    window.location.href = "/EWTImport.html";
+});
+
+
 // ------------------ Cancel ------------------
 btnCancel.addEventListener("click", () => {
     disableFields(true);

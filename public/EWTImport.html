@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EWT Import</title>
+  <link rel="stylesheet" href="EWTImport.css">
+</head>
+<body>
+
+<div class="page-container">
+  <h1>Expanded Withholding Tax (EWT) Import</h1>
+
+  <!-- ACTION BUTTONS -->
+  <div class="action-bar">
+    <button id="btnChoose" class="btn-blue">Choose File</button>
+    <button id="btnUpload" class="btn-green">Import</button>
+    <button id="btnBack" class="btn-red">Back</button>
+    <input type="file" id="fileImport" accept=".xlsx,.xls" hidden>
+  </div>
+
+  <p class="note">
+    Upload an Excel file containing: <b>Code</b>, <b>Nature of Income</b>, and <b>Tax Rate</b>.
+  </p>
+
+  <!-- PREVIEW TABLE -->
+  <table class="ewt-table">
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Nature of Income</th>
+        <th>Tax Rate</th>
+      </tr>
+    </thead>
+    <tbody id="previewBody">
+      <tr>
+        <td colspan="3" class="empty">No file loaded</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div id="status" class="status"></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="EWTImport.js"></script>
+</body>
+</html>

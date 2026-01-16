@@ -82,7 +82,7 @@
   <input type="date" id="dueDate" name="dueDate">
 </div>
 
-<!-- Invoice Container wrapped in a FORM so JS can query form elements by id -->
+
 <form id="invoiceForm">
   <div class="invoice-container">
 
@@ -97,12 +97,12 @@
         Tel. No.: <span id="company-tel"></span><br />
         VAT Reg. TIN: <span id="company-tin"></span>
       </div>
-
+ 
       <div class="invoice-box">
         <div class="invoice-title">SERVICE INVOICE</div>
 
         <div class="invoice-no">
-          <label>Invoice No.:</label>
+          <label><strong>Invoice No.:</strong></label>
           <input type="text" id="invoice_no" name="invoiceNo" readonly>
         </div>
         <div> <strong>DATE:</strong> <input type="date" name="date" /></div>
@@ -224,9 +224,17 @@
           </td>
         </tr>
         <tr>
-          <td>Less: Withholding Tax Amount</td>
-          <td><input type="number" step="0.01" id="withholdingTax" name="withholdingTax" value="0.00" class="input-full"></td>
-        </tr>
+  <tr>
+  <td>Less: Withholding Tax</td>
+  <td>
+    <select id="withholdingTax" name="withholdingTax" class="input-full">
+      <option value="0">-- Select EWT --</option>
+      <!-- EWT options will populate dynamically -->
+    </select>
+  </td>
+</tr>
+
+
         <tr>
           <td>Total Amount Due</td>
           <td><input type="number" step="0.01" id="totalPayable" name="totalPayable" value="0.00" class="input-full" readonly></td>

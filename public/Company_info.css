@@ -98,6 +98,7 @@ button, #remove-logo-btn {
   cursor: pointer;
   transition: background 0.18s, color 0.18s;
 }
+
 button {
   background: #2381fe;
   color: #fff;

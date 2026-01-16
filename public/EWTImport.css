@@ -1,0 +1,67 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+}
+
+.page-container {
+  max-width: 1100px;
+  margin: 40px auto;
+  background: #fff;
+  padding: 25px;
+  border-radius: 6px;
+  box-shadow: 0 0 10px rgba(0,0,0,.1);
+}
+
+h1 {
+  margin-bottom: 15px;
+}
+
+.action-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+button {
+  padding: 8px 14px;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.btn-blue { background: #4a67ff; }
+.btn-green { background: #28a745; }
+.btn-red { background: #dc3545; }
+
+.note {
+  font-size: 14px;
+  color: #555;
+  margin-bottom: 15px;
+}
+
+.ewt-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ewt-table th {
+  background: #f1f1f1;
+  text-align: left;
+  padding: 10px;
+}
+
+.ewt-table td {
+  padding: 10px;
+  border-top: 1px solid #ddd;
+}
+
+.empty {
+  text-align: center;
+  color: #888;
+}
+
+.status {
+  margin-top: 15px;
+  font-size: 14px;
+}

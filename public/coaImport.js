@@ -9,6 +9,10 @@ const importErrors = document.getElementById("importErrors");
 let previewData = [];
 let validationErrors = [];
 
+
+btnBack.addEventListener("click", () => {
+  window.location.href = "/EWTLib.html";
+});
 // ----------------- Upload & Preview -----------------
 uploadBtn.addEventListener("click", async () => {
   const file = importFileInput.files[0];
@@ -17,7 +21,7 @@ uploadBtn.addEventListener("click", async () => {
     return;
   }
 
-  importMessage.textContent = "Uploading and parsing...";
+  importMessage.textContent = "Uploading and parsing..."; 
   const formData = new FormData();
   formData.append("file", file);
 
