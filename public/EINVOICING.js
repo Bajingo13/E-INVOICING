@@ -237,6 +237,40 @@ function removeRow() {
   adjustColumnWidths();
 }
 
+async function loadEWTOptions() {
+  const ewtSelect = document.getElementById('withholdingTax');
+  if (!ewtSelect) return;
+
+  try {
+    const res = await fetch('/api/ewt'); 
+    if (!res.ok) throw new Error('Failed to fetch EWT');
+    const data = await res.json();
+
+    // Save globally for calculations
+    window._ewtRates = data;
+
+    // Reset dropdown
+    ewtSelect.innerHTML = `<option value="0">-- Select EWT --</option>`;
+
+    data.forEach(ewt => {
+      const opt = document.createElement('option');
+      opt.value = ewt.tax_rate;             // numeric tax rate %
+      opt.textContent = `${ewt.code} (${ewt.tax_rate}%)`;
+      ewtSelect.appendChild(opt);
+    });
+
+    // ✅ Update calculation when user changes EWT
+    ewtSelect.addEventListener('change', () => {
+      calculateTotals();
+    });
+
+  } catch (err) {
+    console.error('Failed to load EWT options:', err);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', loadEWTOptions);
+
 /* -------------------- 8. AMOUNT & TOTALS (PER-ACCOUNT TAX) -------------------- */
 
 // Called when quantity or rate changes
@@ -260,9 +294,8 @@ function calculateTotals() {
   const rows = $$('tr', document.querySelector('#items-body'));
   let subtotal = 0;
   let totalVat = 0;
-  let totalEwt = 0;
 
-  // Sum amounts and calculate VAT/EWT per row
+  // Sum amounts and calculate VAT per row
   rows.forEach(row => {
     const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
     subtotal += amt;
@@ -273,23 +306,17 @@ function calculateTotals() {
     // VAT per row
     const vatRate = account ? parseFloat(account.tax_rate || 0) / 100 : 0;
     totalVat += amt * vatRate;
-
-    // EWT per row
-    let ewtRate = 0;
-    if (account?.ewt_id && Array.isArray(window._ewtRates)) {
-      const ewt = window._ewtRates.find(e => e.id == account.ewt_id);
-      ewtRate = ewt ? parseFloat(ewt.rate || 0) / 100 : 0;
-    }
-    totalEwt += amt * ewtRate;
   });
 
   // Get discount
   let discountRate = parseFloat($('#discount')?.value) || 0;
   if (discountRate > 1) discountRate /= 100;
   const discountAmount = subtotal * discountRate;
-
-  // Subtotal after discount affects only final total
   const subtotalAfterDiscount = subtotal - discountAmount;
+
+  // EWT from dropdown
+  const ewtRate = parseFloat($('#withholdingTax')?.value) || 0;
+  const ewtAmount = subtotalAfterDiscount * (ewtRate / 100);
 
   // Determine VATable and final total based on VAT type
   const vatType = $('#vatType')?.value || 'inclusive';
@@ -297,18 +324,16 @@ function calculateTotals() {
 
   switch (vatType) {
     case 'inclusive':
-      vatable = subtotal - totalVat; // VATable Sales stays original
-      finalTotal = subtotalAfterDiscount - totalEwt;
+      vatable = subtotal - totalVat;
+      finalTotal = subtotalAfterDiscount - ewtAmount;
       break;
-
     case 'exclusive':
       vatable = subtotal;
-      finalTotal = subtotalAfterDiscount + vatAmount - totalEwt;
+      finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
       break;
-
-    default: // non-VAT
+    default:
       vatable = subtotal;
-      finalTotal = subtotalAfterDiscount - totalEwt;
+      finalTotal = subtotalAfterDiscount - ewtAmount;
       break;
   }
 
@@ -316,14 +341,13 @@ function calculateTotals() {
   safeSetValue('#subtotal', subtotal.toFixed(2));
   safeSetValue('#vatableSales', vatable.toFixed(2));
   safeSetValue('#vatAmount', vatAmount.toFixed(2));
-  safeSetValue('#withholdingTax', totalEwt.toFixed(2));
+  safeSetValue('#withholdingTaxAmount', ewtAmount.toFixed(2)); // ✅ calculated withholding tax
   safeSetValue('#totalPayable', finalTotal.toFixed(2));
 }
 
 // Auto-update totals when discount changes
 const discountEl = document.getElementById('discount');
-if (discountEl) discountEl.addEventListener('change', calculateTotals);
-
+if (discountEl) discountEl.addEventListener('input', calculateTotals);
 
 /* -------------------- 9. ADJUST COLUMN WIDTHS -------------------- */
 function adjustColumnWidths() {

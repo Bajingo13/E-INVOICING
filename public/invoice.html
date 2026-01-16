@@ -225,15 +225,20 @@
         </tr>
         <tr>
   <tr>
+  <tr>
   <td>Less: Withholding Tax</td>
-  <td>
-    <select id="withholdingTax" name="withholdingTax" class="input-full">
+  <td style="display: flex; align-items: center; gap: 8px;">
+    <!-- Display calculated withholding amount -->
+    <input type="number" step="0.01" id="withholdingTaxAmount" name="withholdingTaxAmount" 
+           value="0.00" class="input-full" readonly>
+
+    <!-- EWT dropdown beside it -->
+    <select id="withholdingTax" name="withholdingTax" class="input-short">
       <option value="0">-- Select EWT --</option>
       <!-- EWT options will populate dynamically -->
     </select>
   </td>
 </tr>
-
 
         <tr>
           <td>Total Amount Due</td>
