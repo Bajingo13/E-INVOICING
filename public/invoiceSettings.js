@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+
   // --- Elements ---
   const invoicePrefixInput = document.getElementById('invoicePrefix');
   const savePrefixBtn = document.getElementById('savePrefix');
@@ -14,25 +15,33 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Load settings from backend ---
   async function loadInvoiceSettings() {
     try {
-      const res = await fetch('/api/invoice-settings');
+      const res = await fetch('/api/invoice-settings', { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load settings');
+
       const data = await res.json();
 
       invoicePrefixInput.value = data.prefix || 'INV-';
       currentInvoiceNoInput.value = data.last_number || 0;
       invoiceLayoutSelect.value = data.layout || 'standard';
+
+      prefixMsg.textContent = '';
+      layoutMsg.textContent = '';
+
     } catch (err) {
       console.error(err);
-      prefixMsg.textContent = 'Error loading prefix';
-      layoutMsg.textContent = 'Error loading layout';
+      prefixMsg.textContent = 'Error loading settings';
+      prefixMsg.style.color = 'red';
+      layoutMsg.textContent = 'Error loading settings';
+      layoutMsg.style.color = 'red';
     }
   }
 
   loadInvoiceSettings();
 
   // --- Save prefix anytime ---
-  savePrefixBtn.addEventListener('click', async () => {
+  savePrefixBtn?.addEventListener('click', async () => {
     const prefix = invoicePrefixInput.value.trim();
+
     if (!prefix) {
       prefixMsg.textContent = 'Prefix cannot be empty';
       prefixMsg.style.color = 'red';
@@ -42,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/invoice-settings/prefix', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prefix })
       });
@@ -50,7 +60,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       prefixMsg.textContent = 'Prefix saved!';
       prefixMsg.style.color = 'green';
+
       loadInvoiceSettings(); // refresh displayed data
+
     } catch (err) {
       console.error(err);
       prefixMsg.textContent = 'Error saving prefix';
@@ -59,8 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- Override next invoice number (only once) ---
-  saveNextInvoiceBtn.addEventListener('click', async () => {
-    const nextNumber = parseInt(nextInvoiceNoInput.value);
+  saveNextInvoiceBtn?.addEventListener('click', async () => {
+    const nextNumber = parseInt(nextInvoiceNoInput.value, 10);
 
     if (!nextNumber || nextNumber < 100000) {
       prefixMsg.textContent = 'Next invoice number must be ≥ 6 digits';
@@ -71,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/invoice-settings/next-number', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ next_number: nextNumber })
       });
@@ -80,7 +93,9 @@ document.addEventListener('DOMContentLoaded', () => {
       prefixMsg.textContent = 'Next invoice number updated!';
       prefixMsg.style.color = 'green';
       nextInvoiceNoInput.value = '';
+
       loadInvoiceSettings(); // refresh last_number
+
     } catch (err) {
       console.error(err);
       prefixMsg.textContent = 'Error saving next invoice number';
@@ -89,12 +104,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- Save layout ---
-  saveLayoutBtn.addEventListener('click', async () => {
+  saveLayoutBtn?.addEventListener('click', async () => {
     const layout = invoiceLayoutSelect.value;
 
     try {
       const res = await fetch('/api/invoice-settings/layout', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ layout })
       });
@@ -103,10 +119,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       layoutMsg.textContent = 'Layout saved!';
       layoutMsg.style.color = 'green';
+
     } catch (err) {
       console.error(err);
       layoutMsg.textContent = 'Error saving layout';
       layoutMsg.style.color = 'red';
     }
   });
+
 });

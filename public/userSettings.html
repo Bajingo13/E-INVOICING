@@ -54,15 +54,23 @@
           <input type="password" id="new-password" placeholder="Enter password" required>
           <span class="error" id="password-error"></span>
 
+          <label>Email</label>
+<input type="email" id="new-email" placeholder="Enter email" required>
+<span class="error" id="email-error"></span>
+
           <label>Role</label>
           <select id="new-role">
-            <option value="normal">Normal</option>
-            <option value="super">Super</option>
-          </select>
+  <option value="normal">Normal</option>
+  <option value="submitter">Submitter</option>
+  <option value="approver">Approver</option>
+  <option value="super">Admin</option>
+</select>
+
 
           <div class="modal-buttons">
             <button type="button" id="cancel-create-user">Cancel</button>
             <button type="submit" id="create-user-submit">Create</button>
+            <button type="button" id="invite-user" class="btn-show">Send Invitation</button>
           </div>
         </form>
       </div>
@@ -84,7 +92,12 @@
     <div id="success-toast" class="toast">User created successfully!</div>
 
   </main>
+  
+<script type="module">
+  import { requireRole } from '/js/rbac.js';
+  requireRole(['super']);
+</script>
 
-  <script src="userSettings.js"></script>
+  <script type="module" src="userSettings.js"></script>
 </body>
 </html>

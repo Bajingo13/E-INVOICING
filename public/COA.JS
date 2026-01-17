@@ -43,24 +43,30 @@ function letterToClass(letter) { return CLASS_MAP[letter] || letter; }
 // --- Form Control ---
 disableForm();
 function disableForm() {
-  [codeInput, dateInput, titleInput, classSelect, taxRateSelect, customTaxInput, ewtSelect].forEach(el => el.disabled = true);
+  [codeInput, dateInput, titleInput, classSelect, taxRateSelect, customTaxInput, ewtSelect].forEach(el => {
+    if (el) el.disabled = true;
+  });
 }
 function enableForm() {
-  [codeInput, dateInput, titleInput, classSelect, taxRateSelect, customTaxInput, ewtSelect].forEach(el => el.disabled = false);
+  [codeInput, dateInput, titleInput, classSelect, taxRateSelect, customTaxInput, ewtSelect].forEach(el => {
+    if (el) el.disabled = false;
+  });
 }
 function clearForm() {
-  codeInput.value = "";
-  dateInput.value = "";
-  titleInput.value = "";
-  classSelect.value = "A";
-  taxRateSelect.value = "0";
-  customTaxInput.value = "";
-  customTaxInput.style.display = "none";
-  ewtSelect.value = "";
+  if (codeInput) codeInput.value = "";
+  if (dateInput) dateInput.value = "";
+  if (titleInput) titleInput.value = "";
+  if (classSelect) classSelect.value = "A";
+  if (taxRateSelect) taxRateSelect.value = "0";
+  if (customTaxInput) {
+    customTaxInput.value = "";
+    customTaxInput.style.display = "none";
+  }
+  if (ewtSelect) ewtSelect.value = "";
 }
 
 // --- Tax Rate change ---
-taxRateSelect.addEventListener("change", () => {
+taxRateSelect?.addEventListener("change", () => {
   if (taxRateSelect.value === "custom") {
     customTaxInput.style.display = "block";
     customTaxInput.focus();
@@ -96,7 +102,7 @@ async function loadCOA() {
       date: a.date || "",
       title: a.title,
       classType: a.class_type,
-      taxRate: a.tax_rate,
+      taxRate: a.tax_rate ?? 0, // FIX: prevent undefined tax rates
       ewtId: a.ewt_id || null,
       archived: a.archived || 0
     }));
@@ -104,9 +110,8 @@ async function loadCOA() {
   } catch (err) { console.error("Failed to load COA:", err); }
 }
 
-
 // --- Save Account ---
-saveBtn.addEventListener("click", async (e) => {
+saveBtn?.addEventListener("click", async (e) => {
   e.preventDefault();
   if (!codeInput.value.trim() || !dateInput.value.trim() || !titleInput.value.trim()) {
     return alert("Code, Date, and Title are required.");
@@ -146,8 +151,8 @@ saveBtn.addEventListener("click", async (e) => {
           date: acc.date,
           title: acc.title,
           class_type: acc.classType,
-          tax_rate: acc.taxRate,   // only VAT
-          ewt_id: acc.ewtId        // only EWT
+          tax_rate: acc.taxRate,
+          ewt_id: acc.ewtId
         })
       });
       acc.id = id;
@@ -162,8 +167,8 @@ saveBtn.addEventListener("click", async (e) => {
           date: acc.date,
           title: acc.title,
           class_type: acc.classType,
-          tax_rate: acc.taxRate,   // only VAT
-          ewt_id: acc.ewtId        // only EWT
+          tax_rate: acc.taxRate,
+          ewt_id: acc.ewtId
         })
       });
       const result = await res.json();
@@ -182,20 +187,14 @@ saveBtn.addEventListener("click", async (e) => {
   }
 });
 
-
-const importBtn = document.getElementById("importBtn");
-
-if (importBtn) {
-  importBtn.addEventListener("click", () => {
-    window.location.href = "/coaImport.html"; // or whatever route you use
-  });
-}
-
-
 // --- Add / Edit / Cancel Buttons ---
-addBtn.addEventListener("click", () => { enableForm(); clearForm(); editingIndex = null; });
+addBtn?.addEventListener("click", () => {
+  enableForm();
+  clearForm();
+  editingIndex = null;
+});
 
-editBtn.addEventListener("click", () => {
+editBtn?.addEventListener("click", () => {
   const selected = document.querySelector(".row-selected");
   if (!selected) return alert("Select a row to edit!");
   enableForm();
@@ -207,8 +206,9 @@ editBtn.addEventListener("click", () => {
   titleInput.value = acc.title;
   classSelect.value = acc.classType;
 
+  // FIX: avoid undefined and ensure string type
   if ([0,1,5,12,18].includes(Number(acc.taxRate))) {
-    taxRateSelect.value = acc.taxRate;
+    taxRateSelect.value = String(acc.taxRate);
     customTaxInput.style.display = "none";
   } else {
     taxRateSelect.value = "custom";
@@ -219,15 +219,17 @@ editBtn.addEventListener("click", () => {
   ewtSelect.value = acc.ewtId || "";
 });
 
-cancelBtn.addEventListener("click", () => { clearForm(); disableForm(); editingIndex = null; });
+cancelBtn?.addEventListener("click", () => {
+  clearForm();
+  disableForm();
+  editingIndex = null;
+});
 
 // --- Delete ---
-deleteBtn.addEventListener("click", async () => {
+deleteBtn?.addEventListener("click", async () => {
   const checked = [...document.querySelectorAll(".row-check:checked")];
 
-  // =========================
   // HARD BULK DELETE
-  // =========================
   if (checked.length > 0) {
     if (!confirm(`Permanently delete ${checked.length} account(s)? This cannot be undone.`)) {
       return;
@@ -236,17 +238,14 @@ deleteBtn.addEventListener("click", async () => {
     try {
       for (const cb of checked) {
         await fetch(`/api/coa/${cb.dataset.id}`, { method: "DELETE" });
-
         const idx = accounts.findIndex(a => a.id == cb.dataset.id);
         if (idx !== -1) accounts.splice(idx, 1);
       }
-
       document.getElementById("selectAll").checked = false;
       refreshTable(document.querySelector(".tab.active").textContent.trim());
       clearForm();
       disableForm();
       editingIndex = null;
-
     } catch (err) {
       console.error(err);
       alert("Hard delete failed.");
@@ -254,41 +253,32 @@ deleteBtn.addEventListener("click", async () => {
     return;
   }
 
-  // =========================
   // HARD SINGLE DELETE
-  // =========================
   const selected = document.querySelector(".row-selected");
-  if (!selected) {
-    return alert("Select a row or use checkboxes.");
-  }
+  if (!selected) return alert("Select a row or use checkboxes.");
 
   const acc = accounts[selected.dataset.index];
 
-  if (!confirm("Permanently delete this account? This cannot be undone.")) {
-    return;
-  }
+  if (!confirm("Permanently delete this account? This cannot be undone.")) return;
 
   try {
     await fetch(`/api/coa/${acc.id}`, { method: "DELETE" });
     accounts.splice(selected.dataset.index, 1);
-
     refreshTable(document.querySelector(".tab.active").textContent.trim());
     clearForm();
     disableForm();
     editingIndex = null;
-
   } catch (err) {
     console.error(err);
     alert("Hard delete failed.");
   }
 });
 
-
 // --- Row selection ---
-tableBody.addEventListener("click", e => {
+tableBody?.addEventListener("click", e => {
   const tr = e.target.closest("tr");
   if (!tr) return;
-  document.querySelectorAll(".row-selected").forEach(r=>r.classList.remove("row-selected"));
+  document.querySelectorAll(".row-selected").forEach(r => r.classList.remove("row-selected"));
   tr.classList.add("row-selected");
 });
 
@@ -335,13 +325,13 @@ tabs.forEach(tab => {
 });
 
 // --- Search ---
-searchInput.addEventListener("input", () => refreshTable(document.querySelector(".tab.active").textContent.trim()));
-searchBtn.addEventListener("click", () => refreshTable(document.querySelector(".tab.active").textContent.trim()));
+searchInput?.addEventListener("input", () => refreshTable(document.querySelector(".tab.active").textContent.trim()));
+searchBtn?.addEventListener("click", () => refreshTable(document.querySelector(".tab.active").textContent.trim()));
 
 // --- Refresh Table ---
 function refreshTable(filter="All Accounts") {
   tableBody.innerHTML = "";
-  const search = searchInput.value.trim().toLowerCase();
+  const search = (searchInput?.value || "").trim().toLowerCase();
   const isArchiveTab = filter === "Archive";
 
   let filtered = accounts.filter(acc => {
@@ -350,16 +340,17 @@ function refreshTable(filter="All Accounts") {
     if (!isArchiveTab && acc.archived == 1) return false;
 
     const matchesTab = filter === "All Accounts" || filter === "Archive" || className === filter;
-    const matchesSearch = acc.code.toLowerCase().includes(search) ||
-                          acc.title.toLowerCase().includes(search) ||
-                          className.toLowerCase().includes(search) ||
-                          String(acc.taxRate).includes(search);
+    const matchesSearch =
+      acc.code.toLowerCase().includes(search) ||
+      acc.title.toLowerCase().includes(search) ||
+      className.toLowerCase().includes(search) ||
+      String(acc.taxRate).includes(search);
 
     return matchesTab && matchesSearch;
   });
 
   if (sortColumn) {
-    filtered.sort((a,b) => {
+    filtered.sort((a, b) => {
       let valA = a[sortColumn], valB = b[sortColumn];
       if (sortColumn === "taxRate") { valA = parseFloat(valA); valB = parseFloat(valB); }
       else if (sortColumn === "classType") { valA = letterToClass(valA); valB = letterToClass(valB); }
@@ -370,48 +361,46 @@ function refreshTable(filter="All Accounts") {
     });
   }
 
- filtered.forEach(acc => {
-  const taxLabel = acc.taxRate == 0 ? "Tax Exempt (0%)" : parseFloat(acc.taxRate) + "%";
+  filtered.forEach(acc => {
+    const taxLabel = acc.taxRate == 0 ? "Tax Exempt (0%)" : parseFloat(acc.taxRate) + "%";
 
-  // Map ewtId to ewt code and tax
-  const ewtLabel = acc.ewtId
-    ? (() => {
-        const e = ewtList.find(x => Number(x.id) === Number(acc.ewtId));
-        return e ? `${e.code} (${e.tax_rate}%)` : "-";
-      })()
-    : "-";
+    // Map ewtId to ewt code and tax
+    const ewtLabel = acc.ewtId
+      ? (() => {
+          const e = ewtList.find(x => Number(x.id) === Number(acc.ewtId));
+          return e ? `${e.code} (${e.tax_rate}%)` : "-";
+        })()
+      : "-";
 
-  const tr = document.createElement("tr");
-  tr.dataset.index = accounts.indexOf(acc);
-  tr.innerHTML = `
-  <td>
-    <input type="checkbox"
-           class="row-check"
-           data-id="${acc.id}">
-  </td>
-  <td>${acc.code}</td>
-  <td>${acc.title}</td>
-  <td>${letterToClass(acc.classType)}</td>
-  <td>${taxLabel}</td>
-  <td>${ewtLabel}</td>
-`;
-
-  tableBody.appendChild(tr);
-});
+    const tr = document.createElement("tr");
+    tr.dataset.index = accounts.indexOf(acc);
+    tr.innerHTML = `
+      <td>
+        <input type="checkbox"
+               class="row-check"
+               data-id="${acc.id}">
+      </td>
+      <td>${acc.code}</td>
+      <td>${acc.title}</td>
+      <td>${letterToClass(acc.classType)}</td>
+      <td>${taxLabel}</td>
+      <td>${ewtLabel}</td>
+    `;
+    tableBody.appendChild(tr);
+  });
 }
+
 // --- Select All Checkbox ---
 const selectAll = document.getElementById("selectAll");
-
-selectAll.addEventListener("change", () => {
+selectAll?.addEventListener("change", () => {
   document.querySelectorAll(".row-check").forEach(cb => {
     cb.checked = selectAll.checked;
   });
 });
 
-
 // --- Initialization ---
 async function initCOA() {
-  await loadEWT();  // populate ewtList
-  await loadCOA();  // map ewtId to label
+  await loadEWT();
+  await loadCOA();
 }
 initCOA();

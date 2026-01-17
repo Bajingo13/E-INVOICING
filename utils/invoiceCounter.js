@@ -14,12 +14,15 @@ async function generateInvoiceNo(conn) {
   // Find the highest existing invoice number in the invoices table
   const [maxRows] = await conn.execute(
     `SELECT MAX(CAST(SUBSTRING(invoice_no, ?) AS UNSIGNED)) AS max_no FROM invoices`,
-    [counter.prefix.length + 1] // Skip prefix characters
+    [counter.prefix.length]  // ✅ Correct for format: INV-000001
   );
+
   const maxInvoice = maxRows[0].max_no || 0;
 
   // Take the higher of counter.last_number or maxInvoice
   const nextNumber = Math.max(counter.last_number || 0, maxInvoice) + 1;
+
+  // Pad to 6 digits minimum
   const invoiceNo = `${counter.prefix}${String(nextNumber).padStart(6, '0')}`;
 
   // Update the counter atomically

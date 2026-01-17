@@ -17,6 +17,23 @@ async function fetchDashboardData() {
   }
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+  const user = JSON.parse(localStorage.getItem('user'));
+
+  // If not logged in, redirect to login
+  if (!user) {
+    window.location.href = '/';
+    return;
+  }
+
+  // RBAC: hide elements that are for super only
+  document.querySelectorAll('[data-role="super"]').forEach(el => {
+    if (user.role !== 'super') {
+      el.style.display = 'none';
+    }
+  });
+});
+
 /**
  * Animate number counting up
  * @param {string} elementId
@@ -149,3 +166,13 @@ document.querySelectorAll('.submenu-toggle').forEach(toggle => {
   });
 });
 
+const user = JSON.parse(localStorage.getItem("user"));
+
+if (!user) {
+  window.location.href = "/"; // redirect to login
+}
+
+// HIDE MENU based on role
+if (user.role !== "super") {
+  document.querySelectorAll(".admin-only").forEach(el => el.style.display = "none");
+}

@@ -1,5 +1,12 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const API_BASE = 'http://localhost:3000'; // ✅ FIX: absolute API base
+import { requireSuper } from './authClient.js';
+
+document.addEventListener('DOMContentLoaded', async () => {
+
+  // PROTECT PAGE
+  const allowed = await requireSuper();
+  if (!allowed) return;
+
+  const API_BASE = ''; // use relative path (works in prod + dev)
 
   const usersTable = document.querySelector('#users-table tbody');
   const usersSection = document.getElementById('users-section');
@@ -14,23 +21,37 @@ document.addEventListener('DOMContentLoaded', () => {
   const confirmYes = document.getElementById('confirm-create-yes');
   const confirmNo = document.getElementById('confirm-create-no');
 
-  // Helper functions
+  // safe DOM helpers
+  const safeText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+
   function clearErrors() {
-    document.getElementById('username-error').textContent = '';
-    document.getElementById('password-error').textContent = '';
+    safeText('username-error', '');
+    safeText('password-error', '');
+    safeText('email-error', '');
   }
 
   function showSuccessToast(msg) {
+    if (!successToast) return;
     successToast.textContent = msg;
     successToast.style.display = 'block';
     setTimeout(() => { successToast.style.display = 'none'; }, 3000);
   }
 
-  // Load users
   async function loadUsers() {
+    if (!usersTable) return;
+
     try {
-      const res = await fetch(`${API_BASE}/api/users`);
+      const res = await fetch(`${API_BASE}/api/users`, {
+        credentials: 'include'
+      });
+
+      if (!res.ok) throw new Error('Failed');
+
       const users = await res.json();
+
       usersTable.innerHTML = users.map(u => `
         <tr>
           <td>${u.username}</td>
@@ -43,91 +64,107 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Show Create User Modal
-  document.getElementById('show-create-user').addEventListener('click', () => {
-    createModal.classList.add('show');
-    usersSection.style.display = 'none';
-    historyContainer.style.display = 'none';
-    document.getElementById('new-username').focus();
+  // show create modal
+  document.getElementById('show-create-user')?.addEventListener('click', () => {
+    createModal?.classList.add('show');
+    if (usersSection) usersSection.style.display = 'none';
+    if (historyContainer) historyContainer.style.display = 'none';
+    document.getElementById('new-username')?.focus();
   });
 
-  // Cancel Create User
-  document.getElementById('cancel-create-user').addEventListener('click', () => {
-    createModal.classList.remove('show');
-    usersSection.style.display = 'block';
+  // cancel create
+  document.getElementById('cancel-create-user')?.addEventListener('click', () => {
+    createModal?.classList.remove('show');
+    if (usersSection) usersSection.style.display = 'block';
     clearErrors();
-    createForm.reset();
+    createForm?.reset();
   });
 
-  // Form submission → confirmation modal
-  createForm.addEventListener('submit', (e) => {
+  // submit create
+  createForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     clearErrors();
 
-    const username = document.getElementById('new-username').value.trim();
-    const password = document.getElementById('new-password').value.trim();
+    const username = document.getElementById('new-username')?.value.trim() || '';
+    const password = document.getElementById('new-password')?.value.trim() || '';
+    const email = document.getElementById('new-email')?.value.trim() || '';
     let hasError = false;
 
-    if (!username) { document.getElementById('username-error').textContent = 'Username required'; hasError = true; }
-    if (!password) { document.getElementById('password-error').textContent = 'Password required'; hasError = true; }
+    if (!username) {
+      safeText('username-error', 'Username required');
+      hasError = true;
+    }
+    if (!password) {
+      safeText('password-error', 'Password required');
+      hasError = true;
+    }
+    if (!email) {
+      safeText('email-error', 'Email required');
+      hasError = true;
+    }
     if (hasError) return;
 
-    confirmModal.classList.add('show');
+    confirmModal?.classList.add('show');
   });
 
-  confirmNo.addEventListener('click', () => {
-    confirmModal.classList.remove('show');
+  confirmNo?.addEventListener('click', () => {
+    confirmModal?.classList.remove('show');
   });
 
-  confirmYes.addEventListener('click', async () => {
-    confirmModal.classList.remove('show');
+  confirmYes?.addEventListener('click', async () => {
+    confirmModal?.classList.remove('show');
 
-    const username = document.getElementById('new-username').value.trim();
-    const password = document.getElementById('new-password').value.trim();
-    const role = document.getElementById('new-role').value;
+    const username = document.getElementById('new-username')?.value.trim() || '';
+    const password = document.getElementById('new-password')?.value.trim() || '';
+    const email = document.getElementById('new-email')?.value.trim() || '';
+    const role = document.getElementById('new-role')?.value || 'normal';
     const btn = document.getElementById('create-user-submit');
-    btn.disabled = true;
+
+    if (btn) btn.disabled = true;
 
     try {
       const res = await fetch(`${API_BASE}/api/users`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, role })
+        body: JSON.stringify({ username, password, email, role })
       });
+
       const data = await res.json();
 
-      if (data.error) {
-        if (data.error.includes('username')) document.getElementById('username-error').textContent = data.error;
-        else alert(data.error);
+      if (!res.ok) {
+        alert(data.error || 'Failed to create user');
         return;
       }
 
       showSuccessToast(data.message || 'User created successfully!');
-      createForm.reset();
-      createModal.classList.remove('show');
-      usersSection.style.display = 'block';
+      createForm?.reset();
+      createModal?.classList.remove('show');
+      if (usersSection) usersSection.style.display = 'block';
       await loadUsers();
     } catch {
       alert('Failed to create user');
     } finally {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
     }
   });
 
-  // Show Login History
-  showLoginBtn.addEventListener('click', async () => {
-    createModal.classList.remove('show');
-    usersSection.style.display = 'none';
-    historyContainer.style.display = 'block';
+  showLoginBtn?.addEventListener('click', async () => {
+    createModal?.classList.remove('show');
+    if (usersSection) usersSection.style.display = 'none';
+    if (historyContainer) historyContainer.style.display = 'block';
 
     const historyTable = document.querySelector('#login-history-table tbody');
+    if (!historyTable) return;
 
-    // Show loading message
     historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:#666;">Loading login history...</td></tr>`;
 
     try {
-      const res = await fetch(`${API_BASE}/api/login-history`);
-      if (!res.ok) throw new Error('Failed to fetch login history');
+      const res = await fetch(`${API_BASE}/api/login-history`, {
+        credentials: 'include'
+      });
+
+      if (!res.ok) throw new Error('Failed');
 
       const history = await res.json();
 
@@ -144,17 +181,59 @@ document.addEventListener('DOMContentLoaded', () => {
           <td>${h.timestamp || ''}</td>
         </tr>
       `).join('');
-    } catch (err) {
-      console.error(err);
+    } catch {
       historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:red;">Failed to load login history.</td></tr>`;
     }
   });
 
-  // Back to Dashboard
-  document.getElementById('back-dashboard').addEventListener('click', () => {
-    window.location.href = '/dashboard';
+  document.getElementById('back-dashboard')?.addEventListener('click', () => {
+    window.location.href = '/dashboard.html';
   });
 
-  // Initial load
   loadUsers();
 });
+document.getElementById('invite-user')?.addEventListener('click', async () => {
+  clearErrors();
+
+  const email = document.getElementById('new-email')?.value.trim() || '';
+  const role = document.getElementById('new-role')?.value || 'normal';
+  const btn = document.getElementById('invite-user');
+
+  let hasError = false;
+
+  if (!email) {
+    safeText('email-error', 'Email required');
+    hasError = true;
+  }
+
+  if (hasError) return;
+
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/users/invite`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || 'Failed to send invitation');
+      return;
+    }
+
+    showSuccessToast(data.message || 'Invitation sent successfully!');
+    createForm?.reset();
+    createModal?.classList.remove('show');
+    if (usersSection) usersSection.style.display = 'block';
+
+  } catch (err) {
+    alert('Failed to send invitation');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+});
+

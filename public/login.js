@@ -14,8 +14,13 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     const data = await response.json();
 
     if (response.ok && data.success) {
-      // Successful login
+
+      // ✅ SAVE USER ROLE
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      // ✅ REDIRECT TO DASHBOARD
       window.location.href = "/dashboard";
+
     } else {
       const err = document.getElementById("error");
       err.innerText = data.message || "Invalid login";

@@ -1,3 +1,5 @@
+import { requireAnyRole } from './authClient.js'; // <-- ADD THIS
+
 'use strict';
 
 /* -------------------- 0. DEBUG & DOM HELPERS -------------------- */
@@ -66,25 +68,18 @@ async function loadCompanyInfo() {
     }
   } catch (err) { DBG.warn('Failed to load company info:', err); }
 }
- 
+  
 /* -------------------- 3. NEXT INVOICE NO -------------------- */
 async function loadNextInvoiceNo() {
   try {
-    // Fetch the next invoice number from your backend
     const res = await fetch('/api/next-invoice-no');
     const data = await res.json();
-
-    // Fill the invoiceNo input with the generated number
     const invoiceInput = document.querySelector('input[name="invoiceNo"]');
     if (invoiceInput) invoiceInput.value = data.invoiceNo || '';
   } catch (err) {
     console.error('Failed to fetch next invoice number', err);
   }
 }
-
-// Call this on page load
-window.addEventListener('DOMContentLoaded', loadNextInvoiceNo);
-
 
 /* -------------------- 4. INVOICE TITLE -------------------- */
 function setInvoiceTitleFromURL() {
@@ -95,13 +90,11 @@ function setInvoiceTitleFromURL() {
 
   safeSetText('.invoice-title', invoiceTitle);
 
-  // ✅ update hidden input as well
   const invoiceTypeInput = document.getElementById('invoice_type');
   if (invoiceTypeInput) invoiceTypeInput.value = invoiceTitle;
 
   localStorage.setItem('selectedInvoiceType', invoiceTitle);
 }
-
 
 /* -------------------- 5. LOAD INVOICE FOR EDIT -------------------- */
 async function loadInvoiceForEdit() {
@@ -122,7 +115,6 @@ async function loadInvoiceForEdit() {
     setInputValue('invoiceNo', data.invoice_no || '');
     setInputValue('date', dateToYYYYMMDD(data.date));
 
-    // **NEW FIELDS**
     setInputValue('invoiceMode', data.invoice_mode || 'standard');
     setInputValue('invoiceCategory', data.invoice_category || 'service');
     safeSetText('.invoice-title', data.invoice_title || 'SERVICE INVOICE');
@@ -256,20 +248,16 @@ async function loadEWTOptions() {
     if (!res.ok) throw new Error('Failed to fetch EWT');
     const data = await res.json();
 
-    // Save globally for calculations
     window._ewtRates = data;
-
-    // Reset dropdown
     ewtSelect.innerHTML = `<option value="0">-- Select EWT --</option>`;
 
     data.forEach(ewt => {
       const opt = document.createElement('option');
-      opt.value = ewt.tax_rate;             // numeric tax rate %
+      opt.value = ewt.tax_rate;
       opt.textContent = `${ewt.code} (${ewt.tax_rate}%)`;
       ewtSelect.appendChild(opt);
     });
 
-    // ✅ Update calculation when user changes EWT
     ewtSelect.addEventListener('change', () => {
       calculateTotals();
     });
@@ -282,8 +270,6 @@ async function loadEWTOptions() {
 window.addEventListener('DOMContentLoaded', loadEWTOptions);
 
 /* -------------------- 8. AMOUNT & TOTALS (PER-ACCOUNT TAX) -------------------- */
-
-// Called when quantity or rate changes
 function updateAmount(input) {
   const row = input.closest("tr");
   if (!row) return;
@@ -295,17 +281,14 @@ function updateAmount(input) {
   const amount = qty * rate;
   if (amtEl) amtEl.value = amount.toFixed(2);
 
-  // Recalculate totals automatically
   calculateTotals();
 }
 
-// Recalculate totals, VAT, EWT, discount, and final total
 function calculateTotals() {
   const rows = $$('tr', document.querySelector('#items-body'));
   let subtotal = 0;
   let totalVat = 0;
 
-  // Sum amounts and calculate VAT per row
   rows.forEach(row => {
     const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
     subtotal += amt;
@@ -313,22 +296,18 @@ function calculateTotals() {
     const accountId = row.querySelector('[name="account[]"]')?.value;
     const account = window._coaAccounts?.find(acc => acc.id == accountId);
 
-    // VAT per row
     const vatRate = account ? parseFloat(account.tax_rate || 0) / 100 : 0;
     totalVat += amt * vatRate;
   });
 
-  // Get discount
   let discountRate = parseFloat($('#discount')?.value) || 0;
   if (discountRate > 1) discountRate /= 100;
   const discountAmount = subtotal * discountRate;
   const subtotalAfterDiscount = subtotal - discountAmount;
 
-  // EWT from dropdown
   const ewtRate = parseFloat($('#withholdingTax')?.value) || 0;
   const ewtAmount = subtotalAfterDiscount * (ewtRate / 100);
 
-  // Determine VATable and final total based on VAT type
   const vatType = $('#vatType')?.value || 'inclusive';
   let vatable = 0, vatAmount = totalVat, finalTotal = 0;
 
@@ -347,15 +326,13 @@ function calculateTotals() {
       break;
   }
 
-  // Update DOM
   safeSetValue('#subtotal', subtotal.toFixed(2));
   safeSetValue('#vatableSales', vatable.toFixed(2));
   safeSetValue('#vatAmount', vatAmount.toFixed(2));
-  safeSetValue('#withholdingTaxAmount', ewtAmount.toFixed(2)); // ✅ calculated withholding tax
+  safeSetValue('#withholdingTaxAmount', ewtAmount.toFixed(2));
   safeSetValue('#totalPayable', finalTotal.toFixed(2));
 }
 
-// Auto-update totals when discount changes
 const discountEl = document.getElementById('discount');
 if (discountEl) discountEl.addEventListener('input', calculateTotals);
 
@@ -449,14 +426,12 @@ function removeLogo() {
   if (btn) btn.style.display = 'none';
   if (input) input.value = '';
 }
-// ===============================
+
 // Footer helpers
-// ===============================
 function getFooterValue(name) {
   const el = document.querySelector(`[name="${name}"]`);
   return el ? el.value : null;
 }
-
 
 /* -------------------- 12. SAVE INVOICE -------------------- */
 async function saveToDatabase() {
@@ -537,82 +512,81 @@ async function saveToDatabase() {
   } catch (err) { DBG.error('saveToDatabase error:', err); alert('Failed to save invoice'); }
 }
 
-
 /* -------------------- 13. INIT -------------------- */
 window.addEventListener('DOMContentLoaded', async () => {
+
+  // ======= RBAC PROTECTION =======
+  const allowed = await requireAnyRole(['super', 'approver', 'submitter', 'normal']);
+  if (!allowed) return; // stop if not allowed
+
   await loadAccounts();
   await loadCompanyInfo();
   await loadNextInvoiceNo();
   setInvoiceTitleFromURL();
   await loadInvoiceForEdit();
 
-/* -------------------- LOAD CONTACTS FOR BILLING (AUTOCOMPLETE) -------------------- */
-const billToInput = document.getElementById("billTo");
-const billToIdInput = document.getElementById("billToId");
-const billToDropdown = document.getElementById("billToDropdown");
+  // CONTACTS
+  const billToInput = document.getElementById("billTo");
+  const billToIdInput = document.getElementById("billToId");
+  const billToDropdown = document.getElementById("billToDropdown");
 
-const tinInput = document.getElementById("tin");
-const addressInput = document.getElementById("address");
-const termsInput = document.getElementById("terms"); // optional
+  const tinInput = document.getElementById("tin");
+  const addressInput = document.getElementById("address");
+  const termsInput = document.getElementById("terms"); // optional
 
-let contacts = [];
+  let contacts = [];
 
-(async function loadContacts() {
-  try {
-    const res = await fetch('/api/contacts?type=Customer');
-    if (!res.ok) throw new Error('Failed to fetch contacts');
-    contacts = await res.json();
-  } catch (err) {
-    console.error('Failed to load contacts:', err);
-  }
-})();
+  (async function loadContacts() {
+    try {
+      const res = await fetch('/api/contacts?type=Customer');
+      if (!res.ok) throw new Error('Failed to fetch contacts');
+      contacts = await res.json();
+    } catch (err) {
+      console.error('Failed to load contacts:', err);
+    }
+  })();
 
-// Show & filter dropdown while typing
-billToInput.addEventListener('input', () => {
-  const value = billToInput.value.toLowerCase();
-  billToDropdown.innerHTML = '';
+  billToInput?.addEventListener('input', () => {
+    const value = billToInput.value.toLowerCase();
+    billToDropdown.innerHTML = '';
 
-  if (!value) {
-    billToDropdown.style.display = 'none';
-    billToIdInput.value = '';
-    return;
-  }
+    if (!value) {
+      billToDropdown.style.display = 'none';
+      billToIdInput.value = '';
+      return;
+    }
 
-  contacts
-    .filter(c => c.name && c.name.toLowerCase().includes(value))
-    .forEach(c => {
-      const item = document.createElement('div');
-      item.textContent = c.name;
+    contacts
+      .filter(c => c.name && c.name.toLowerCase().includes(value))
+      .forEach(c => {
+        const item = document.createElement('div');
+        item.textContent = c.name;
 
-      item.addEventListener('click', () => {
-        billToInput.value = c.name;
-        billToIdInput.value = c.id;
+        item.addEventListener('click', () => {
+          billToInput.value = c.name;
+          billToIdInput.value = c.id;
 
-        tinInput.value = c.tin || '';
-        addressInput.value = c.address || '';
-        if (termsInput) termsInput.value = c.terms || '';
+          tinInput.value = c.tin || '';
+          addressInput.value = c.address || '';
+          if (termsInput) termsInput.value = c.terms || '';
 
-        billToDropdown.style.display = 'none';
+          billToDropdown.style.display = 'none';
+        });
+
+        billToDropdown.appendChild(item);
       });
 
-      billToDropdown.appendChild(item);
-    });
+    billToDropdown.style.display = billToDropdown.children.length ? 'block' : 'none';
+  });
 
-  billToDropdown.style.display = billToDropdown.children.length ? 'block' : 'none';
-});
-
-// Hide dropdown when clicking outside
-document.addEventListener('click', e => {
-  if (!e.target.closest('#billTo') && !e.target.closest('#billToDropdown')) {
-    billToDropdown.style.display = 'none';
-  }
-});
-
-  // -------------------- END CONTACTS --------------------
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#billTo') && !e.target.closest('#billToDropdown')) {
+      billToDropdown.style.display = 'none';
+    }
+  });
 
   adjustColumnWidths();
 });
-
 
 /* -------------------- 14. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
 document.addEventListener('DOMContentLoaded', () => {
@@ -765,7 +739,6 @@ function getInvoiceData() {
   };
 }
 
-// Toggle preview: only load and show when user clicks Preview
 async function showPreviewToggle() {
   const iframe = document.getElementById('invoicePreviewFrame');
   if (!iframe) { DBG.warn('Preview iframe not present in DOM.'); return; }
@@ -773,27 +746,24 @@ async function showPreviewToggle() {
   const visible = iframe.style.display && iframe.style.display !== 'none';
   if (visible) {
     iframe.style.display = 'none';
-    previewBtn.setAttribute('aria-pressed', 'false');
+    previewBtn?.setAttribute('aria-pressed', 'false');
     return;
   }
 
-  // show and load preview HTML (if not loaded)
   iframe.style.display = 'block';
-  previewBtn.setAttribute('aria-pressed', 'true');
+  previewBtn?.setAttribute('aria-pressed', 'true');
 
   try {
     await loadPreviewHTML();
-    // populate preview with current form data
     updatePreview(getInvoiceData());
   } catch (err) {
     DBG.error('Failed to show preview:', err);
     alert('Failed to load preview: ' + (err.message || err));
     iframe.style.display = 'none';
-    previewBtn.setAttribute('aria-pressed', 'false');
+    previewBtn?.setAttribute('aria-pressed', 'false');
   }
 }
 
-// Bind preview button and form input only if elements exist
 if (previewBtn) {
   previewBtn.addEventListener('click', () => {
     showPreviewToggle();
@@ -804,7 +774,6 @@ if (previewBtn) {
 
 if (form) {
   form.addEventListener('input', () => {
-    // update preview only when visible
     const iframe = document.getElementById('invoicePreviewFrame');
     if (iframe && iframe.style.display && iframe.style.display !== 'none') {
       updatePreview(getInvoiceData());
@@ -814,16 +783,19 @@ if (form) {
   DBG.warn('invoiceForm not found in DOM; live preview and some selectors may not work.');
 }
 
+// ====== FIXED DROPDOWN (SAFE) ======
 const invoiceDropdown = document.getElementById('invoiceDropdown');
-  const invoiceTypeInput = document.getElementById('invoice_type');
-  const createInvoiceBtn = document.getElementById('createInvoiceBtn');
+const invoiceTypeInput = document.getElementById('invoice_type');
+const createInvoiceBtn = document.getElementById('createInvoiceBtn');
 
+if (invoiceDropdown && invoiceTypeInput && createInvoiceBtn) {
   invoiceDropdown.querySelectorAll('a').forEach(a => {
     a.addEventListener('click', function(e) {
-      e.preventDefault(); // prevent navigation
-      const type = this.getAttribute('href').split('type=')[1];
-      invoiceTypeInput.value = type.toUpperCase().replace(/_/g, ' '); // optional formatting
-      createInvoiceBtn.textContent = this.textContent; // update button label
-      invoiceDropdown.classList.remove('show'); // hide dropdown
+      e.preventDefault();
+      const type = this.getAttribute('href')?.split('type=')[1] || '';
+      invoiceTypeInput.value = type.toUpperCase().replace(/_/g, ' ');
+      createInvoiceBtn.textContent = this.textContent;
+      invoiceDropdown.classList.remove('show');
     });
   });
+}

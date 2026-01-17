@@ -48,4 +48,26 @@ async function notifyAdminUserCreated({ username, role, password, createdBy }) {
   }
 }
 
-module.exports = { notifyAdminUserCreated };
+async function sendInvitationEmail({ email, username, token }) {
+  try {
+    const inviteLink = `${process.env.APP_URL}/set-password.html?token=${token}`;
+
+    await transporter.sendMail({
+      from: `"User Management System" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'You are invited to the System',
+      html: `
+        <div>
+          <h2>Welcome ${username}</h2>
+          <p>You have been invited to access the system.</p>
+          <p>Click this link to set your password:</p>
+          <a href="${inviteLink}">Set Password</a>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.error('[MAIL ERROR]', err);
+  }
+}
+
+module.exports = { notifyAdminUserCreated, sendInvitationEmail };
