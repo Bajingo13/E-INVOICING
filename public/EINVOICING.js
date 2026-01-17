@@ -70,11 +70,21 @@ async function loadCompanyInfo() {
 /* -------------------- 3. NEXT INVOICE NO -------------------- */
 async function loadNextInvoiceNo() {
   try {
+    // Fetch the next invoice number from your backend
     const res = await fetch('/api/next-invoice-no');
     const data = await res.json();
-    safeSetValue('input[name="invoiceNo"]', data.invoiceNo || '');
-  } catch (err) { DBG.error('Failed to fetch next invoice number', err); }
+
+    // Fill the invoiceNo input with the generated number
+    const invoiceInput = document.querySelector('input[name="invoiceNo"]');
+    if (invoiceInput) invoiceInput.value = data.invoiceNo || '';
+  } catch (err) {
+    console.error('Failed to fetch next invoice number', err);
+  }
 }
+
+// Call this on page load
+window.addEventListener('DOMContentLoaded', loadNextInvoiceNo);
+
 
 /* -------------------- 4. INVOICE TITLE -------------------- */
 function setInvoiceTitleFromURL() {

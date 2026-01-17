@@ -223,17 +223,66 @@ cancelBtn.addEventListener("click", () => { clearForm(); disableForm(); editingI
 
 // --- Delete ---
 deleteBtn.addEventListener("click", async () => {
+  const checked = [...document.querySelectorAll(".row-check:checked")];
+
+  // =========================
+  // HARD BULK DELETE
+  // =========================
+  if (checked.length > 0) {
+    if (!confirm(`Permanently delete ${checked.length} account(s)? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      for (const cb of checked) {
+        await fetch(`/api/coa/${cb.dataset.id}`, { method: "DELETE" });
+
+        const idx = accounts.findIndex(a => a.id == cb.dataset.id);
+        if (idx !== -1) accounts.splice(idx, 1);
+      }
+
+      document.getElementById("selectAll").checked = false;
+      refreshTable(document.querySelector(".tab.active").textContent.trim());
+      clearForm();
+      disableForm();
+      editingIndex = null;
+
+    } catch (err) {
+      console.error(err);
+      alert("Hard delete failed.");
+    }
+    return;
+  }
+
+  // =========================
+  // HARD SINGLE DELETE
+  // =========================
   const selected = document.querySelector(".row-selected");
-  if (!selected) return alert("Select a row to delete!");
+  if (!selected) {
+    return alert("Select a row or use checkboxes.");
+  }
+
   const acc = accounts[selected.dataset.index];
-  if (!confirm("Are you sure you want to delete this account?")) return;
-  await fetch(`/api/coa/${acc.id}`, { method: "DELETE" });
-  accounts.splice(selected.dataset.index,1);
-  refreshTable(document.querySelector(".tab.active").textContent.trim());
-  clearForm();
-  disableForm();
-  editingIndex = null;
+
+  if (!confirm("Permanently delete this account? This cannot be undone.")) {
+    return;
+  }
+
+  try {
+    await fetch(`/api/coa/${acc.id}`, { method: "DELETE" });
+    accounts.splice(selected.dataset.index, 1);
+
+    refreshTable(document.querySelector(".tab.active").textContent.trim());
+    clearForm();
+    disableForm();
+    editingIndex = null;
+
+  } catch (err) {
+    console.error(err);
+    alert("Hard delete failed.");
+  }
 });
+
 
 // --- Row selection ---
 tableBody.addEventListener("click", e => {
@@ -335,19 +384,30 @@ function refreshTable(filter="All Accounts") {
   const tr = document.createElement("tr");
   tr.dataset.index = accounts.indexOf(acc);
   tr.innerHTML = `
-    <td>${acc.code}</td>
-    <td>${acc.title}</td>
-    <td>${letterToClass(acc.classType)}</td>
-    <td>${taxLabel}</td>
-    <td>${ewtLabel}</td>
-    <td>${acc.archived
-          ? `<button class="tb-btn unarchive-btn" data-id="${acc.id}">Unarchive</button>`
-          : `<button class="tb-btn archive-btn" data-id="${acc.id}">Archive</button>`}
-    </td>
-  `;
+  <td>
+    <input type="checkbox"
+           class="row-check"
+           data-id="${acc.id}">
+  </td>
+  <td>${acc.code}</td>
+  <td>${acc.title}</td>
+  <td>${letterToClass(acc.classType)}</td>
+  <td>${taxLabel}</td>
+  <td>${ewtLabel}</td>
+`;
+
   tableBody.appendChild(tr);
 });
 }
+// --- Select All Checkbox ---
+const selectAll = document.getElementById("selectAll");
+
+selectAll.addEventListener("change", () => {
+  document.querySelectorAll(".row-check").forEach(cb => {
+    cb.checked = selectAll.checked;
+  });
+});
+
 
 // --- Initialization ---
 async function initCOA() {

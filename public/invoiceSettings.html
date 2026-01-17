@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice Settings</title>
+  <link rel="stylesheet" href="invoiceSettings.css">
+</head>
+<body>
+  <main class="settings-container">
+    <h1>Invoice Settings</h1>
+
+    <!-- ================== INVOICE LAYOUT ================== -->
+    <section class="setting-box" id="layoutBox">
+      <h2>Invoice Layout</h2>
+      <p>Select the invoice layout for printing/exporting invoices.</p>
+      <div class="field">
+        <label for="invoiceLayout">Layout:</label>
+        <select id="invoiceLayout" name="invoiceLayout">
+          <option value="standard">Standard</option>
+          <option value="modern">Modern</option>
+          <option value="compact">Compact</option>
+        </select>
+      </div>
+      <button id="saveLayout" class="btn">Save Layout</button>
+      <span id="layoutMsg" class="save-msg"></span>
+    </section>
+
+    <!-- ================== INVOICE PREFIX & NUMBER ================== -->
+    <section class="setting-box" id="prefixBox">
+      <h2>Invoice Prefix & Current Number</h2>
+      <p>View the current invoice prefix and last used number. You may override the next number to use more digits if needed.</p>
+
+      <!-- Current Prefix -->
+      <div class="field">
+        <label for="invoicePrefix">Prefix:</label>
+        <input type="text" id="invoicePrefix" name="invoicePrefix">
+        <button id="savePrefix" class="btn">Save Prefix</button>
+      </div>
+
+      <!-- Last Invoice Number -->
+      <div class="field">
+        <label for="currentInvoiceNo">Last Invoice Number Used:</label>
+        <input type="number" id="currentInvoiceNo" name="currentInvoiceNo" readonly>
+      </div>
+
+      <!-- Optional Next Number -->
+      <div class="field">
+        <label for="nextInvoiceNo">Set Next Invoice Number (optional, ≥ 6 digits):</label>
+        <input type="number" id="nextInvoiceNo" name="nextInvoiceNo" placeholder="Enter only if overriding" min="100000">
+      </div>
+
+      <button id="saveNextInvoice" class="btn">Save Next Invoice Number</button>
+      <span id="prefixMsg" class="save-msg"></span>
+    </section>
+  </main>
+
+  <script src="invoiceSettings.js"></script>
+</body>
+</html>

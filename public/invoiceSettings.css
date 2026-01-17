@@ -1,0 +1,107 @@
+/* ====== General ====== */
+body {
+  font-family: Arial, sans-serif;
+  background: #f7f8fa;
+  margin: 0;
+  padding: 20px;
+}
+
+.settings-container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 30px;
+  color: #222;
+}
+
+/* ====== Boxes ====== */
+.setting-box {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 20px 25px;
+  margin-bottom: 25px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+}
+
+.setting-box h2 {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.setting-box p {
+  font-size: 0.9rem;
+  margin-bottom: 15px;
+  color: #555;
+}
+
+/* ====== Fields ====== */
+.field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+}
+
+.field label {
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.field input,
+.field select {
+  padding: 8px 10px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ====== Buttons ====== */
+.btn {
+  padding: 8px 16px;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  margin-top: 5px; /* Space below input */
+}
+
+.btn:hover {
+  background: #0056b3;
+}
+
+/* ====== Save Messages ====== */
+.save-msg {
+  display: inline-block;
+  margin-top: 5px;
+  color: green;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+/* ====== Layout for buttons next to inputs ====== */
+.field > button {
+  align-self: flex-start; /* aligns button to left under input */
+}
+
+/* ====== Optional: different spacing for prefix & next number ====== */
+#prefixBox .field {
+  margin-bottom: 10px;
+}
+
+/* ====== Responsive ====== */
+@media (max-width: 500px) {
+  .settings-container {
+    padding: 10px;
+  }
+  .btn {
+    width: 100%;
+  }
+}

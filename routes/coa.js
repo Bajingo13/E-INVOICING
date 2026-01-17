@@ -124,14 +124,17 @@ router.put('/unarchive/:id', asyncHandler(async (req, res) => {
 router.delete('/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
   const conn = await getConn();
+
   try {
     const [result] = await conn.execute(
-      `UPDATE chart_of_accounts SET archived = 1 WHERE id = ?`,
+      `DELETE FROM chart_of_accounts WHERE id = ?`,
       [id]
     );
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Account not found' });
     }
+
     res.json({ success: true });
   } finally {
     conn.release();

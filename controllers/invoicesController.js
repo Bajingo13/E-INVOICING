@@ -48,11 +48,9 @@ async function createInvoice(req, res) {
   try {
     await conn.beginTransaction();
 
-    // Generate invoice number ONLY if not provided
-    let invoiceNo = data.invoice_no;
-    if (!invoiceNo) {
-      invoiceNo = await generateInvoiceNo(conn); // increments safely
-    }
+   // Use provided invoice_no if given (e.g., manual override), otherwise generate safely
+const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
+
 
     const invoiceMode = data.invoice_mode || 'standard';
     const invoiceCategory = data.invoice_category || 'service';
