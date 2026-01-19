@@ -799,3 +799,7 @@ if (invoiceDropdown && invoiceTypeInput && createInvoiceBtn) {
     });
   });
 }
+
+window.addRow = addRow;
+window.removeRow = removeRow;
+window.updateAmount = updateAmount;
