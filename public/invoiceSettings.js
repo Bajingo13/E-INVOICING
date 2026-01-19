@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-  // --- Elements ---
   const invoicePrefixInput = document.getElementById('invoicePrefix');
   const savePrefixBtn = document.getElementById('savePrefix');
   const currentInvoiceNoInput = document.getElementById('currentInvoiceNo');
@@ -12,10 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveLayoutBtn = document.getElementById('saveLayout');
   const layoutMsg = document.getElementById('layoutMsg');
 
-  // --- Load settings from backend ---
+  const BASE_URL = ''; // empty = same server (http://localhost:3000)
+
   async function loadInvoiceSettings() {
     try {
-      const res = await fetch('/api/invoice-settings', { credentials: 'include' });
+      const res = await fetch(`${BASE_URL}/api/invoice-settings`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to load settings');
 
       const data = await res.json();
@@ -38,10 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadInvoiceSettings();
 
-  // --- Save prefix anytime ---
   savePrefixBtn?.addEventListener('click', async () => {
     const prefix = invoicePrefixInput.value.trim();
-
     if (!prefix) {
       prefixMsg.textContent = 'Prefix cannot be empty';
       prefixMsg.style.color = 'red';
@@ -49,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const res = await fetch('/api/invoice-settings/prefix', {
+      const res = await fetch(`${BASE_URL}/api/invoice-settings/prefix`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -61,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
       prefixMsg.textContent = 'Prefix saved!';
       prefixMsg.style.color = 'green';
 
-      loadInvoiceSettings(); // refresh displayed data
+      loadInvoiceSettings();
 
     } catch (err) {
       console.error(err);
@@ -70,7 +68,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Override next invoice number (only once) ---
   saveNextInvoiceBtn?.addEventListener('click', async () => {
     const nextNumber = parseInt(nextInvoiceNoInput.value, 10);
 
@@ -81,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const res = await fetch('/api/invoice-settings/next-number', {
+      const res = await fetch(`${BASE_URL}/api/invoice-settings/next-number`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -94,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
       prefixMsg.style.color = 'green';
       nextInvoiceNoInput.value = '';
 
-      loadInvoiceSettings(); // refresh last_number
+      loadInvoiceSettings();
 
     } catch (err) {
       console.error(err);
@@ -103,12 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Save layout ---
   saveLayoutBtn?.addEventListener('click', async () => {
     const layout = invoiceLayoutSelect.value;
 
     try {
-      const res = await fetch('/api/invoice-settings/layout', {
+      const res = await fetch(`${BASE_URL}/api/invoice-settings/layout`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

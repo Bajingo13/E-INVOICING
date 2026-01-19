@@ -41,28 +41,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function loadUsers() {
-    if (!usersTable) return;
+  if (!usersTable) return;
 
-    try {
-      const res = await fetch(`${API_BASE}/api/users`, {
-        credentials: 'include'
-      });
+  try {
+    const res = await fetch(`${API_BASE}/api/users`, {
+      credentials: 'include'
+    });
 
-      if (!res.ok) throw new Error('Failed');
+    if (!res.ok) throw new Error('Failed');
 
-      const users = await res.json();
+    const users = await res.json();
 
-      usersTable.innerHTML = users.map(u => `
-        <tr>
-          <td>${u.username}</td>
-          <td>${u.role}</td>
-          <td>${u.created_at || ''}</td>
-        </tr>
-      `).join('');
-    } catch {
-      usersTable.innerHTML = `<tr><td colspan="3">Unable to load users.</td></tr>`;
-    }
+    usersTable.innerHTML = users.map(u => `
+      <tr>
+        <td>${u.username}</td>
+        <td>${u.role}</td>
+        <td>${u.created_at || ''}</td>
+        <td>
+          <button class="btn-edit" data-id="${u.id}" data-role="${u.role}" data-username="${u.username}">
+            Edit
+          </button>
+          <button class="btn-delete" data-id="${u.id}">
+            Delete
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch {
+    usersTable.innerHTML = `<tr><td colspan="4">Unable to load users.</td></tr>`;
   }
+}
+
 
   // show create modal
   document.getElementById('show-create-user')?.addEventListener('click', () => {
@@ -148,6 +157,72 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (btn) btn.disabled = false;
     }
   });
+
+// EDIT USER
+document.addEventListener('click', (e) => {
+  if (e.target.matches('.btn-edit')) {
+    const id = e.target.dataset.id;
+    const username = e.target.dataset.username;
+    const role = e.target.dataset.role;
+
+    document.getElementById('edit-user-id').value = id;
+    document.getElementById('edit-username').value = username;
+    document.getElementById('edit-role').value = role;
+
+    document.getElementById('edit-user-modal').classList.add('show');
+  }
+
+  // DELETE USER
+  if (e.target.matches('.btn-delete')) {
+    const id = e.target.dataset.id;
+
+    if (!confirm('Are you sure you want to delete this user?')) return;
+
+    fetch(`${API_BASE}/api/users/${id}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    })
+      .then(res => res.json())
+      .then(() => loadUsers())
+      .catch(() => alert('Failed to delete user'));
+  }
+});
+
+// cancel edit
+document.getElementById('cancel-edit-user')?.addEventListener('click', () => {
+  document.getElementById('edit-user-modal').classList.remove('show');
+});
+
+// submit edit
+document.getElementById('edit-user-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const id = document.getElementById('edit-user-id').value;
+  const role = document.getElementById('edit-role').value;
+  const password = document.getElementById('edit-password').value.trim();
+
+  const payload = { role };
+  if (password) payload.password = password;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${id}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    document.getElementById('edit-user-modal').classList.remove('show');
+    await loadUsers();
+    showSuccessToast(data.message || 'User updated!');
+  } catch {
+    alert('Failed to update user');
+  }
+});
+
 
   showLoginBtn?.addEventListener('click', async () => {
     createModal?.classList.remove('show');

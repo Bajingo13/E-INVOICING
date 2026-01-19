@@ -172,3 +172,73 @@ input, select {
 .toast.error {
   background: #f44336;
 }
+
+/* ---------------- Action Buttons ---------------- */
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.action-btn {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* View */
+.action-view {
+  background: #ecf0ff;
+  color: #4e54c8;
+}
+
+.action-view:hover {
+  background: #4e54c8;
+  color: #fff;
+}
+
+/* Edit */
+.action-edit {
+  background: #e3fcef;
+  color: #2e7d32;
+}
+
+.action-edit:hover {
+  background: #2e7d32;
+  color: #fff;
+}
+
+/* Approve */
+.action-approve {
+  background: #e8f4fd;
+  color: #0277bd;
+}
+
+.action-approve:hover {
+  background: #0277bd;
+  color: #fff;
+}
+
+/* Delete / Reject */
+.action-delete {
+  background: #fdecea;
+  color: #c62828;
+}
+
+.action-delete:hover {
+  background: #c62828;
+  color: #fff;
+}
+
+/* Disabled State */
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

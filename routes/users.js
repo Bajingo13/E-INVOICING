@@ -145,5 +145,71 @@ router.post(
     res.json({ message: 'Invitation sent!' });
   })
 );
+// =========================
+// PUT /api/users/:id  (Update role / password)
+// =========================
+router.put(
+  '/:id',
+  requireLogin,
+  requireRole('super'),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { role, password } = req.body;
+
+    if (!role && !password) {
+      return res.status(400).json({ error: 'Nothing to update' });
+    }
+
+    if (role && !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    const updates = [];
+    const values = [];
+
+    if (role) {
+      updates.push('role = ?');
+      values.push(role);
+    }
+
+    if (password) {
+      const hashed = await bcrypt.hash(password, 10);
+      updates.push('password = ?');
+      values.push(hashed);
+
+      // reset password expiry
+      const passwordExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      updates.push('password_expires_at = ?');
+      values.push(passwordExpiresAt);
+    }
+
+    values.push(id);
+
+    await pool.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    res.json({ message: 'User updated successfully!' });
+  })
+);
+
+
+// =========================
+// DELETE /api/users/:id
+// =========================
+router.delete(
+  '/:id',
+  requireLogin,
+  requireRole('super'),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+
+    res.json({ message: 'User deleted successfully!' });
+  })
+);
+
 
 module.exports = router;

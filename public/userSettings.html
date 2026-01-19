@@ -24,7 +24,7 @@
       <h2>Current Users</h2>
       <table id="users-table">
         <thead>
-          <tr><th>Username</th><th>Role</th><th>Created At</th></tr>
+          <tr><th>Username</th><th>Role</th><th>Created At</th><th>Actions</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -40,7 +40,7 @@
         <tbody></tbody>
       </table>
     </div>
-
+ 
     <!-- Create User Modal -->
     <div id="create-user-modal" class="modal">
       <div class="modal-content">
@@ -90,6 +90,36 @@
 
     <!-- Success Toast -->
     <div id="success-toast" class="toast">User created successfully!</div>
+
+<!-- Edit User Modal -->
+<div id="edit-user-modal" class="modal">
+  <div class="modal-content">
+    <h2>Edit User</h2>
+    <form id="edit-user-form">
+      <input type="hidden" id="edit-user-id">
+
+      <label>Username</label>
+      <input type="text" id="edit-username" disabled>
+
+      <label>Role</label>
+      <select id="edit-role">
+        <option value="normal">Normal</option>
+        <option value="submitter">Submitter</option>
+        <option value="approver">Approver</option>
+        <option value="super">Admin</option>
+      </select>
+
+      <label>New Password (optional)</label>
+      <input type="password" id="edit-password" placeholder="Leave blank if not changing">
+
+      <div class="modal-buttons">
+        <button type="button" id="cancel-edit-user">Cancel</button>
+        <button type="submit" id="edit-user-submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 
   </main>
   
