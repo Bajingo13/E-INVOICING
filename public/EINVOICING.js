@@ -286,8 +286,12 @@ function updateAmount(input) {
 
 function calculateTotals() {
   const rows = $$('tr', document.querySelector('#items-body'));
+
   let subtotal = 0;
-  let totalVat = 0;
+  let vatAmount = 0;
+
+  let vatExemptSales = 0;
+  let zeroRatedSales = 0;
 
   rows.forEach(row => {
     const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
@@ -296,12 +300,20 @@ function calculateTotals() {
     const accountId = row.querySelector('[name="account[]"]')?.value;
     const account = window._coaAccounts?.find(acc => acc.id == accountId);
 
-    const vatRate = account ? parseFloat(account.tax_rate || 0) / 100 : 0;
-    totalVat += amt * vatRate;
+    const taxType = account?.tax_type || 'vatable';
+    const taxRate = parseFloat(account?.tax_rate || 0) / 100;
+
+    if (taxType === 'exempt') vatExemptSales += amt;
+    if (taxType === 'zero') zeroRatedSales += amt;
+
+    if (taxType === 'vatable') {
+      vatAmount += amt * taxRate;
+    }
   });
 
   let discountRate = parseFloat($('#discount')?.value) || 0;
   if (discountRate > 1) discountRate /= 100;
+
   const discountAmount = subtotal * discountRate;
   const subtotalAfterDiscount = subtotal - discountAmount;
 
@@ -309,29 +321,36 @@ function calculateTotals() {
   const ewtAmount = subtotalAfterDiscount * (ewtRate / 100);
 
   const vatType = $('#vatType')?.value || 'inclusive';
-  let vatable = 0, vatAmount = totalVat, finalTotal = 0;
 
-  switch (vatType) {
-    case 'inclusive':
-      vatable = subtotal - totalVat;
-      finalTotal = subtotalAfterDiscount - ewtAmount;
-      break;
-    case 'exclusive':
-      vatable = subtotal;
-      finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
-      break;
-    default:
-      vatable = subtotal;
-      finalTotal = subtotalAfterDiscount - ewtAmount;
-      break;
+  let vatable = 0;
+  let finalTotal = 0;
+
+  if (vatType === 'inclusive') {
+    vatable = subtotal - vatAmount;
+    finalTotal = subtotalAfterDiscount - ewtAmount;
+  } else if (vatType === 'exclusive') {
+    vatable = subtotal;
+    finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
+  } else {
+    vatable = subtotal;
+    finalTotal = subtotalAfterDiscount - ewtAmount;
   }
 
   safeSetValue('#subtotal', subtotal.toFixed(2));
   safeSetValue('#vatableSales', vatable.toFixed(2));
   safeSetValue('#vatAmount', vatAmount.toFixed(2));
+
+  // NEW FIELDS
+  safeSetValue('#vatExemptSales', vatExemptSales.toFixed(2));
+  safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2));
+
   safeSetValue('#withholdingTaxAmount', ewtAmount.toFixed(2));
   safeSetValue('#totalPayable', finalTotal.toFixed(2));
 }
+
+  // VAT Type auto recalculation
+  const vatTypeEl = document.getElementById('vatType');
+  if (vatTypeEl) vatTypeEl.addEventListener('change', calculateTotals);
 
 const discountEl = document.getElementById('discount');
 if (discountEl) discountEl.addEventListener('input', calculateTotals);
@@ -368,7 +387,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!name) { msg.textContent = "Column name cannot be empty!"; return; }
 
     const colKey = name.toLowerCase().replace(/\s+/g, "_");
-    const th = document.createElement("th"); th.textContent = name;
+    const th = document.createElement("th");
+th.textContent = name;
+th.setAttribute("data-colkey", colKey);
     $("#items-table thead tr").appendChild(th);
 
     const rows = $$("#items-body tr");
@@ -383,21 +404,39 @@ window.addEventListener('DOMContentLoaded', () => {
     closeModal('addColumnModal');
   });
 
-  $('#removeColumnConfirm')?.addEventListener('click', () => {
-    const name = $('#removeColumnName').value.trim().toLowerCase();
-    const msg = $('#removeColumnMessage'); msg.textContent = '';
-    if (!name) { msg.textContent = "Column name cannot be empty!"; return; }
+ $('#removeColumnConfirm')?.addEventListener('click', () => {
+  const nameRaw = $('#removeColumnName').value.trim();
+  const msg = $('#removeColumnMessage');
+  msg.textContent = '';
 
-    const ths = Array.from($("#items-table thead tr th"));
-    const index = ths.findIndex(th => th.textContent.trim().toLowerCase() === name);
-    if (index === -1) { msg.textContent = `Column "${name}" not found!`; return; }
-    if (index <= 4) { msg.textContent = "Default columns cannot be removed."; return; }
+  if (!nameRaw) {
+    msg.textContent = "Column name cannot be empty!";
+    return;
+  }
 
-    ths[index].remove();
-    $$("#items-body tr").forEach(row => row.querySelectorAll("td")[index]?.remove());
-    adjustColumnWidths();
-    closeModal('removeColumnModal');
+  const nameKey = nameRaw.toLowerCase().replace(/\s+/g, "_");
+
+  const ths = Array.from($("#items-table thead tr th"));
+  const index = ths.findIndex(th => {
+    const key = th.getAttribute("data-colkey");
+    const text = (th.textContent || "").trim().toLowerCase().replace(/\s+/g, "_");
+    return (key === nameKey) || (text === nameKey);
   });
+
+  if (index === -1) {
+    msg.textContent = `Column "${nameRaw}" not found!`;
+    return;
+  }
+  if (index <= 4) {
+    msg.textContent = "Default columns cannot be removed.";
+    return;
+  }
+
+  ths[index].remove();
+  $$("#items-body tr").forEach(row => row.querySelectorAll("td")[index]?.remove());
+  adjustColumnWidths();
+  closeModal('removeColumnModal');
+});
 
   window.addEventListener('click', e => {
     ['addColumnModal','removeColumnModal'].forEach(id => {
@@ -473,12 +512,13 @@ async function saveToDatabase() {
     extra_columns: extraColumns,
 
     tax_summary: {
-      subtotal: parseFloat($('#subtotal')?.value) || 0,
-      vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
-      vat_amount: parseFloat($('#vatAmount')?.value) || 0,
-      withholding: parseFloat($('#withholdingTax')?.value) || 0,
-      total_payable: parseFloat($('#totalPayable')?.value) || 0
-    },
+  subtotal: parseFloat($('#subtotal')?.value) || 0,
+  vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
+  vat_amount: parseFloat($('#vatAmount')?.value) || 0,
+  withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
+  total_payable: parseFloat($('#totalPayable')?.value) || 0
+},
+
 
    footer: {
     atp_no: getFooterValue('footerAtpNo'),
@@ -802,4 +842,10 @@ if (invoiceDropdown && invoiceTypeInput && createInvoiceBtn) {
 
 window.addRow = addRow;
 window.removeRow = removeRow;
+window.showAddColumnModal = showAddColumnModal;
+window.showRemoveColumnModal = showRemoveColumnModal;
+window.closeModal = closeModal;
+window.previewLogo = previewLogo;
+window.removeLogo = removeLogo;
+window.saveToDatabase = saveToDatabase;
 window.updateAmount = updateAmount;

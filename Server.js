@@ -70,6 +70,21 @@ app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'i
 app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
 app.get('/invoice-list', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice-list.html')));
 
+
+// --------------------
+// App version endpoint
+// --------------------
+const pkg = require('./package.json');
+
+app.get('/api/version', (req, res) => {
+  res.json({
+    name: pkg.name,
+    version: pkg.version,
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+
 // --------------------
 // Global error handler
 // --------------------

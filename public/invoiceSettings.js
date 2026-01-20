@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const BASE_URL = ''; // empty = same server (http://localhost:3000)
 
+
+  // Load current invoice settings
   async function loadInvoiceSettings() {
     try {
       const res = await fetch(`${BASE_URL}/api/invoice-settings`, { credentials: 'include' });
@@ -38,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadInvoiceSettings();
 
+  // Save invoice prefix 
   savePrefixBtn?.addEventListener('click', async () => {
     const prefix = invoicePrefixInput.value.trim();
     if (!prefix) {
@@ -100,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Save invoice layout
   saveLayoutBtn?.addEventListener('click', async () => {
     const layout = invoiceLayoutSelect.value;
 
@@ -111,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ layout })
       });
 
-      if (!res.ok) throw new Error('Failed to save layout');
+      if (!res.ok) throw new Error('Failed to save layout'); 
 
       layoutMsg.textContent = 'Layout saved!';
       layoutMsg.style.color = 'green';
