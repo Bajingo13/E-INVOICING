@@ -23,6 +23,8 @@ const tableHeaders = document.querySelectorAll(".coa-table thead th");
 const searchInput = document.getElementById("searchInput");
 const searchBtn = document.getElementById("searchBtn");
 
+const importBtn = document.getElementById("importBtn");
+
 let accounts = [];
 let ewtList = [];
 let editingIndex = null;
@@ -396,6 +398,11 @@ selectAll?.addEventListener("change", () => {
   document.querySelectorAll(".row-check").forEach(cb => {
     cb.checked = selectAll.checked;
   });
+});
+
+//  -- Import Button ---
+importBtn?.addEventListener("click", () => {
+  window.location.href = "/coaImport.html";
 });
 
 // --- Initialization ---

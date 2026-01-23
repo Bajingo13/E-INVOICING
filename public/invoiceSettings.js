@@ -5,16 +5,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentInvoiceNoInput = document.getElementById('currentInvoiceNo');
   const nextInvoiceNoInput = document.getElementById('nextInvoiceNo');
   const saveNextInvoiceBtn = document.getElementById('saveNextInvoice');
+
   const prefixMsg = document.getElementById('prefixMsg');
+  const nextNumberMsg = document.getElementById('nextNumberMsg'); // <-- add this
 
   const invoiceLayoutSelect = document.getElementById('invoiceLayout');
   const saveLayoutBtn = document.getElementById('saveLayout');
   const layoutMsg = document.getElementById('layoutMsg');
 
-  const BASE_URL = ''; // empty = same server (http://localhost:3000)
+  const BASE_URL = '';
 
-
-  // Load current invoice settings
   async function loadInvoiceSettings() {
     try {
       const res = await fetch(`${BASE_URL}/api/invoice-settings`, { credentials: 'include' });
@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       prefixMsg.textContent = '';
       layoutMsg.textContent = '';
+      nextNumberMsg.textContent = ''; // <-- clear it too
 
     } catch (err) {
       console.error(err);
@@ -40,11 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadInvoiceSettings();
 
-  // Save invoice prefix 
   savePrefixBtn?.addEventListener('click', async () => {
     const prefix = invoicePrefixInput.value.trim();
-    if (!prefix) {
-      prefixMsg.textContent = 'Prefix cannot be empty';
+    if (prefix.length < 2) {
+      prefixMsg.textContent = 'Prefix must be at least 2 characters';
       prefixMsg.style.color = 'red';
       return;
     }
@@ -72,11 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   saveNextInvoiceBtn?.addEventListener('click', async () => {
-    const nextNumber = parseInt(nextInvoiceNoInput.value, 10);
+    const nextNumber = Number(nextInvoiceNoInput.value);
 
-    if (!nextNumber || nextNumber < 100000) {
-      prefixMsg.textContent = 'Next invoice number must be ≥ 6 digits';
-      prefixMsg.style.color = 'red';
+    if (!Number.isInteger(nextNumber) || nextNumber < 100000) {
+      nextNumberMsg.textContent = 'Next invoice number must be at least 6 digits';
+      nextNumberMsg.style.color = 'red';
       return;
     }
 
@@ -90,20 +90,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!res.ok) throw new Error('Failed to save next invoice number');
 
-      prefixMsg.textContent = 'Next invoice number updated!';
-      prefixMsg.style.color = 'green';
+      nextNumberMsg.textContent = 'Next invoice number updated!';
+      nextNumberMsg.style.color = 'green';
       nextInvoiceNoInput.value = '';
 
       loadInvoiceSettings();
 
     } catch (err) {
       console.error(err);
-      prefixMsg.textContent = 'Error saving next invoice number';
-      prefixMsg.style.color = 'red';
+      nextNumberMsg.textContent = 'Error saving next invoice number';
+      nextNumberMsg.style.color = 'red';
     }
   });
 
-  // Save invoice layout
   saveLayoutBtn?.addEventListener('click', async () => {
     const layout = invoiceLayoutSelect.value;
 

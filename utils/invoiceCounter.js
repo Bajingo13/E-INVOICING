@@ -1,32 +1,29 @@
 'use strict';
 const { getConn } = require('../db/pool');
 
-/**
- * Generate the next invoice number safely, avoiding duplicates.
- */
 async function generateInvoiceNo(conn) {
-  // Start a transaction if not already in one
   const [counterRows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1 FOR UPDATE');
   if (!counterRows.length) throw new Error('Invoice counter not initialized');
 
   const counter = counterRows[0];
 
-  // Find the highest existing invoice number in the invoices table
+  // Always strip non-digit prefix and get max numeric value
   const [maxRows] = await conn.execute(
-    `SELECT MAX(CAST(SUBSTRING(invoice_no, ?) AS UNSIGNED)) AS max_no FROM invoices`,
-    [counter.prefix.length]  // ✅ Correct for format: INV-000001
+    `SELECT MAX(CAST(REGEXP_REPLACE(invoice_no, '^[^0-9]+', '') AS UNSIGNED)) AS max_no
+     FROM invoices`
   );
 
-  const maxInvoice = maxRows[0].max_no || 0;
+  const maxInvoice = BigInt(maxRows[0].max_no || 0);
+  const lastNumber = BigInt(counter.last_number || 0);
 
-  // Take the higher of counter.last_number or maxInvoice
-  const nextNumber = Math.max(counter.last_number || 0, maxInvoice) + 1;
+  const nextNumber = (maxInvoice > lastNumber ? maxInvoice : lastNumber) + 1n;
 
-  // Pad to 6 digits minimum
   const invoiceNo = `${counter.prefix}${String(nextNumber).padStart(6, '0')}`;
 
-  // Update the counter atomically
-  await conn.execute('UPDATE invoice_counter SET last_number = ? WHERE id = ?', [nextNumber, counter.id]);
+  await conn.execute(
+    'UPDATE invoice_counter SET last_number = ? WHERE id = ?',
+    [nextNumber.toString(), counter.id]
+  );
 
   return invoiceNo;
 }

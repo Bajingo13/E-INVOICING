@@ -287,11 +287,12 @@ function updateAmount(input) {
 function calculateTotals() {
   const rows = $$('tr', document.querySelector('#items-body'));
 
-  let subtotal = 0;
+  let subtotal = 0;          
   let vatAmount = 0;
 
   let vatExemptSales = 0;
   let zeroRatedSales = 0;
+
 
   rows.forEach(row => {
     const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
@@ -320,40 +321,46 @@ function calculateTotals() {
   const ewtRate = parseFloat($('#withholdingTax')?.value) || 0;
   const ewtAmount = subtotalAfterDiscount * (ewtRate / 100);
 
+
   const vatType = $('#vatType')?.value || 'inclusive';
 
   let vatable = 0;
   let finalTotal = 0;
+  let displaySubtotal = 0;
 
   if (vatType === 'inclusive') {
+
     vatable = subtotal - vatAmount;
     finalTotal = subtotalAfterDiscount - ewtAmount;
+    displaySubtotal = subtotalAfterDiscount;
+
   } else if (vatType === 'exclusive') {
+ 
     vatable = subtotal;
     finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
+    displaySubtotal = subtotalAfterDiscount + vatAmount;
+
   } else {
     vatable = subtotal;
     finalTotal = subtotalAfterDiscount - ewtAmount;
+    displaySubtotal = subtotalAfterDiscount;
   }
 
-  safeSetValue('#subtotal', subtotal.toFixed(2));
+  safeSetValue('#subtotal', displaySubtotal.toFixed(2));
   safeSetValue('#vatableSales', vatable.toFixed(2));
   safeSetValue('#vatAmount', vatAmount.toFixed(2));
-
-  // NEW FIELDS
   safeSetValue('#vatExemptSales', vatExemptSales.toFixed(2));
   safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2));
-
   safeSetValue('#withholdingTaxAmount', ewtAmount.toFixed(2));
   safeSetValue('#totalPayable', finalTotal.toFixed(2));
 }
 
-  // VAT Type auto recalculation
-  const vatTypeEl = document.getElementById('vatType');
-  if (vatTypeEl) vatTypeEl.addEventListener('change', calculateTotals);
+const vatTypeEl = document.getElementById('vatType');
+if (vatTypeEl) vatTypeEl.addEventListener('change', calculateTotals);
 
 const discountEl = document.getElementById('discount');
 if (discountEl) discountEl.addEventListener('input', calculateTotals);
+
 
 /* -------------------- 9. ADJUST COLUMN WIDTHS -------------------- */
 function adjustColumnWidths() {
