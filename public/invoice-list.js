@@ -1,7 +1,31 @@
+import { requireAnyRole, getCurrentUser } from './authClient.js';
+
 console.log("✅ Invoice-list.js loaded");
 
-let showDraftsOnly = false; // toggle flag
+let showDraftsOnly = false;
 let currentSort = { key: 'invoice_no', order: 'desc' };
+
+let currentUser = null;
+let canCreateOrEdit = false;
+let canDelete = false;
+let canApprove = false;
+
+// ---------------- RBAC ----------------
+async function initRBAC() {
+  currentUser = await getCurrentUser();
+  if (!currentUser) {
+    alert("Please login.");
+    window.location.href = "/login.html";
+    return false;
+  }
+
+  // Permissions
+  canCreateOrEdit = ['super', 'approver', 'submitter'].includes(currentUser.role);
+  canDelete = ['super', 'approver', 'submitter'].includes(currentUser.role);
+  canApprove = currentUser.role === 'approver';
+
+  return true;
+}
 
 // ---------------- FETCH & POPULATE INVOICES ---------------
 async function fetchInvoices() {
@@ -10,14 +34,11 @@ async function fetchInvoices() {
     if (!res.ok) throw new Error("Failed to fetch invoices");
     let invoices = await res.json();
 
-    // Filter drafts if toggle is ON
     if (showDraftsOnly) {
       invoices = invoices.filter(inv => inv.status === 'draft');
     }
 
-    // Sort invoices using currentSort
     invoices = sortInvoices(invoices, currentSort.key, currentSort.order);
-
     populateTable(invoices);
   } catch (err) {
     console.error("❌ Error fetching invoices:", err);
@@ -28,7 +49,6 @@ async function fetchInvoices() {
 function sortInvoices(invoices, key, order) {
   return invoices.slice().sort((a, b) => {
     let valA, valB;
-
     switch (key) {
       case 'invoice_no':
         valA = a.invoice_no || '';
@@ -52,7 +72,8 @@ function sortInvoices(invoices, key, order) {
         valB = new Date(b.due_date || b.dueDate || 0);
         return order === 'asc' ? valA - valB : valB - valA;
 
-      default: return 0;
+      default:
+        return 0;
     }
   });
 }
@@ -77,6 +98,11 @@ function populateTable(invoices) {
     else if (inv.is_paid) statusText = 'Paid';
     else statusText = 'Pending';
 
+    // RBAC: show edit/delete based on role
+    const canEdit = canCreateOrEdit && inv.status === 'draft';
+    const canDeleteInvoice = canDelete && inv.status === 'draft';
+    const canApproveInvoice = canApprove && inv.status === 'submitted';
+
     tr.innerHTML = `
       <td><input type="checkbox" class="select-invoice" data-invoice="${inv.invoice_no}"></td>
       <td>${inv.invoice_no}</td>
@@ -87,8 +113,9 @@ function populateTable(invoices) {
       <td>${statusText}</td>
       <td>
         <button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>
-        <button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>
-        <button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>
+        ${canEdit ? `<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>` : ''}
+        ${canDeleteInvoice ? `<button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>` : ''}
+        ${canApproveInvoice ? `<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>` : ''}
       </td>
     `;
     tbody.appendChild(tr);
@@ -108,6 +135,7 @@ function editInvoice(invoiceNo) {
 
 async function deleteInvoice(invoiceNo) {
   if (!confirm(`Are you sure you want to delete invoice ${invoiceNo}?`)) return;
+
   try {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`, { method: 'DELETE' });
     const data = await res.json();
@@ -120,6 +148,24 @@ async function deleteInvoice(invoiceNo) {
   } catch (err) {
     console.error('❌ Delete error:', err);
     alert('Server error deleting invoice');
+  }
+}
+
+async function approveInvoice(invoiceNo) {
+  if (!confirm(`Approve invoice ${invoiceNo}?`)) return;
+
+  try {
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/approve`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      alert(`Invoice ${invoiceNo} approved!`);
+      fetchInvoices();
+    } else {
+      alert(data.error || 'Failed to approve invoice');
+    }
+  } catch (err) {
+    console.error('❌ Approve error:', err);
+    alert('Server error approving invoice');
   }
 }
 
@@ -184,4 +230,13 @@ document.querySelectorAll("#invoiceTable th.sortable").forEach(th => {
 });
 
 // ---------------- INITIAL LOAD ----------------
-window.addEventListener("DOMContentLoaded", fetchInvoices);
+window.addEventListener("DOMContentLoaded", async () => {
+  const ok = await initRBAC();
+  if (!ok) return;
+  fetchInvoices();
+});
+
+window.viewInvoice = viewInvoice;
+window.editInvoice = editInvoice;
+window.deleteInvoice = deleteInvoice;
+window.approveInvoice = approveInvoice;

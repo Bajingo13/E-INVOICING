@@ -5,6 +5,9 @@ const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 const { getConn, asyncHandler } = require('../helpers/db');
 
+const { PERMISSIONS } = require('../config/permissions');
+const { ROLE_PERMISSIONS } = require('../config/rolePermissions');
+
 const router = express.Router();
 
 const saltRounds = 10;
@@ -44,11 +47,6 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
     );
 
     if (!rows.length) {
-      await conn.execute(
-        `INSERT INTO login_history (user_id, username, success, ip_address)
-         VALUES (?, ?, ?, ?)`,
-        [null, username, 0, req.ip]
-      );
       return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
@@ -75,38 +73,30 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
         [attempts, status, locked_until, user.id]
       );
 
-      await conn.execute(
-        `INSERT INTO login_history (user_id, username, success, ip_address)
-         VALUES (?, ?, ?, ?)`,
-        [user.id, username, 0, req.ip]
-      );
-
       return res.status(401).json({ success: false, message: 'Invalid username or password' });
     }
 
     // success login
     await conn.execute(
-      `INSERT INTO login_history (user_id, username, success, ip_address)
-       VALUES (?, ?, ?, ?)`,
-      [user.id, username, 1, req.ip]
-    );
-
-    await conn.execute(
       "UPDATE users SET failed_login_attempts=0, status='active', locked_until=NULL WHERE id=?",
       [user.id]
     );
 
+    // create session
+    const userRole = user.role;
+
     req.session.user = {
       id: user.id,
       username: user.username,
-      role: user.role
+      role: userRole,
+      permissions: ROLE_PERMISSIONS[userRole] || []
     };
 
     return res.json({
       success: true,
       user: {
         username: user.username,
-        role: user.role
+        role: userRole
       }
     });
 
@@ -136,6 +126,9 @@ router.post('/logout', (req, res) => {
   });
 });
 
+// -------------------------------
+// CURRENT USER (needed by RBAC)
+// -------------------------------
 router.get('/me', (req, res) => {
   if (!req.session?.user) {
     return res.status(401).json({ success: false, message: 'Not logged in' });
@@ -146,6 +139,5 @@ router.get('/me', (req, res) => {
     user: req.session.user
   });
 });
-
 
 module.exports = router;

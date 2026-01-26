@@ -18,24 +18,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // hide menu items based on role
   if (role !== 'super') {
-    const sysBtn = document.querySelector('#SystemconfigBtn');
-    const reportsBtn = document.querySelector('#reportsBtn');
-    const accountingBtn = document.querySelector('#accountingBtn');
+  const sysBtn = document.querySelector('#SystemconfigBtn');
+  const reportsBtn = document.querySelector('#reportsBtn');
+  const accountingBtn = document.querySelector('#accountingBtn');
 
-    if (sysBtn) sysBtn.style.display = 'none';
-    if (reportsBtn) reportsBtn.style.display = 'none';
-    if (accountingBtn) accountingBtn.style.display = 'none';
-  }
+  if (sysBtn) sysBtn.style.display = 'none';
+  if (reportsBtn) reportsBtn.style.display = 'none';
+  if (accountingBtn) accountingBtn.style.display = 'none';
+}
 
-  if (role === 'normal') {
-    const createInvoiceBtn = document.querySelector('#createInvoiceBtn');
-    if (createInvoiceBtn) createInvoiceBtn.style.display = 'none';
-  }
+if (role === 'submitter') {
+  const reportsBtn = document.querySelector('#reportsBtn');
+  if (reportsBtn) reportsBtn.style.display = 'none';
+}
 
-  if (role === 'submitter') {
-    const reportsBtn = document.querySelector('#reportsBtn');
-    if (reportsBtn) reportsBtn.style.display = 'none';
-  }
 
   // add logout
   const logoutBtn = document.querySelector('.logout');

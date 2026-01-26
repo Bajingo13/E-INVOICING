@@ -1,3 +1,4 @@
+// authClient.js
 export async function getCurrentUser() {
   try {
     const res = await fetch('/auth/me', {
@@ -23,6 +24,7 @@ export async function requireSuper() {
 
   return true;
 }
+
 export async function requireAnyRole(roles = []) {
   const user = await getCurrentUser();
   if (!user || !roles.includes(user.role)) {

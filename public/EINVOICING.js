@@ -2,6 +2,21 @@ import { requireAnyRole } from './authClient.js'; // <-- ADD THIS
 
 'use strict';
 
+/* ===================== RBAC UI ===================== */
+window.addEventListener('DOMContentLoaded', async () => {xyaht
+  const res = await fetch('/auth/me', { credentials: 'include' });
+  if (!res.ok) return;
+
+  const { user } = await res.json();
+  if (!user) return;
+
+  if (user.role === 'submitter') {
+    // Hide dropdown approve menu
+    const approveDropdown = document.querySelector('.dropdown[data-dropdown]');
+    if (approveDropdown) approveDropdown.style.display = 'none';
+  }
+});
+
 /* -------------------- 0. DEBUG & DOM HELPERS -------------------- */
 const DBG = {
   log: (...args) => console.log('[E-INVOICING]', ...args),
@@ -20,7 +35,7 @@ function dateToYYYYMMDD(dateValue) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
   const d = new Date(dateValue);
   if (isNaN(d.getTime())) return "";
-  const year = d.getFullYear();
+  const year = d.getFullYear(); 
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
@@ -68,7 +83,7 @@ async function loadCompanyInfo() {
     }
   } catch (err) { DBG.warn('Failed to load company info:', err); }
 }
-  
+
 /* -------------------- 3. NEXT INVOICE NO -------------------- */
 async function loadNextInvoiceNo() {
   try {
@@ -133,7 +148,7 @@ async function loadInvoiceForEdit() {
     if (tbody) {
       tbody.innerHTML = "";
       (data.items || []).forEach(item => {
-        const row = document.createElement("tr");
+        const row = document.createElement('tr');
         row.innerHTML = `
           <td><input type="text" class="input-full" name="desc[]" value="${item.description || ""}"></td>
           <td><select name="account[]" class="input-full"></select></td>
@@ -164,7 +179,7 @@ async function loadInvoiceForEdit() {
       safeSetValue('#vatableSales', ts.vatable_sales || 0);
       safeSetValue('#vatAmount', ts.vat_amount || 0);
       safeSetValue('#withholdingTax', ts.withholding || ts.withholdingTax || 0);
-      safeSetValue('#totalPayable', ts.total_payable || ts.total || 0);
+      safeSetValue('#totalPayable', ts.total_payable || 0);
     }
 
     adjustColumnWidths();
@@ -208,7 +223,7 @@ function populateAccountSelect(selectEl, accounts) {
 function addRow() {
   const tbody = $("#items-body");
   if (!tbody) return;
-  const ths = $("#items-table thead tr").children; 
+  const ths = $("#items-table thead tr").children;
   const row = document.createElement("tr");
 
   row.innerHTML = Array.from(ths).map((th, i) => {
@@ -239,12 +254,13 @@ function removeRow() {
   adjustColumnWidths();
 }
 
+/* -------------------- 8. EWT OPTIONS -------------------- */
 async function loadEWTOptions() {
   const ewtSelect = document.getElementById('withholdingTax');
   if (!ewtSelect) return;
 
   try {
-    const res = await fetch('/api/ewt'); 
+    const res = await fetch('/api/ewt');
     if (!res.ok) throw new Error('Failed to fetch EWT');
     const data = await res.json();
 
@@ -258,18 +274,13 @@ async function loadEWTOptions() {
       ewtSelect.appendChild(opt);
     });
 
-    ewtSelect.addEventListener('change', () => {
-      calculateTotals();
-    });
-
+    ewtSelect.addEventListener('change', () => calculateTotals());
   } catch (err) {
     console.error('Failed to load EWT options:', err);
   }
 }
 
-window.addEventListener('DOMContentLoaded', loadEWTOptions);
-
-/* -------------------- 8. AMOUNT & TOTALS (PER-ACCOUNT TAX) -------------------- */
+/* -------------------- 9. AMOUNT & TOTALS (PER-ACCOUNT TAX) -------------------- */
 function updateAmount(input) {
   const row = input.closest("tr");
   if (!row) return;
@@ -287,12 +298,10 @@ function updateAmount(input) {
 function calculateTotals() {
   const rows = $$('tr', document.querySelector('#items-body'));
 
-  let subtotal = 0;          
+  let subtotal = 0;
   let vatAmount = 0;
-
   let vatExemptSales = 0;
   let zeroRatedSales = 0;
-
 
   rows.forEach(row => {
     const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
@@ -321,7 +330,6 @@ function calculateTotals() {
   const ewtRate = parseFloat($('#withholdingTax')?.value) || 0;
   const ewtAmount = subtotalAfterDiscount * (ewtRate / 100);
 
-
   const vatType = $('#vatType')?.value || 'inclusive';
 
   let vatable = 0;
@@ -329,17 +337,13 @@ function calculateTotals() {
   let displaySubtotal = 0;
 
   if (vatType === 'inclusive') {
-
     vatable = subtotal - vatAmount;
     finalTotal = subtotalAfterDiscount - ewtAmount;
     displaySubtotal = subtotalAfterDiscount;
-
   } else if (vatType === 'exclusive') {
- 
     vatable = subtotal;
     finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
     displaySubtotal = subtotalAfterDiscount + vatAmount;
-
   } else {
     vatable = subtotal;
     finalTotal = subtotalAfterDiscount - ewtAmount;
@@ -361,8 +365,7 @@ if (vatTypeEl) vatTypeEl.addEventListener('change', calculateTotals);
 const discountEl = document.getElementById('discount');
 if (discountEl) discountEl.addEventListener('input', calculateTotals);
 
-
-/* -------------------- 9. ADJUST COLUMN WIDTHS -------------------- */
+/* -------------------- 10. ADJUST COLUMN WIDTHS -------------------- */
 function adjustColumnWidths() {
   const table = $("#items-table"); if (!table) return;
   const ths = table.querySelectorAll("thead th");
@@ -371,7 +374,7 @@ function adjustColumnWidths() {
   $$("tbody tr", table).forEach(row => row.querySelectorAll("td").forEach(td => td.style.width = colWidth));
 }
 
-/* -------------------- 10. MODALS & EXTRA COLUMNS -------------------- */
+/* -------------------- 11. MODALS & EXTRA COLUMNS -------------------- */
 function openModal(id) { const m = document.getElementById(id); if (m) m.style.display = 'flex'; }
 function closeModal(id) { const m = document.getElementById(id); if (m) m.style.display = 'none'; }
 
@@ -395,8 +398,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const colKey = name.toLowerCase().replace(/\s+/g, "_");
     const th = document.createElement("th");
-th.textContent = name;
-th.setAttribute("data-colkey", colKey);
+    th.textContent = name;
+    th.setAttribute("data-colkey", colKey);
     $("#items-table thead tr").appendChild(th);
 
     const rows = $$("#items-body tr");
@@ -411,39 +414,39 @@ th.setAttribute("data-colkey", colKey);
     closeModal('addColumnModal');
   });
 
- $('#removeColumnConfirm')?.addEventListener('click', () => {
-  const nameRaw = $('#removeColumnName').value.trim();
-  const msg = $('#removeColumnMessage');
-  msg.textContent = '';
+  $('#removeColumnConfirm')?.addEventListener('click', () => {
+    const nameRaw = $('#removeColumnName').value.trim();
+    const msg = $('#removeColumnMessage');
+    msg.textContent = '';
 
-  if (!nameRaw) {
-    msg.textContent = "Column name cannot be empty!";
-    return;
-  }
+    if (!nameRaw) {
+      msg.textContent = "Column name cannot be empty!";
+      return;
+    }
 
-  const nameKey = nameRaw.toLowerCase().replace(/\s+/g, "_");
+    const nameKey = nameRaw.toLowerCase().replace(/\s+/g, "_");
 
-  const ths = Array.from($("#items-table thead tr th"));
-  const index = ths.findIndex(th => {
-    const key = th.getAttribute("data-colkey");
-    const text = (th.textContent || "").trim().toLowerCase().replace(/\s+/g, "_");
-    return (key === nameKey) || (text === nameKey);
+    const ths = Array.from($("#items-table thead tr th"));
+    const index = ths.findIndex(th => {
+      const key = th.getAttribute("data-colkey");
+      const text = (th.textContent || "").trim().toLowerCase().replace(/\s+/g, "_");
+      return (key === nameKey) || (text === nameKey);
+    });
+
+    if (index === -1) {
+      msg.textContent = `Column "${nameRaw}" not found!`;
+      return;
+    }
+    if (index <= 4) {
+      msg.textContent = "Default columns cannot be removed.";
+      return;
+    }
+
+    ths[index].remove();
+    $$("#items-body tr").forEach(row => row.querySelectorAll("td")[index]?.remove());
+    adjustColumnWidths();
+    closeModal('removeColumnModal');
   });
-
-  if (index === -1) {
-    msg.textContent = `Column "${nameRaw}" not found!`;
-    return;
-  }
-  if (index <= 4) {
-    msg.textContent = "Default columns cannot be removed.";
-    return;
-  }
-
-  ths[index].remove();
-  $$("#items-body tr").forEach(row => row.querySelectorAll("td")[index]?.remove());
-  adjustColumnWidths();
-  closeModal('removeColumnModal');
-});
 
   window.addEventListener('click', e => {
     ['addColumnModal','removeColumnModal'].forEach(id => {
@@ -453,7 +456,7 @@ th.setAttribute("data-colkey", colKey);
   });
 });
 
-/* -------------------- 11. LOGO -------------------- */
+/* -------------------- 12. LOGO -------------------- */
 function previewLogo(event) {
   const file = event?.target?.files?.[0];
   if (!file) return;
@@ -473,13 +476,12 @@ function removeLogo() {
   if (input) input.value = '';
 }
 
-// Footer helpers
 function getFooterValue(name) {
   const el = document.querySelector(`[name="${name}"]`);
   return el ? el.value : null;
 }
 
-/* -------------------- 12. SAVE INVOICE -------------------- */
+/* -------------------- 13. SAVE INVOICE -------------------- */
 async function saveToDatabase() {
   const billTo = getInputValue('billTo');
   const invoiceNo = getInputValue('invoiceNo');
@@ -517,24 +519,21 @@ async function saveToDatabase() {
     invoice_type: getInputValue('invoice_type'),
     items,
     extra_columns: extraColumns,
-
     tax_summary: {
-  subtotal: parseFloat($('#subtotal')?.value) || 0,
-  vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
-  vat_amount: parseFloat($('#vatAmount')?.value) || 0,
-  withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
-  total_payable: parseFloat($('#totalPayable')?.value) || 0
-},
-
-
-   footer: {
-    atp_no: getFooterValue('footerAtpNo'),
-    atp_date: getFooterValue('footerAtpDate'),
-    bir_permit_no: getFooterValue('footerBirPermit'),
-    bir_date: getFooterValue('footerBirDate'),
-    serial_nos: getFooterValue('footerSerialNos')
-  }
-};
+      subtotal: parseFloat($('#subtotal')?.value) || 0,
+      vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
+      vat_amount: parseFloat($('#vatAmount')?.value) || 0,
+      withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
+      total_payable: parseFloat($('#totalPayable')?.value) || 0
+    },
+    footer: {
+      atp_no: getFooterValue('footerAtpNo'),
+      atp_date: getFooterValue('footerAtpDate'),
+      bir_permit_no: getFooterValue('footerBirPermit'),
+      bir_date: getFooterValue('footerBirDate'),
+      serial_nos: getFooterValue('footerSerialNos')
+    }
+  };
 
   DBG.log('Saving invoice payload:', payload);
 
@@ -545,7 +544,7 @@ async function saveToDatabase() {
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) { 
+    if (!res.ok) {
       let errBody = null;
       try { errBody = await res.json(); } catch (e) {}
       const message = (errBody && (errBody.error || errBody.message)) || `${res.status} ${res.statusText}`;
@@ -556,21 +555,25 @@ async function saveToDatabase() {
 
     alert('Invoice saved successfully!');
     window.location.reload();
-  } catch (err) { DBG.error('saveToDatabase error:', err); alert('Failed to save invoice'); }
+  } catch (err) {
+    DBG.error('saveToDatabase error:', err);
+    alert('Failed to save invoice');
+  }
 }
 
-/* -------------------- 13. INIT -------------------- */
+/* -------------------- 14. INIT -------------------- */
 window.addEventListener('DOMContentLoaded', async () => {
 
   // ======= RBAC PROTECTION =======
-  const allowed = await requireAnyRole(['super', 'approver', 'submitter', 'normal']);
-  if (!allowed) return; // stop if not allowed
+  const allowed = await requireAnyRole(['super', 'approver', 'submitter']);
+  if (!allowed) return;
 
   await loadAccounts();
   await loadCompanyInfo();
   await loadNextInvoiceNo();
   setInvoiceTitleFromURL();
   await loadInvoiceForEdit();
+  await loadEWTOptions(); // <-- load EWT once
 
   // CONTACTS
   const billToInput = document.getElementById("billTo");
@@ -579,7 +582,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const tinInput = document.getElementById("tin");
   const addressInput = document.getElementById("address");
-  const termsInput = document.getElementById("terms"); // optional
+  const termsInput = document.getElementById("terms");
 
   let contacts = [];
 
@@ -635,7 +638,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   adjustColumnWidths();
 });
 
-/* -------------------- 14. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
+/* -------------------- 15. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
 document.addEventListener('DOMContentLoaded', () => {
   const saveCloseBtn = document.getElementById('saveCloseBtn');
 
@@ -699,13 +702,20 @@ async function handleSaveCloseAction(action) {
     window.location.href = '/Dashboard.html';
   } else if (action === 'submitApproval') {
     const invoiceNo = getInputValue('invoiceNo');
+
+    // IMPORTANT: submit only allowed for submitter
+    const user = await fetch('/auth/me', { credentials: 'include' }).then(r => r.json());
+    if (!user?.user?.role || user.user.role !== 'submitter') {
+      return alert('Only Submitter can submit for approval');
+    }
+
     try {
-      const res = await fetch(`/api/invoices/${invoiceNo}/approve`, { method: 'POST' });
-      if (!res.ok) throw new Error('Approval failed');
+      const res = await fetch(`/api/invoices/${invoiceNo}/submit`, { method: 'POST' });
+      if (!res.ok) throw new Error('Submit failed');
       alert('Invoice submitted for approval!');
       window.location.reload();
     } catch (err) {
-      console.error('Approval error:', err);
+      console.error('Submit error:', err);
       alert('Failed to submit for approval');
     }
   }

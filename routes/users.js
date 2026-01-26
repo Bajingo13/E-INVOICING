@@ -3,21 +3,39 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+
 const { pool, asyncHandler } = require('../db/pool');
 const { notifyAdminUserCreated } = require('../utils/mailer');
 
+const { requireLogin } = require('../middleware/roles');
+const { requirePermission } = require('../middleware/permissions');
+const { PERMISSIONS } = require('../config/permissions');
 
-const VALID_ROLES = ['super', 'approver', 'submitter', 'normal'];
+const VALID_ROLES = ['super', 'approver', 'submitter'];
 
-const { requireLogin, requireRole } = require('../middleware/roles');
+/* =========================
+   MAIL TRANSPORT
+========================= */
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: process.env.EMAIL_SECURE === 'true',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
-// =========================
-// GET /api/users
-// =========================
+/* =========================
+   GET /api/users
+   Super only
+========================= */
 router.get(
   '/',
   requireLogin,
-  requireRole('super'),   // ONLY SUPER CAN VIEW USERS
+  requirePermission(PERMISSIONS.USER_MANAGE),
   asyncHandler(async (req, res) => {
     const [rows] = await pool.query(`
       SELECT id, username, email, role, created_at
@@ -28,18 +46,19 @@ router.get(
   })
 );
 
-// =========================
-// POST /api/users
-// =========================
+/* =========================
+   POST /api/users
+   Create user
+========================= */
 router.post(
   '/',
   requireLogin,
-  requireRole('super'),   // ONLY SUPER CAN CREATE USERS
+  requirePermission(PERMISSIONS.USER_MANAGE),
   asyncHandler(async (req, res) => {
     const { username, password, role, email } = req.body;
 
-    if (!username || !password || !email) {
-      return res.status(400).json({ error: 'Username, password and email are required' });
+    if (!username || !password || !email || !role) {
+      return res.status(400).json({ error: 'All fields are required' });
     }
 
     if (!VALID_ROLES.includes(role)) {
@@ -51,7 +70,7 @@ router.post(
       [username, email]
     );
 
-    if (exists.length > 0) {
+    if (exists.length) {
       return res.status(400).json({ error: 'Username or email already exists' });
     }
 
@@ -59,7 +78,8 @@ router.post(
     const passwordExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     await pool.query(
-      'INSERT INTO users (username, password, email, role, password_expires_at) VALUES (?, ?, ?, ?, ?)',
+      `INSERT INTO users (username, password, email, role, password_expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
       [username, hashedPassword, email, role, passwordExpiresAt]
     );
 
@@ -71,87 +91,71 @@ router.post(
       createdBy: req.session.user.username
     });
 
-    res.json({ message: 'User created successfully!' });
+    res.json({ message: 'User created successfully' });
   })
 );
 
-const nodemailer = require('nodemailer');
-const crypto = require('crypto');
-
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,      // smtp.gmail.com or smtp.office365.com
-  port: process.env.EMAIL_PORT,      // 465 (Gmail) or 587 (Outlook)
-  secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-// POST /api/users/invite
+/* =========================
+   POST /api/users/invite
+========================= */
 router.post(
   '/invite',
   requireLogin,
-  requireRole('super'),
+  requirePermission(PERMISSIONS.USER_MANAGE),
   asyncHandler(async (req, res) => {
     const { username, email, role } = req.body;
 
-    if (!email) {
-      return res.status(400).json({ error: 'Email is required' });
-    }
-
-    if (!username) {
-      return res.status(400).json({ error: 'Username is required' });
+    if (!username || !email || !role) {
+      return res.status(400).json({ error: 'All fields are required' });
     }
 
     if (!VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    // check if email exists
     const [exists] = await pool.query(
       'SELECT id FROM users WHERE email = ? OR username = ?',
       [email, username]
     );
 
-    if (exists.length > 0) {
-      return res.status(400).json({ error: 'Email or username already exists' });
+    if (exists.length) {
+      return res.status(400).json({ error: 'Username or email already exists' });
     }
 
-    // create token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // save invitation
     await pool.query(
-      'INSERT INTO invitations (email, username, role, token, expires_at) VALUES (?, ?, ?, ?, ?)',
+      `INSERT INTO invitations (email, username, role, token, expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
       [email, username, role, token, expiresAt]
     );
 
-    // send invite email
     await transporter.sendMail({
       from: `"User Management System" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Invitation to join',
       html: `
         <h2>You have been invited</h2>
-        <p>Click this link to set your password and activate your account:</p>
+        <p>Click below to activate your account:</p>
         <a href="${process.env.APP_URL}/invite.html?token=${token}">
           Accept Invitation
         </a>
       `
     });
 
-    res.json({ message: 'Invitation sent!' });
+    res.json({ message: 'Invitation sent' });
   })
 );
-// =========================
-// PUT /api/users/:id  (Update role / password)
-// =========================
+
+/* =========================
+   PUT /api/users/:id
+   Update role / password
+========================= */
 router.put(
   '/:id',
   requireLogin,
-  requireRole('super'),
+  requirePermission(PERMISSIONS.USER_MANAGE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { role, password } = req.body;
@@ -160,14 +164,28 @@ router.put(
       return res.status(400).json({ error: 'Nothing to update' });
     }
 
-    if (role && !VALID_ROLES.includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
+    // 🚫 prevent self-downgrade
+    if (role && req.session.user.id === Number(id) && role !== 'super') {
+      return res.status(400).json({ error: 'You cannot downgrade your own account' });
+    }
+
+    // 🚫 prevent removing last super
+    if (role && role !== 'super') {
+      const [[count]] = await pool.query(
+        'SELECT COUNT(*) AS total FROM users WHERE role = "super"'
+      );
+      if (count.total <= 1) {
+        return res.status(400).json({ error: 'At least one Super user must exist' });
+      }
     }
 
     const updates = [];
     const values = [];
 
     if (role) {
+      if (!VALID_ROLES.includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
       updates.push('role = ?');
       values.push(role);
     }
@@ -177,10 +195,8 @@ router.put(
       updates.push('password = ?');
       values.push(hashed);
 
-      // reset password expiry
-      const passwordExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       updates.push('password_expires_at = ?');
-      values.push(passwordExpiresAt);
+      values.push(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
     }
 
     values.push(id);
@@ -190,26 +206,47 @@ router.put(
       values
     );
 
-    res.json({ message: 'User updated successfully!' });
+    res.json({ message: 'User updated successfully' });
   })
 );
 
-
-// =========================
-// DELETE /api/users/:id
-// =========================
+/* =========================
+   DELETE /api/users/:id
+========================= */
 router.delete(
   '/:id',
   requireLogin,
-  requireRole('super'),
+  requirePermission(PERMISSIONS.USER_MANAGE),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
 
-    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    // 🚫 prevent self-delete
+    if (req.session.user.id === Number(id)) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
 
-    res.json({ message: 'User deleted successfully!' });
+    const [[user]] = await pool.query(
+      'SELECT role FROM users WHERE id = ?',
+      [id]
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // 🚫 prevent deleting last super
+    if (user.role === 'super') {
+      const [[count]] = await pool.query(
+        'SELECT COUNT(*) AS total FROM users WHERE role = "super"'
+      );
+      if (count.total <= 1) {
+        return res.status(400).json({ error: 'Cannot delete the last Super user' });
+      }
+    }
+
+    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ message: 'User deleted successfully' });
   })
 );
-
 
 module.exports = router;

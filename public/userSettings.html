@@ -7,7 +7,6 @@
 </head>
 <body>
 
-  <!-- Header / Navbar -->
   <header>
     <h1>User Settings</h1>
     <nav>
@@ -19,7 +18,6 @@
 
   <main>
 
-    <!-- Current Users Section -->
     <div id="users-section">
       <h2>Current Users</h2>
       <table id="users-table">
@@ -30,7 +28,6 @@
       </table>
     </div>
 
-    <!-- Login History Section -->
     <div id="login-history-container" style="display:none;">
       <h2>Login History</h2>
       <table id="login-history-table">
@@ -40,8 +37,7 @@
         <tbody></tbody>
       </table>
     </div>
- 
-    <!-- Create User Modal -->
+
     <div id="create-user-modal" class="modal">
       <div class="modal-content">
         <h2>Create User</h2>
@@ -55,17 +51,15 @@
           <span class="error" id="password-error"></span>
 
           <label>Email</label>
-<input type="email" id="new-email" placeholder="Enter email" required>
-<span class="error" id="email-error"></span>
+          <input type="email" id="new-email" placeholder="Enter email" required>
+          <span class="error" id="email-error"></span>
 
           <label>Role</label>
           <select id="new-role">
-  <option value="normal">Normal</option>
-  <option value="submitter">Submitter</option>
-  <option value="approver">Approver</option>
-  <option value="super">Admin</option>
-</select>
-
+            <option value="submitter">Submitter</option>
+            <option value="approver">Approver</option>
+            <option value="super">Admin</option>
+          </select>
 
           <div class="modal-buttons">
             <button type="button" id="cancel-create-user">Cancel</button>
@@ -76,7 +70,6 @@
       </div>
     </div>
 
-    <!-- Confirmation Modal -->
     <div id="confirm-create-modal" class="modal">
       <div class="modal-content">
         <h3>Confirm User Creation</h3>
@@ -88,46 +81,38 @@
       </div>
     </div>
 
-    <!-- Success Toast -->
     <div id="success-toast" class="toast">User created successfully!</div>
 
-<!-- Edit User Modal -->
-<div id="edit-user-modal" class="modal">
-  <div class="modal-content">
-    <h2>Edit User</h2>
-    <form id="edit-user-form">
-      <input type="hidden" id="edit-user-id">
+    <div id="edit-user-modal" class="modal">
+      <div class="modal-content">
+        <h2>Edit User</h2>
+        <form id="edit-user-form">
+          <input type="hidden" id="edit-user-id">
 
-      <label>Username</label>
-      <input type="text" id="edit-username" disabled>
+          <label>Username</label>
+          <input type="text" id="edit-username" disabled>
 
-      <label>Role</label>
-      <select id="edit-role">
-        <option value="normal">Normal</option>
-        <option value="submitter">Submitter</option>
-        <option value="approver">Approver</option>
-        <option value="super">Admin</option>
-      </select>
+          <label>Role</label>
+          <select id="edit-role">
+            <option value="normal">Normal</option>
+            <option value="submitter">Submitter</option>
+            <option value="approver">Approver</option>
+            <option value="super">Admin</option>
+          </select>
 
-      <label>New Password (optional)</label>
-      <input type="password" id="edit-password" placeholder="Leave blank if not changing">
+          <label>New Password (optional)</label>
+          <input type="password" id="edit-password" placeholder="Leave blank if not changing">
 
-      <div class="modal-buttons">
-        <button type="button" id="cancel-edit-user">Cancel</button>
-        <button type="submit" id="edit-user-submit">Save</button>
+          <div class="modal-buttons">
+            <button type="button" id="cancel-edit-user">Cancel</button>
+            <button type="submit" id="edit-user-submit">Save</button>
+          </div>
+        </form>
       </div>
-    </form>
-  </div>
-</div>
-
+    </div>
 
   </main>
-  
-<script type="module">
-  import { requireRole } from '/js/rbac.js';
-  requireRole(['super']);
-</script>
 
-  <script type="module" src="userSettings.js"></script>
+  <script type="module" src="./userSettings.js"></script>
 </body>
 </html>
