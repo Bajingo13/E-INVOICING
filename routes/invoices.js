@@ -244,14 +244,11 @@ router.delete(
       });
     }
 
-    await pool.query(
-      'DELETE FROM invoices WHERE invoice_no = ?',
-      [invoice.invoice_no]
-    );
-
-    res.json({ message: 'Invoice deleted successfully' });
+    // This will delete invoice + related tables
+    return invoicesCtrl.deleteInvoice(req, res);
   })
 );
+
 
 /* =========================
    NEXT INVOICE NUMBER
