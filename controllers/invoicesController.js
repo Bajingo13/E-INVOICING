@@ -74,8 +74,8 @@ const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
     const [invoiceResult] = await conn.execute(
       `INSERT INTO invoices
         (invoice_no, invoice_mode, invoice_category, invoice_type, bill_to, address, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
-         recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceNo,
         invoiceMode,
@@ -94,7 +94,8 @@ const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
         data.recurrence_start_date || null,
         data.recurrence_end_date || null,
         data.recurrence_type ? 'active' : null,
-        data.status || 'draft'
+        data.status || 'draft',
+        req.session.user.id
       ]
     );
 

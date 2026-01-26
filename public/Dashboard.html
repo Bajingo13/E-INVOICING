@@ -77,6 +77,19 @@
     <a href="/EWTLib.html" class="dropdown-item">EWT Library</a>
   </div>
 </div>
+<div class="dropdown notifications-dropdown">
+  <button class="btn dropdown-toggle" id="notifBtn">
+    <i class="ri-notification-3-line"></i>
+    <span id="notifBadge" class="notif-badge">0</span>
+  </button>
+
+  <div class="dropdown-menu" id="notifDropdown">
+    <div id="notifList">
+      <!-- EMPTY STATE WILL BE RENDERED HERE -->
+    </div>
+  </div>
+</div>
+
 
         <!-- Profile Dropdown -->
         <div class="dropdown profile-dropdown">
@@ -91,6 +104,7 @@
         </div>
       </div>
     </nav>
+    
     
     <!-- Recurring Modal -->
     <div id="recurringModal" class="modal">

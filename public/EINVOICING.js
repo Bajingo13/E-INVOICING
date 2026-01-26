@@ -2,18 +2,77 @@ import { requireAnyRole } from './authClient.js'; // <-- ADD THIS
 
 'use strict';
 
-/* ===================== RBAC UI ===================== */
-window.addEventListener('DOMContentLoaded', async () => {xyaht
-  const res = await fetch('/auth/me', { credentials: 'include' });
-  if (!res.ok) return;
+// -------------------- NOTIFICATIONS --------------------
+let notifications = [];
 
-  const { user } = await res.json();
-  if (!user) return;
+// Fetch notifications and update badge
+async function loadNotifications() {
+  try {
+    const res = await fetch('/api/notifications', { credentials: 'include' });
+    if (!res.ok) return [];
 
-  if (user.role === 'submitter') {
-    // Hide dropdown approve menu
-    const approveDropdown = document.querySelector('.dropdown[data-dropdown]');
-    if (approveDropdown) approveDropdown.style.display = 'none';
+    const data = await res.json();
+    notifications = data || [];
+
+    const badge = document.getElementById('notifBadge');
+    if (!badge) return;
+
+    const unreadCount = notifications.filter(n => !n.is_read).length;
+
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    return notifications;
+  } catch (err) {
+    console.error('Failed to load notifications:', err);
+    return [];
+  }
+}
+
+/* ===================== RBAC APPROVAL UI (FIXED) ===================== */
+window.addEventListener('DOMContentLoaded', async () => {
+
+  const approveDropdown = document.querySelector('.dropdown[data-dropdown]');
+  if (!approveDropdown) return;
+
+  try {
+    const meRes = await fetch('/auth/me', { credentials: 'include' });
+    if (!meRes.ok) return approveDropdown.remove();
+
+    const { user } = await meRes.json();
+    if (!user) return approveDropdown.remove();
+
+    // get invoice context
+    const params = new URLSearchParams(window.location.search);
+    const invoiceNo = params.get('invoice_no');
+
+    if (!invoiceNo) {
+      // creating new invoice → never show approve
+      return approveDropdown.remove();
+    }
+
+    const invRes = await fetch(`/api/invoices/${invoiceNo}`);
+    if (!invRes.ok) return approveDropdown.remove();
+
+    const invoice = await invRes.json();
+
+    // IMPORTANT FIX: permissions are lowercase
+    const canApprove =
+      user.permissions?.includes('invoice_approve') &&
+      invoice.status === 'submitted' &&
+      invoice.created_by !== user.id;
+
+    if (!canApprove) {
+      approveDropdown.remove(); // 🔥 remove from DOM completely
+    }
+
+  } catch (err) {
+    console.error('RBAC approve UI error:', err);
+    approveDropdown.remove();
   }
 });
 
