@@ -96,4 +96,8 @@ app.use((err, req, res, next) => {
 // --------------------
 // Start
 // --------------------
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+console.log("PORT env:", process.env.PORT);
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
