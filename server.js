@@ -19,7 +19,7 @@ const loginHistoryRoutes = require('./routes/loginHistory');
 const invoiceSettingsRoutes = require('./routes/invoiceSettings');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // --------------------
 // Middleware
