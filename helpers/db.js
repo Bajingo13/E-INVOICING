@@ -1,7 +1,9 @@
+'use strict';
+
 const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
-  uri: process.env.DATABASE_URL,
+  uri: process.env.MYSQL_URL,   // <-- use this
   ssl: {
     rejectUnauthorized: false
   },
@@ -10,4 +12,11 @@ const pool = mysql.createPool({
   connectTimeout: 15000
 });
 
-module.exports = { pool };
+async function getConn() {
+  return await pool.getConnection();
+}
+
+module.exports = {
+  pool,
+  getConn
+};
