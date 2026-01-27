@@ -1,7 +1,6 @@
 // routes/contacts.js
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../helpers/db');
 const { getConn } = require('../helpers/db');
 const asyncHandler = require('../middleware/asynchandler');
 

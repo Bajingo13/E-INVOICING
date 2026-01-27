@@ -53,7 +53,8 @@ function clearForm() {
 // --- LOAD CONTACTS FROM DB ---
 async function loadContacts() {
   try {
-    const res = await fetch('http://localhost:3000/api/contacts');
+    const res = await fetch('/api/contacts')
+
     contacts = await res.json();
     refreshTable();
   } catch(err) {
@@ -108,7 +109,7 @@ deleteBtn.addEventListener("click", async () => {
   if (!confirm("Delete selected contact?")) return;
 
   try {
-    await fetch(`http://localhost:3000/api/contacts/${id}`, { method: 'DELETE' });
+    await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
     contacts.splice(idx, 1);
     refreshTable();
     clearForm();
@@ -139,7 +140,7 @@ saveBtn.addEventListener("click", async (e) => {
 
   try {
     if (editIndex === null) {
-      const res = await fetch('http://localhost:3000/api/contacts', {
+      const res = await fetch('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(obj)
@@ -149,7 +150,7 @@ saveBtn.addEventListener("click", async (e) => {
       contacts.push(obj);
     } else {
       const id = contacts[editIndex].id;
-      await fetch(`http://localhost:3000/api/contacts/${id}`, {
+      await fetch(`/api/contacts/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(obj)
