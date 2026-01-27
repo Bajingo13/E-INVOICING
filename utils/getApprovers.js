@@ -1,6 +1,7 @@
 'use strict';
 
-const { pool } = require('../db/pool');
+const { pool } = require('../helpers/db');
+
 
 async function getApprovers() {
   const [rows] = await pool.query(`

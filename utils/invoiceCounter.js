@@ -1,5 +1,5 @@
 'use strict';
-const { getConn } = require('../db/pool');
+const { pool } = require('../helpers/db');
 
 async function generateInvoiceNo(conn) {
   const [counterRows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1 FOR UPDATE');
