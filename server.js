@@ -23,6 +23,8 @@ const invoiceSettingsRoutes = require('./routes/invoiceSettings');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.set('trust proxy', 1);
 // --------------------
 // Middleware
@@ -30,7 +32,7 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
-app.use(express.static(path.join(__dirname, 'public')));
+
 
 // --------------------
 // Session (must be before routes)
