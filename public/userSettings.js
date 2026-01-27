@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.getElementById('back-dashboard')?.addEventListener('click', () => {
-    window.location.href = '/dashboard.html';
+    window.location.href = '/Dashboard.html';
   });
 
   loadUsers();
