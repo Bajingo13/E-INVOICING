@@ -1,4 +1,6 @@
 // server.js - Entry point (clean, small)
+console.log("DATABASE_URL:", process.env.DATABASE_URL?.slice(0, 20) + "...");
+
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
