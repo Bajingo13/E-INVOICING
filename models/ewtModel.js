@@ -1,6 +1,7 @@
 'use strict';
 
-const { getConn } = require('../db/pool');
+const { pool } = require('../helpers/db');
+const { getConn } = require('../helpers/db');
 
 const EWT = {
   getAll: async () => {
