@@ -1,13 +1,13 @@
 'use strict';
-const { pool } = require('../helpers/db');
 
 async function generateInvoiceNo(conn) {
-  const [counterRows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1 FOR UPDATE');
+  const [counterRows] = await conn.execute(
+    'SELECT * FROM invoice_counter LIMIT 1 FOR UPDATE'
+  );
   if (!counterRows.length) throw new Error('Invoice counter not initialized');
 
   const counter = counterRows[0];
 
-  // Always strip non-digit prefix and get max numeric value
   const [maxRows] = await conn.execute(
     `SELECT MAX(CAST(REGEXP_REPLACE(invoice_no, '^[^0-9]+', '') AS UNSIGNED)) AS max_no
      FROM invoices`

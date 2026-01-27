@@ -1,6 +1,5 @@
 'use strict';
 
-const { pool } = require('../helpers/db');
 const { getConn } = require('../helpers/db');
 
 const EWT = {
