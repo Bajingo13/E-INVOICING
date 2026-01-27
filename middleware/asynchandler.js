@@ -1,4 +1,7 @@
-// middleware/asyncHandler.js
-module.exports = fn => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
+'use strict';
+
+module.exports = function asyncHandler(fn) {
+  return function (req, res, next) {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
 };

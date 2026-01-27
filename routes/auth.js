@@ -3,7 +3,8 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
-const { getConn, asyncHandler } = require('../helpers/db');
+const { getConn } = require('../helpers/db');
+const asyncHandler = require('../middleware/asynchandler');
 
 const { PERMISSIONS } = require('../config/permissions');
 const { ROLE_PERMISSIONS } = require('../config/rolePermissions');
