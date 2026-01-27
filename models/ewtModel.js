@@ -11,7 +11,7 @@ const EWT = {
       );
       return rows;
     } finally {
-      conn.release();
+      conn.release(); 
     }
   },
 
