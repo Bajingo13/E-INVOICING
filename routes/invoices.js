@@ -4,7 +4,7 @@ const express = require('express');
 const router = express.Router();
 
 const asyncHandler = require('../middleware/asynchandler');
-const { pool } = require('../db/pool');
+const { pool } = require('../helpers/db');
 
 const invoicesCtrl = require('../controllers/invoicesController');
 

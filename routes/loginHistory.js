@@ -3,7 +3,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { pool, asyncHandler } = require('../db/pool');
+const { pool } = require('../helpers/db');
+const asyncHandler = require('../middleware/asynchandler');
 
 // GET /api/login-history
 router.get(

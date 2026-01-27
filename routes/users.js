@@ -6,7 +6,8 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
-const { pool, asyncHandler } = require('../db/pool');
+const { pool } = require('../helpers/db');
+const asyncHandler = require('../middleware/asynchandler');
 const { notifyAdminUserCreated } = require('../utils/mailer');
 
 const { requireLogin } = require('../middleware/roles');

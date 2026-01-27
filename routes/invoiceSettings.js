@@ -2,7 +2,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { getConn } = require('../db/pool');
+const { pool } = require('../helpers/db');
+const { getConn } = require('../helpers/db');
 
 const { requireLogin } = require('../middleware/roles');
 const { requirePermission } = require('../middleware/permissions');

@@ -3,7 +3,7 @@
 const mysql = require('mysql2/promise');
 
 const pool = mysql.createPool({
-  uri: process.env.DATABASE_URL,
+  uri: process.env.MYSQL_URL,   // <-- change this
   ssl: { rejectUnauthorized: false },
   waitForConnections: true,
   connectionLimit: 10,

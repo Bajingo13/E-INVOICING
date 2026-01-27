@@ -1,5 +1,6 @@
 // controllers/companyController.js
-const { getConn } = require('../db/pool');
+const { pool } = require('../helpers/db');
+const { getConn } = require('../helpers/db');
 const fs = require('fs');
 const path = require('path');
 

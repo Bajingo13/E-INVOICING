@@ -1,7 +1,9 @@
 // routes/contacts.js
 const express = require('express');
 const router = express.Router();
-const { getConn, asyncHandler } = require('../db/pool'); // ✅ import helpers
+const { pool } = require('../helpers/db');
+const { getConn } = require('../helpers/db');
+const asyncHandler = require('../middleware/asynchandler');
 
 // ----------------- GET all contacts -----------------
 router.get('/', asyncHandler(async (req, res) => {
