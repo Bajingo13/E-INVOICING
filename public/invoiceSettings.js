@@ -15,6 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const BASE_URL = '';
 
+  function padInvoiceNumber(num) {
+    return String(num).padStart(6, '0');
+  }
+
   async function loadInvoiceSettings() {
     try {
       const res = await fetch(`${BASE_URL}/api/invoice-settings`, { credentials: 'include' });
@@ -23,7 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
 
       invoicePrefixInput.value = data.prefix || 'INV-';
-      currentInvoiceNoInput.value = data.last_number || 0;
+
+      // ===== FIXED HERE =====
+      currentInvoiceNoInput.value = padInvoiceNumber(data.last_number || 0);
+      nextInvoiceNoInput.value = padInvoiceNumber((data.last_number || 0) + 1);
+
       invoiceLayoutSelect.value = data.layout || 'standard';
 
       prefixMsg.textContent = '';
