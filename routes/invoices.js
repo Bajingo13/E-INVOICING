@@ -14,29 +14,23 @@ const { PERMISSIONS } = require('../config/permissions');
 
 const { getApprovers } = require('../utils/getApprovers');
 
-/* =========================
-   HELPERS
-========================= */
+// ---------------- HELPERS ----------------
 async function loadInvoice(invoiceNo) {
   const [[invoice]] = await pool.query(
-    'SELECT invoice_no, status, created_by FROM invoices WHERE invoice_no = ?',
+    'SELECT * FROM invoices WHERE invoice_no = ?',
     [invoiceNo]
   );
   return invoice;
 }
 
-/* =========================
-   GET COMPANY INFO
-========================= */
+// ---------------- GET COMPANY INFO ----------------
 router.get(
   '/get-company-info',
   requireLogin,
   asyncHandler(invoicesCtrl.getCompanyInfo)
 );
 
-/* =========================
-   NOTIFICATIONS
-========================= */
+// ---------------- NOTIFICATIONS ----------------
 router.get(
   '/notifications',
   requireLogin,
@@ -47,7 +41,6 @@ router.get(
        ORDER BY created_at DESC`,
       [req.session.user.id]
     );
-
     res.json(rows);
   })
 );
@@ -62,14 +55,11 @@ router.post(
        WHERE id = ? AND user_id = ?`,
       [req.params.id, req.session.user.id]
     );
-
     res.sendStatus(204);
   })
 );
 
-/* =========================
-   CREATE INVOICE (DRAFT)
-========================= */
+// ---------------- CREATE INVOICE (DRAFT) ----------------
 router.post(
   '/invoices',
   requireLogin,
@@ -77,136 +67,123 @@ router.post(
   asyncHandler(invoicesCtrl.createInvoice)
 );
 
-/* =========================
-   UPDATE INVOICE (DRAFT ONLY)
-========================= */
+// ---------------- UPDATE INVOICE (DRAFT ONLY) ----------------
 router.put(
   '/invoices/:invoiceNo',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_CREATE),
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (invoice.status !== 'draft') return res.status(400).json({ error: 'Only draft invoices can be edited' });
 
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
-
-    if (invoice.status !== 'draft') {
-      return res.status(400).json({
-        error: 'Only draft invoices can be edited'
-      });
+    // Only creator or admin can edit
+    if (invoice.created_by !== req.session.user.id && !['super','admin'].includes(req.session.user.role)) {
+      return res.status(403).json({ error: 'You cannot edit this invoice' });
     }
 
     return invoicesCtrl.updateInvoice(req, res);
   })
 );
 
-/* =========================
-   SUBMIT INVOICE (SUBMITTER)
-======================== */
+// ---------------- SUBMIT INVOICE → PENDING ----------------
 router.post(
   '/invoices/:invoiceNo/submit',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_SUBMIT),
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (invoice.status !== 'draft') return res.status(400).json({ error: 'Only draft invoices can be submitted' });
 
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
+    // Only creator or admin can submit
+    if (invoice.created_by !== req.session.user.id && !['super','admin'].includes(req.session.user.role)) {
+      return res.status(403).json({ error: 'You cannot submit this invoice' });
     }
 
-    if (invoice.status !== 'draft') {
-      return res.status(400).json({ error: 'Only draft invoices can be submitted' });
-    }
+    await pool.query('UPDATE invoices SET status = "pending" WHERE invoice_no = ?', [invoice.invoice_no]);
 
-    await pool.query(
-      'UPDATE invoices SET status = "submitted" WHERE invoice_no = ?',
-      [invoice.invoice_no]
-    );
-
-    // ---- NOTIFICATIONS ----
+    // Notify approvers + admins
     const approvers = await getApprovers();
-
-    // Add Admins + Super Admin
-    const [admins] = await pool.query(
-      `SELECT id FROM users WHERE role IN ('admin', 'super_admin', 'super')`
-    );
-
-    const recipients = [
-      ...approvers,
-      ...admins
-    ];
-
-    // avoid duplicates
+    const [admins] = await pool.query(`SELECT id FROM users WHERE role IN ('admin','super','super_admin')`);
+    const recipients = [...approvers, ...admins];
     const uniqueIds = [...new Set(recipients.map(u => u.id))];
 
     for (const userId of uniqueIds) {
       await pool.query(
         `INSERT INTO notifications (user_id, type, reference_no, message)
-         VALUES (?, 'INVOICE_SUBMITTED', ?, ?)`,
-        [
-          userId,
-          invoice.invoice_no,
-          `Invoice ${invoice.invoice_no} is pending your approval`
-        ]
+         VALUES (?, 'INVOICE_PENDING', ?, ?)`,
+        [userId, invoice.invoice_no, `Invoice ${invoice.invoice_no} is pending your approval`]
       );
     }
 
-    res.json({ message: 'Invoice submitted for approval' });
+    res.json({ message: 'Invoice submitted and set to pending' });
   })
 );
 
-/* =========================
-   APPROVE INVOICE (APPROVER)
-======================== */
+// ---------------- APPROVE INVOICE ----------------
 router.post(
   '/invoices/:invoiceNo/approve',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_APPROVE),
   asyncHandler(async (req, res) => {
-    const invoiceNo = req.params.invoiceNo;
-    const invoice = await loadInvoice(invoiceNo);
+    const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (invoice.status !== 'pending') return res.status(400).json({ error: 'Only pending invoices can be approved' });
 
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
+    if (invoice.created_by === req.session.user.id) return res.status(403).json({ error: 'You cannot approve your own invoice' });
+    if (!['approver','admin','super'].includes(req.session.user.role)) return res.status(403).json({ error: 'You are not allowed to approve this invoice' });
 
-    if (invoice.status !== 'submitted') {
-      return res.status(400).json({
-        error: 'Only submitted invoices can be approved'
-      });
-    }
+    await pool.query('UPDATE invoices SET status = "approved" WHERE invoice_no = ?', [invoice.invoice_no]);
 
-    // Prevent self-approval
-    if (invoice.created_by === req.session.user.id) {
-      return res.status(403).json({
-        error: 'You cannot approve your own invoice'
-      });
-    }
-
-    await pool.query(
-      'UPDATE invoices SET status = "approved" WHERE invoice_no = ?',
-      [invoiceNo]
-    );
-
-    // ---- NOTIFICATIONS ----
     await pool.query(
       `INSERT INTO notifications (user_id, type, reference_no, message)
        VALUES (?, 'INVOICE_APPROVED', ?, ?)`,
-      [
-        invoice.created_by,
-        invoice.invoice_no,
-        `Your invoice ${invoice.invoice_no} has been approved.`
-      ]
+      [invoice.created_by, invoice.invoice_no, `Your invoice ${invoice.invoice_no} has been approved`]
     );
 
     res.json({ message: 'Invoice approved successfully' });
   })
 );
 
-/* =========================
-   GET SINGLE INVOICE
-======================== */
+// ---------------- MARK PAID ----------------
+router.post(
+  '/invoices/:invoiceNo/mark-paid',
+  requireLogin,
+  requirePermission(PERMISSIONS.INVOICE_PAY),
+  asyncHandler(async (req, res) => {
+    const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (invoice.status !== 'approved') return res.status(400).json({ error: 'Only approved invoices can be marked as paid' });
+
+    // Only admin can mark paid
+    if (!['super','admin'].includes(req.session.user.role)) return res.status(403).json({ error: 'You are not allowed to mark this invoice as paid' });
+
+    await pool.query('UPDATE invoices SET status = "paid" WHERE invoice_no = ?', [invoice.invoice_no]);
+    res.json({ message: 'Invoice marked as paid' });
+  })
+);
+
+// ---------------- CANCEL INVOICE ----------------
+router.post(
+  '/invoices/:invoiceNo/cancel',
+  requireLogin,
+  requirePermission(PERMISSIONS.INVOICE_CANCEL),
+  asyncHandler(async (req, res) => {
+    const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    if (!['draft','pending'].includes(invoice.status)) return res.status(400).json({ error: 'Only draft or pending invoices can be canceled' });
+
+    // Only admin can cancel
+    if (!['super','admin'].includes(req.session.user.role)) return res.status(403).json({ error: 'You are not allowed to cancel this invoice' });
+
+    await pool.query('UPDATE invoices SET status = "canceled" WHERE invoice_no = ?', [invoice.invoice_no]);
+    res.json({ message: 'Invoice canceled successfully' });
+  })
+);
+
+// ---------------- GET SINGLE INVOICE ----------------
 router.get(
   '/invoices/:invoiceNo',
   requireLogin,
@@ -214,9 +191,7 @@ router.get(
   asyncHandler(invoicesCtrl.getInvoice)
 );
 
-/* =========================
-   LIST INVOICES
-======================== */
+// ---------------- LIST INVOICES ----------------
 router.get(
   '/invoices',
   requireLogin,
@@ -224,35 +199,26 @@ router.get(
   asyncHandler(invoicesCtrl.listInvoices)
 );
 
-/* =========================
-   DELETE INVOICE (DRAFT ONLY)
-======================== */
+// ---------------- DELETE INVOICE (DRAFT ONLY) ----------------
 router.delete(
   '/invoices/:invoiceNo',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_DELETE),
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (invoice.status !== 'draft') return res.status(400).json({ error: 'Only draft invoices can be deleted' });
 
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
+    // Only creator or admin can delete
+    if (invoice.created_by !== req.session.user.id && !['super','admin'].includes(req.session.user.role)) {
+      return res.status(403).json({ error: 'You cannot delete this invoice' });
     }
 
-    if (invoice.status !== 'draft') {
-      return res.status(400).json({
-        error: 'Only draft invoices can be deleted'
-      });
-    }
-
-    // This will delete invoice + related tables
     return invoicesCtrl.deleteInvoice(req, res);
   })
 );
 
-
-/* =========================
-   NEXT INVOICE NUMBER
-======================== */
+// ---------------- NEXT INVOICE NUMBER ----------------
 router.get(
   '/next-invoice-no',
   requireLogin,

@@ -490,6 +490,25 @@ async function exportExcel() {
   link.download = `Invoice-${invoiceNo}.xlsx`;
   link.click();
 }
+
+frame.onload = async function() {
+  try {
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
+    if (!res.ok) throw new Error("Invoice not found");
+    const invoice = await res.json();
+
+    const doc = frame.contentDocument || frame.contentWindow.document;
+    const badgeEl = doc.getElementById('invoiceStatus');
+    if (!badgeEl) return;
+
+    badgeEl.textContent = invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1);
+    badgeEl.className = `invoice-status ${invoice.status.toLowerCase()}`;
+
+  } catch (err) {
+    console.error('Failed to load invoice status:', err);
+  }
+};
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
 

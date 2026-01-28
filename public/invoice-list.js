@@ -92,37 +92,88 @@ function populateTable(invoices) {
     const issueDateFormatted = issueDate ? new Date(issueDate).toLocaleDateString('en-PH') : '';
     const dueDateFormatted = dueDate ? new Date(dueDate).toLocaleDateString('en-PH') : '';
 
-    let statusText = '';
-    if (inv.status === 'draft') statusText = 'Draft';
-    else if (inv.status === 'cancelled') statusText = 'Cancelled';
-    else if (inv.is_paid) statusText = 'Paid';
-    else statusText = 'Pending';
+    // -------- STATUS BADGE --------
+    let statusBadge = '';
+    switch (inv.status) {
+      case 'draft':    statusBadge = '<span class="status-badge status-draft">Draft</span>'; break;
+      case 'pending':  statusBadge = '<span class="status-badge status-pending">Pending</span>'; break;
+      case 'approved': statusBadge = '<span class="status-badge status-approved">Approved</span>'; break;
+      case 'paid':     statusBadge = '<span class="status-badge status-paid">Paid</span>'; break;
+      case 'canceled': statusBadge = '<span class="status-badge status-canceled">Canceled</span>'; break;
+      default:         statusBadge = `<span class="status-badge">${inv.status}</span>`;
+    }
 
-    // RBAC: show edit/delete based on role
-    const canEdit = canCreateOrEdit && inv.status === 'draft';
-    const canDeleteInvoice = canDelete && inv.status === 'draft';
-    const canApproveInvoice = canApprove && inv.status === 'submitted';
+    // -------- RBAC & STATUS BASED BUTTONS --------
+    const buttons = [];
+
+    // Everyone can view
+    buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
+
+    // ---------- DRAFT BUTTONS ----------
+    if (inv.status === 'draft') {
+      // Admin can edit/delete/submit any draft
+      if (currentUser.role === 'super' || currentUser.role === 'admin') {
+        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
+        buttons.push(`<button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>`);
+        buttons.push(`<button class="action-btn submit" onclick="submitInvoice('${inv.invoice_no}')">Submit</button>`);
+      }
+
+      // Submitter can edit/submit their own draft
+      if (currentUser.role === 'submitter' && inv.created_by === currentUser.id) {
+        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
+        buttons.push(`<button class="action-btn submit" onclick="submitInvoice('${inv.invoice_no}')">Submit</button>`);
+      }
+    }
+
+    // ---------- PENDING BUTTONS ----------
+    if (inv.status === 'pending') {
+      // Approver can approve, but cannot approve own submission
+      if (currentUser.role === 'approver' && inv.created_by !== currentUser.id) {
+        buttons.push(`<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>`);
+      }
+
+      // Admin can cancel pending invoices
+      if (currentUser.role === 'super' || currentUser.role === 'admin') {
+        buttons.push(`<button class="action-btn cancel" onclick="cancelInvoice('${inv.invoice_no}')">Cancel</button>`);
+      }
+    }
+
+    // ---------- APPROVED BUTTONS ----------
+    if (inv.status === 'approved') {
+      // Admin can mark paid
+      if (currentUser.role === 'super' || currentUser.role === 'admin') {
+        buttons.push(`<button class="action-btn pay" onclick="markPaid('${inv.invoice_no}')">Mark as Paid</button>`);
+      }
+      // Admin can also cancel approved invoices if needed
+      if (currentUser.role === 'super' || currentUser.role === 'admin') {
+        buttons.push(`<button class="action-btn cancel" onclick="cancelInvoice('${inv.invoice_no}')">Cancel</button>`);
+      }
+    }
+
+    // ---------- CANCELED or PAID ----------
+    // No actions allowed for normal users; only admin may have internal override
+    if (['paid','canceled'].includes(inv.status)) {
+      if (currentUser.role === 'super' || currentUser.role === 'admin') {
+        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
+      }
+    }
 
     tr.innerHTML = `
-      <td><input type="checkbox" class="select-invoice" data-invoice="${inv.invoice_no}"></td>
+      <td><input type="checkbox" class="select-invoice" data-invoice="${inv.invoice_no}" ${['draft','pending'].includes(inv.status) ? '' : 'disabled'}></td>
       <td>${inv.invoice_no}</td>
       <td>${inv.bill_to}</td>
       <td>${issueDateFormatted}</td>
       <td>${dueDateFormatted}</td>
       <td>₱${Number(inv.total_amount_due || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-      <td>${statusText}</td>
-      <td>
-        <button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>
-        ${canEdit ? `<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>` : ''}
-        ${canDeleteInvoice ? `<button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>` : ''}
-        ${canApproveInvoice ? `<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>` : ''}
-      </td>
+      <td>${statusBadge}</td>
+      <td>${buttons.join(' ')}</td>
     `;
     tbody.appendChild(tr);
   });
 
   setupSelectAllCheckbox();
 }
+
 
 // ---------------- ACTION BUTTONS ----------------
 function viewInvoice(invoiceNo) {
@@ -240,3 +291,58 @@ window.viewInvoice = viewInvoice;
 window.editInvoice = editInvoice;
 window.deleteInvoice = deleteInvoice;
 window.approveInvoice = approveInvoice;
+
+async function submitInvoice(invoiceNo) {
+  if (!confirm(`Submit invoice ${invoiceNo}?`)) return;
+  try {
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/submit`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      alert(`Invoice ${invoiceNo} submitted!`);
+      fetchInvoices();
+    } else {
+      alert(data.error || 'Failed to submit invoice');
+    }
+  } catch (err) {
+    console.error('❌ Submit error:', err);
+    alert('Server error submitting invoice');
+  }
+}
+
+async function markPaid(invoiceNo) {
+  if (!confirm(`Mark invoice ${invoiceNo} as Paid?`)) return;
+  try {
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/mark-paid`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      alert(`Invoice ${invoiceNo} marked as Paid!`);
+      fetchInvoices();
+    } else {
+      alert(data.error || 'Failed to mark as paid');
+    }
+  } catch (err) {
+    console.error('❌ Mark Paid error:', err);
+    alert('Server error marking invoice as Paid');
+  }
+}
+
+async function cancelInvoice(invoiceNo) {
+  if (!confirm(`Cancel invoice ${invoiceNo}?`)) return;
+  try {
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/cancel`, { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      alert(`Invoice ${invoiceNo} canceled!`);
+      fetchInvoices();
+    } else {
+      alert(data.error || 'Failed to cancel invoice');
+    }
+  } catch (err) {
+    console.error('❌ Cancel error:', err);
+    alert('Server error canceling invoice');
+  }
+}
+
+window.submitInvoice = submitInvoice;
+window.markPaid = markPaid;
+window.cancelInvoice = cancelInvoice;
