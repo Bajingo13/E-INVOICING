@@ -85,3 +85,17 @@ th, td {
 th {
   background: #ecf0f1;
 }
+button.exit {
+  background-color: #e74c3c; /* Red color */
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-left: 10px;
+  font-weight: bold;
+}
+
+button.exit:hover {
+  background-color: #c0392b; /* Darker red on hover */
+}

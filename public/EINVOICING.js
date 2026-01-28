@@ -437,7 +437,7 @@ function calculateTotals() {
   const rows = $$('tr', document.querySelector('#items-body'));
 
   let subtotal = 0;
-  let vatAmount = 0; 
+  let vatAmount = 0;
   let vatExemptSales = 0;
   let zeroRatedSales = 0;
 
@@ -445,8 +445,9 @@ function calculateTotals() {
     const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
     subtotal += amt;
 
-    const accountId = row.querySelector('[name="account[]"]')?.value;
-    const account = window._coaAccounts?.find(acc => acc.id == accountId);
+    // Use dataset.accountId instead of value
+    const accountId = row.querySelector('[name="account[]"]')?.dataset.accountId || '';
+    const account = window._coaAccounts?.find(acc => String(acc.id) === String(accountId));
 
     const taxType = account?.tax_type || 'vatable';
     const taxRate = parseFloat(account?.tax_rate || 0) / 100;

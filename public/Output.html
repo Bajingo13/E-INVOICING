@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Output VAT</title>
+  <link rel="stylesheet" href="Output.css">
+</head>
+<body>
+
+<header>
+  <h1>Output VAT Register</h1> 
+</header>
+
+<section class="filters">
+  <div>
+    <label>From</label>
+    <input type="date" id="from-date">
+  </div>
+  <div>
+    <label>To</label>
+    <input type="date" id="to-date">
+  </div>
+
+  <button onclick="loadOutputVAT()">Load</button>
+  <button class="excel" onclick="exportOutputExcel()">Export Excel</button>
+  <button class="exit" onclick="exitApp()">Exit</button>
+</section>
+
+<section class="summary">
+  <div class="card">
+    <h3>Total Output VAT</h3>
+    <p id="total-output-vat">0.00</p>
+  </div>
+</section>
+
+<section class="table-section">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Invoice No</th>
+        <th>Customer</th>
+        <th>TIN</th>
+        <th>Net</th>
+        <th>VAT</th>
+        <th>Gross</th>
+      </tr>
+    </thead>
+    <tbody id="output-vat-table"></tbody>
+  </table>
+</section>
+
+<script src="Output.js"></script>
+</body>
+</html>

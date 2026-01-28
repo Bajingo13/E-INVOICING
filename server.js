@@ -40,6 +40,7 @@ const contactsRoutes = require('./routes/contacts');
 const usersRoutes = require('./routes/users');
 const loginHistoryRoutes = require('./routes/loginHistory');
 const invoiceSettingsRoutes = require('./routes/invoiceSettings');
+const reportsRouter = require('./routes/reports');
 
 /* =========================
    App setup
@@ -90,6 +91,7 @@ app.use('/api/contacts', contactsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/login-history', loginHistoryRoutes);
 app.use('/api/invoice-settings', invoiceSettingsRoutes);
+app.use('/api/reports', reportsRouter);
 
 /* =========================
    Static pages
