@@ -916,3 +916,28 @@ canvas {
 .combo-dropdown div:hover {
   background: #f0f0f0;
 }
+/* Remove full border, keep only bottom underline for textareas */
+textarea.input-full,
+textarea.input-long,
+textarea.item-desc,
+textarea#address {
+  border: none;             /* remove full border */
+  border-bottom: 1px solid #000;  /* keep underline */
+  outline: none;            /* remove focus outline */
+  background: transparent;  /* keep background transparent */
+  resize: none;             /* prevent resizing */
+  overflow: hidden;         /* hide scrollbars */
+  width: 100%;              /* full width */
+  font-family: inherit;
+  font-size: 14px;
+  padding: 4px 0;
+  box-sizing: border-box;
+}
+
+/* Optional: change underline color on focus */
+textarea.input-full:focus,
+textarea.input-long:focus,
+textarea.item-desc:focus,
+textarea#address:focus {
+  border-bottom-color: #007BFF; /* blue underline on focus */
+}

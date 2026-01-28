@@ -85,7 +85,7 @@
 
   <div class="dropdown-menu" id="notifDropdown">
     <div id="notifList">
-      <!-- EMPTY STATE WILL BE RENDERED HERE -->
+      <!-- Notifications will render here -->
     </div>
   </div>
 </div>
@@ -122,27 +122,34 @@
 
   <main>
     <section class="cards">
-      <div class="card total-invoices">
-        <div class="icon"><i class="ri-file-list-3-line"></i></div>
-        <div class="content">
-          <h3>Total Invoices</h3>
-          <p id="totalInvoices">0</p>
-        </div>
-      </div>
-      <div class="card total-payments">
-        <div class="icon"><i class="ri-currency-line"></i></div>
-        <div class="content">
-          <h3>Total Billed</h3>
-          <p id="totalPayments">₱0.00</p>
-        </div>
-      </div>
-      <div class="card pending-invoices">
-        <div class="icon"><i class="ri-time-line"></i></div>
-        <div class="content">
-          <h3>Pending Invoices</h3>
-          <p id="pendingInvoices">0</p>
-        </div>
-      </div>
+      <a href="/invoice-list.html" class="card-link">
+  <div class="card total-invoices">
+    <div class="icon"><i class="ri-file-list-3-line"></i></div>
+    <div class="content">
+      <h3>Total Invoices</h3>
+      <p id="totalInvoices">0</p>
+    </div>
+  </div>
+</a>
+      <a href="/view-payments.html" class="card-link">
+  <div class="card total-payments">
+    <div class="icon"><i class="ri-currency-line"></i></div>
+    <div class="content">
+      <h3>Total Billed</h3>
+      <p id="totalPayments">₱0.00</p>
+    </div>
+  </div>
+</a>
+<a href="/invoice-list.html" class="card-link">
+  <div class="card pending-invoices">
+    <div class="icon"><i class="ri-time-line"></i></div>
+    <div class="content">
+      <h3>Pending Invoices</h3>
+      <p id="pendingInvoices">0</p>
+    </div>
+  </div>
+</a>
+
     </section>
 
     <section class="recent-activity">

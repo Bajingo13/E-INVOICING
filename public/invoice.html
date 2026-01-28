@@ -120,12 +120,12 @@
     <td>
       <strong>VAT Reg. TIN:</strong>
       <input type="text" name="tin" id="tin" />
-    </td>
+    </td> 
   </tr>
   <tr>
     <td>
       <strong>ADDRESS :</strong>
-      <input type="text" name="address" id="address" class="input-long" />
+      <textarea name="address" id="address" class="input-long" rows="1" style="overflow:hidden; resize:none;"></textarea>
     </td>
     <td>
       <strong>TERMS:</strong>
@@ -156,12 +156,14 @@
       </thead>
       <tbody id="items-body">
         <tr>
-          <td><input type="text" class="input-full" name="desc[]" /></td>
+          <td>
+  <textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea>
+</td>
+
           <td class="Acc-col">
-            <select name="account[]" class="input-full">
-              <option value="">+ Create New Account</option>
-            </select>
-          </td>
+  <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
+  <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+</td>
           <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)" /></td>
           <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)" /></td>
           <td><input type="number" class="input-short" name="amt[]" readonly /></td>

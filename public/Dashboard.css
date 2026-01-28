@@ -421,3 +421,16 @@ main {
 .submenu.show {
   display: block;
 }
+.card-link {
+  display: block;
+  text-decoration: none; /* remove underline */
+  color: inherit;        /* inherit text color */
+}
+
+.card-link:hover .card {
+  cursor: pointer;
+  /* optional hover effect */
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+  transition: 0.2s;
+}

@@ -1,12 +1,33 @@
-// server.js - Entry point (clean, small)
-console.log("DATABASE_URL:", process.env.DATABASE_URL?.slice(0, 20) + "...");
+'use strict';
 
+/* =========================
+   Load environment FIRST
+========================= */
 require('dotenv').config();
+
+/* =========================
+   Safe env logging
+========================= */
+console.log(
+  'DATABASE_URL:',
+  process.env.DATABASE_URL
+    ? process.env.DATABASE_URL.slice(0, 20) + '...'
+    : 'undefined (LOCAL)'
+);
+
+console.log('PORT env:', process.env.PORT);
+
+/* =========================
+   Imports
+========================= */
 const express = require('express');
 const path = require('path');
 const morgan = require('morgan');
 const session = require('express-session');
 
+/* =========================
+   Route modules
+========================= */
 const invoicesRoutes = require('./routes/invoices');
 const companyRoutes = require('./routes/company');
 const filesRoutes = require('./routes/files');
@@ -20,39 +41,43 @@ const usersRoutes = require('./routes/users');
 const loginHistoryRoutes = require('./routes/loginHistory');
 const invoiceSettingsRoutes = require('./routes/invoiceSettings');
 
+/* =========================
+   App setup
+========================= */
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+app.set('trust proxy', 1);
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.set('trust proxy', 1);
-// --------------------
-// Middleware
-// --------------------
+/* =========================
+   Middleware
+========================= */
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
 
+/* =========================
+   Session
+========================= */
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'dev-secret',
+    resave: false,
+    saveUninitialized: false,
+    rolling: true,
+    cookie: {
+      maxAge: 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      sameSite: 'lax'
+    }
+  })
+);
 
-// --------------------
-// Session (must be before routes)
-// --------------------
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'dev-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    maxAge: 60 * 60 * 1000,
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'lax'
-  },
-  rolling: true
-}));
-
-// --------------------
-// Mount route modules
-// --------------------
+/* =========================
+   Routes
+========================= */
 app.use('/api', invoicesRoutes);
 app.use('/api/company-info', companyRoutes);
 app.use('/', filesRoutes);
@@ -66,19 +91,32 @@ app.use('/api/users', usersRoutes);
 app.use('/api/login-history', loginHistoryRoutes);
 app.use('/api/invoice-settings', invoiceSettingsRoutes);
 
-// --------------------
-// Static pages
-// --------------------
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Login.html')));
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Dashboard.html')));
-app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice.html')));
-app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
-app.get('/invoice-list', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice-list.html')));
+/* =========================
+   Static pages
+========================= */
+app.get('/', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'Login.html'))
+);
 
+app.get('/dashboard', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'Dashboard.html'))
+);
 
-// --------------------
-// App version endpoint
-// --------------------
+app.get('/invoice', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'invoice.html'))
+);
+
+app.get('/company-setup', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'company_info.html'))
+);
+
+app.get('/invoice-list', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'invoice-list.html'))
+);
+
+/* =========================
+   App version endpoint
+========================= */
 const pkg = require('./package.json');
 
 app.get('/api/version', (req, res) => {
@@ -89,20 +127,19 @@ app.get('/api/version', (req, res) => {
   });
 });
 
-
-// --------------------
-// Global error handler
-// --------------------
+/* =========================
+   Global error handler
+========================= */
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err);
-  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error'
+  });
 });
 
-// --------------------
-// Start
-// --------------------
-console.log("PORT env:", process.env.PORT);
-
+/* =========================
+   Start server
+========================= */
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

@@ -112,6 +112,34 @@ function setInputValue(name, value) {
   el.type === 'checkbox' ? el.checked = !!value : ('value' in el ? el.value = value : el.textContent = value);
 }
 
+// -------------------- AUTO-RESIZE TEXTAREA --------------------
+// Auto-resize textarea
+const textarea = document.getElementById('address');
+
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';           // reset height
+  el.style.height = el.scrollHeight + 'px'; // expand to fit content
+}
+
+// On typing
+textarea.addEventListener('input', () => autoResizeTextarea(textarea));
+
+// On load/review (if value is already set)
+window.addEventListener('load', () => autoResizeTextarea(textarea));
+
+// Auto-resize all item description textareas
+function autoResize(el) {
+  el.style.height = 'auto'; // reset height
+  el.style.height = el.scrollHeight + 'px'; // expand to fit content
+}
+
+// Handle existing item descriptions on page load
+document.querySelectorAll('.item-desc').forEach(textarea => {
+  autoResize(textarea);
+
+  // On input
+  textarea.addEventListener('input', () => autoResize(textarea));
+});
 /* -------------------- 2. COMPANY INFO -------------------- */
 async function loadCompanyInfo() {
   try {
@@ -170,7 +198,7 @@ function setInvoiceTitleFromURL() {
   localStorage.setItem('selectedInvoiceType', invoiceTitle);
 }
 
-/* -------------------- 5. LOAD INVOICE FOR EDIT -------------------- */
+/* -------------------- 5. LOAD INVOICE FOR EDIT (WITH ACCOUNT COMBO) -------------------- */
 async function loadInvoiceForEdit() {
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get('invoice_no');
@@ -188,11 +216,11 @@ async function loadInvoiceForEdit() {
     setInputValue('terms', data.terms || '');
     setInputValue('invoiceNo', data.invoice_no || '');
     setInputValue('date', dateToYYYYMMDD(data.date));
-
     setInputValue('invoiceMode', data.invoice_mode || 'standard');
     setInputValue('invoiceCategory', data.invoice_category || 'service');
     safeSetText('.invoice-title', data.invoice_title || 'SERVICE INVOICE');
 
+    // Header
     const theadRow = $("#items-table thead tr");
     if (theadRow) {
       theadRow.innerHTML = `<th>DESCRIPTION</th><th>ACCOUNT</th><th>QTY</th><th>RATE</th><th>AMOUNT</th>`;
@@ -203,14 +231,18 @@ async function loadInvoiceForEdit() {
       });
     }
 
+    // Body
     const tbody = $("#items-body");
     if (tbody) {
       tbody.innerHTML = "";
       (data.items || []).forEach(item => {
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td><input type="text" class="input-full" name="desc[]" value="${item.description || ""}"></td>
-          <td><select name="account[]" class="input-full"></select></td>
+          <td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;">${item.description || ""}</textarea></td>
+          <td class="Acc-col" style="position:relative;">
+            <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
+            <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+          </td>
           <td><input type="number" class="input-short" name="qty[]" value="${item.quantity || 0}" oninput="updateAmount(this)"></td>
           <td><input type="number" class="input-short" name="rate[]" value="${item.unit_price || 0}" oninput="updateAmount(this)"></td>
           <td><input type="number" class="input-short" name="amt[]" value="${item.amount || 0}" readonly></td>
@@ -222,13 +254,22 @@ async function loadInvoiceForEdit() {
         });
         tbody.appendChild(row);
       });
-    }
 
-    if (window._coaAccounts) {
-      $$('select[name="account[]"]').forEach(select => populateAccountSelect(select, window._coaAccounts));
-      (data.items || []).forEach((item, i) => {
-        const sel = tbody.rows[i].querySelector('select[name="account[]"]');
-        if (sel) sel.value = item.account_id || '';
+      // Setup account combo boxes for each row
+      $$('input.account-input').forEach(input => {
+        if (!input.dataset.initialized && window._coaAccounts) {
+          setupAccountCombo(input, window._coaAccounts);
+          input.dataset.initialized = true;
+
+          // Pre-select current account
+          const rowIndex = Array.from(tbody.rows).indexOf(input.closest('tr'));
+          const item = data.items[rowIndex];
+          const acc = window._coaAccounts.find(a => a.id == item.account_id);
+          if (acc) {
+            input.value = `${acc.code || ''} - ${acc.title}`;
+            input.dataset.accountId = acc.id;
+          }
+        }
       });
     }
 
@@ -245,40 +286,62 @@ async function loadInvoiceForEdit() {
   } catch (err) { DBG.error('Error loading invoice for edit:', err); }
 }
 
-/* -------------------- 6. CHART OF ACCOUNTS -------------------- */
+/* -------------------- 6. CHART OF ACCOUNTS (COMBO BOX VERSION) -------------------- */
 async function loadAccounts() {
   try {
     const res = await fetch('/api/coa');
     if (!res.ok) throw new Error('Failed to fetch accounts');
     const accounts = await res.json();
     window._coaAccounts = accounts;
-    $$('select[name="account[]"]').forEach(select => populateAccountSelect(select, accounts));
-  } catch (err) { DBG.error('loadAccounts error:', err); }
+
+    // Initialize existing account inputs
+    $$('input.account-input').forEach(input => {
+      if (!input.dataset.initialized) {
+        setupAccountCombo(input, accounts);
+        input.dataset.initialized = true;
+      }
+    });
+  } catch (err) {
+    DBG.error('loadAccounts error:', err);
+  }
 }
 
-function populateAccountSelect(selectEl, accounts) {
-  if (!selectEl) return;
-
-  selectEl.innerHTML = '';
-  const createOption = document.createElement('option');
-  createOption.value = '_create_';
-  createOption.textContent = '+ Create New Account';
-  selectEl.appendChild(createOption);
+function setupAccountCombo(input, accounts) {
+  const dropdown = input.nextElementSibling;
+  dropdown.innerHTML = '';
 
   accounts.forEach(acc => {
     if (!acc.title) return;
-    const opt = document.createElement('option');
-    opt.value = acc.id;
-    opt.textContent = `${acc.code || ''} - ${acc.title}`;
-    selectEl.appendChild(opt);
+    const div = document.createElement('div');
+    div.textContent = `${acc.code || ''} - ${acc.title}`;
+    div.dataset.value = acc.id;
+    div.style.padding = '4px 8px';
+    div.style.cursor = 'pointer';
+    div.addEventListener('click', () => {
+      input.value = div.textContent;
+      input.dataset.accountId = div.dataset.value;
+      dropdown.style.display = 'none';
+    });
+    dropdown.appendChild(div);
   });
 
-  selectEl.addEventListener('change', function() {
-    if (this.value === '_create_') window.location.href = 'http://localhost:3000/COA.HTML';
+  input.addEventListener('input', () => {
+    const val = input.value.toLowerCase();
+    Array.from(dropdown.children).forEach(div => {
+      div.style.display = div.textContent.toLowerCase().includes(val) ? 'block' : 'none';
+    });
+    dropdown.style.display = dropdown.children.length ? 'block' : 'none';
+  });
+
+  input.addEventListener('focus', () => {
+    dropdown.style.display = 'block';
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.style.display = 'none';
   });
 }
-
-/* -------------------- 7. ADD / REMOVE ROW -------------------- */
+/* -------------------- 7. ADD / REMOVE ROW (COMBO BOX ACCOUNT) -------------------- */
 function addRow() {
   const tbody = $("#items-body");
   if (!tbody) return;
@@ -288,23 +351,39 @@ function addRow() {
   row.innerHTML = Array.from(ths).map((th, i) => {
     const colName = th.textContent.trim().toLowerCase().replace(/\s+/g, "_");
     switch(i) {
-      case 0: return `<td><input type="text" class="input-full" name="desc[]"></td>`;
-      case 1: return `<td><select name="account[]" class="input-full"></select></td>`;
-      case 2: return `<td><input type="number" class="input-short" name="qty[]" value="0" oninput="updateAmount(this)"></td>`;
-      case 3: return `<td><input type="number" class="input-short" name="rate[]" value="0" oninput="updateAmount(this)"></td>`;
-      case 4: return `<td><input type="number" class="input-short" name="amt[]" value="0" readonly></td>`;
-      default: return `<td><input type="text" name="${colName}[]"></td>`;
+      case 0: // DESCRIPTION
+        return `<td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea></td>`;
+      case 1: // ACCOUNT
+        return `<td class="Acc-col" style="position:relative;">
+                  <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
+                  <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+                </td>`;
+      case 2: // QTY
+        return `<td><input type="number" class="input-short" name="qty[]" value="0" oninput="updateAmount(this)"></td>`;
+      case 3: // RATE
+        return `<td><input type="number" class="input-short" name="rate[]" value="0" oninput="updateAmount(this)"></td>`;
+      case 4: // AMOUNT
+        return `<td><input type="number" class="input-short" name="amt[]" value="0" readonly></td>`;
+      default: // EXTRA COLUMNS
+        return `<td><input type="text" name="${colName}[]"></td>`;
     }
   }).join('');
 
   tbody.appendChild(row);
 
-  const sel = row.querySelector('select[name="account[]"]');
-  if (sel && window._coaAccounts) populateAccountSelect(sel, window._coaAccounts);
+  // Populate account combo box
+  const selInput = row.querySelector('.account-input');
+  if (selInput && window._coaAccounts) setupAccountCombo(selInput, window._coaAccounts);
+
+  // Auto-resize description textarea
+  const descTextarea = row.querySelector('.item-desc');
+  if (descTextarea) {
+    autoResize(descTextarea);
+    descTextarea.addEventListener('input', () => autoResize(descTextarea));
+  }
 
   adjustColumnWidths();
 }
-
 function removeRow() {
   const tbody = $("#items-body");
   if (!tbody || tbody.rows.length <= 1) return alert("At least one row must remain.");
@@ -358,7 +437,7 @@ function calculateTotals() {
   const rows = $$('tr', document.querySelector('#items-body'));
 
   let subtotal = 0;
-  let vatAmount = 0;
+  let vatAmount = 0; 
   let vatExemptSales = 0;
   let zeroRatedSales = 0;
 
