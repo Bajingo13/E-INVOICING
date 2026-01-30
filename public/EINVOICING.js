@@ -701,24 +701,54 @@ async function saveToDatabase() {
 }
 
 /* -------------------- 14. INIT -------------------- */
+// ======= 1️⃣ AUTO-FILL DATES FUNCTION =======
+function autofillDates() {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  const issueDate = document.getElementById('issueDate');
+  if (issueDate && !issueDate.value) issueDate.value = today;
+
+  const invoiceDate = document.getElementsByName('date')[0];
+  if (invoiceDate && !invoiceDate.value) invoiceDate.value = today;
+
+  const footerAtpDate = document.getElementsByName('footerAtpDate')[0];
+  if (footerAtpDate && !footerAtpDate.value) footerAtpDate.value = today;
+
+  const footerBirDate = document.getElementsByName('footerBirDate')[0];
+  if (footerBirDate && !footerBirDate.value) footerBirDate.value = today;
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
 
   // ======= RBAC PROTECTION =======
   const allowed = await requireAnyRole(['super', 'approver', 'submitter']);
   if (!allowed) return;
 
-  await loadAccounts();
-  await loadCompanyInfo();
-  await loadNextInvoiceNo();
-  setInvoiceTitleFromURL();
-  await loadInvoiceForEdit();
-  await loadEWTOptions(); // <-- load EWT once
+  // ======= 1️⃣ AUTO-FILL DATES =======
+  autofillDates();
 
-  // CONTACTS
+  // ======= 2️⃣ LOAD ACCOUNTS =======
+  await loadAccounts();
+
+  // ======= 3️⃣ LOAD COMPANY INFO =======
+  await loadCompanyInfo();
+
+  // ======= 4️⃣ LOAD NEXT INVOICE NO =======
+  await loadNextInvoiceNo();
+
+  // ======= 5️⃣ SET INVOICE TITLE =======
+  setInvoiceTitleFromURL();
+
+  // ======= 6️⃣ LOAD INVOICE FOR EDIT (if editing) =======
+  await loadInvoiceForEdit();
+
+  // ======= 7️⃣ LOAD EWT OPTIONS =======
+  await loadEWTOptions();
+
+  // ======= 8️⃣ CONTACTS AUTOCOMPLETE =======
   const billToInput = document.getElementById("billTo");
   const billToIdInput = document.getElementById("billToId");
   const billToDropdown = document.getElementById("billToDropdown");
-
   const tinInput = document.getElementById("tin");
   const addressInput = document.getElementById("address");
   const termsInput = document.getElementById("terms");
@@ -733,26 +763,32 @@ window.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       console.error('Failed to load contacts:', err);
     }
-  })();
 
-  billToInput?.addEventListener('input', () => {
-    const value = billToInput.value.toLowerCase();
-    billToDropdown.innerHTML = '';
+    if (!billToInput || !billToDropdown) return;
 
-    if (!value) {
-      billToDropdown.style.display = 'none';
-      billToIdInput.value = '';
-      return;
-    }
+    billToInput.addEventListener('input', () => {
+      const value = billToInput.value.toLowerCase();
+      billToDropdown.innerHTML = '';
 
-    contacts
-      .filter(c => c.name && c.name.toLowerCase().includes(value))
-      .forEach(c => {
+      if (!value) {
+        billToDropdown.style.display = 'none';
+        billToIdInput.value = '';
+        return;
+      }
+
+      const filtered = contacts.filter(c => {
+        const nameToCheck = (c.business_name || c.name || '').toLowerCase();
+        return nameToCheck.includes(value);
+      });
+
+      filtered.forEach(c => {
         const item = document.createElement('div');
-        item.textContent = c.name;
+        item.textContent = c.business_name || c.name;
+        item.style.padding = '4px 8px';
+        item.style.cursor = 'pointer';
 
         item.addEventListener('click', () => {
-          billToInput.value = c.name;
+          billToInput.value = c.business_name || c.name;
           billToIdInput.value = c.id;
 
           tinInput.value = c.tin || '';
@@ -765,17 +801,20 @@ window.addEventListener('DOMContentLoaded', async () => {
         billToDropdown.appendChild(item);
       });
 
-    billToDropdown.style.display = billToDropdown.children.length ? 'block' : 'none';
-  });
+      billToDropdown.style.display = filtered.length ? 'block' : 'none';
+    });
 
-  document.addEventListener('click', e => {
-    if (!e.target.closest('#billTo') && !e.target.closest('#billToDropdown')) {
-      billToDropdown.style.display = 'none';
-    }
-  });
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#billTo') && !e.target.closest('#billToDropdown')) {
+        billToDropdown.style.display = 'none';
+      }
+    });
+  })();
 
+  // ======= 9️⃣ ADJUST COLUMN WIDTHS =======
   adjustColumnWidths();
 });
+
 
 /* -------------------- 15. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
 document.addEventListener('DOMContentLoaded', () => {
