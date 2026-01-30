@@ -28,10 +28,15 @@
       <input type="text" id="searchInput" placeholder="Search by invoice number or client...">
     </div>
 
-    <!-- Bulk actions -->
-    <div class="bulk-actions">
-      <button id="deleteSelectedBtn" class="btn btn-danger">Delete Selected</button>
-    </div>
+<!-- Bulk actions -->
+<div class="bulk-actions">
+  <button id="deleteSelectedBtn" class="btn btn-danger">Delete Selected</button>
+
+  <div class="export-wrapper">
+    <button id="exportBtn" class="btn btn-secondary">Export</button>
+    <!-- dropdown menu will be injected here by JS -->
+  </div>
+</div>
 
     <!-- Invoice table -->
     <table id="invoiceTable">
@@ -43,10 +48,10 @@
       <th data-sort="date" class="sortable">Date</th>
       <th data-sort="due_date" class="sortable">Due Date</th>
       <th>Total</th>
-      <th>Status</th>
+      <th data-sort="status" class="sortable">Status</th>
       <th>Actions</th>
     </tr>
-  </thead>
+  </thead> 
   <tbody></tbody>
 </table>
       </thead>

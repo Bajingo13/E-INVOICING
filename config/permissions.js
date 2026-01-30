@@ -7,6 +7,8 @@ module.exports = {
     INVOICE_DELETE: 'invoice_delete',
     INVOICE_VIEW: 'invoice_view',
     INVOICE_LIST: 'invoice_list',
+    INVOICE_EXPORT: 'invoice.export',
+
 
     // COA MODULE
     COA_VIEW: 'coa_view',
@@ -30,5 +32,6 @@ module.exports = {
 
     // AUDIT TRAIL
     AUDIT_TRAIL: 'audit_trail'
+    
   }
 };

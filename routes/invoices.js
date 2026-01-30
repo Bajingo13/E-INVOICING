@@ -11,6 +11,7 @@ const invoicesCtrl = require('../controllers/invoicesController');
 const { requireLogin } = require('../middleware/roles');
 const { requirePermission } = require('../middleware/permissions');
 const { PERMISSIONS } = require('../config/permissions');
+const { exportInvoicesExcel } = require('../controllers/invoiceExportController');
 
 const { getApprovers } = require('../utils/getApprovers');
 
@@ -197,6 +198,14 @@ router.get(
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_LIST),
   asyncHandler(invoicesCtrl.listInvoices)
+);
+
+// ---------------- EXPORT INVOICES ----------------
+router.get(
+  '/invoices/export/excel',
+  requireLogin,
+  requirePermission(PERMISSIONS.INVOICE_EXPORT),
+  asyncHandler(exportInvoicesExcel)
 );
 
 // ---------------- DELETE INVOICE (DRAFT ONLY) ----------------
