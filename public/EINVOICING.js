@@ -770,12 +770,20 @@ async function saveToDatabase() {
   const billTo = getInputValue('billTo');
   const invoiceNo = getInputValue('invoiceNo');
   const date = getInputValue('date');
-  if (!billTo || !invoiceNo || !date) return alert("Fill Bill To, Invoice No, Date.");
+
+  if (!billTo || !date) {
+    return alert("Fill Bill To and Date.");
+  }
 
   calculateTotals();
 
+  const params = new URLSearchParams(window.location.search);
+  const isEdit = params.get('edit') === 'true' && params.get('invoice_no');
+
   const ths = $("#items-table thead tr").children;
-  const extraColumns = Array.from(ths).slice(5).map(th => th.textContent.trim().toLowerCase().replace(/\s+/g,"_"));
+  const extraColumns = Array.from(ths)
+    .slice(5)
+    .map(th => th.textContent.trim().toLowerCase().replace(/\s+/g, "_"));
 
   const rows = $$('#items-body tr');
   const items = rows.map(row => {
@@ -784,14 +792,15 @@ async function saveToDatabase() {
       quantity: parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0,
       unit_price: parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0,
       amount: parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0,
-      account_id: row.querySelector('[name="account[]"]')?.value || ""
+      account_id: row.querySelector('[name="account[]"]')?.dataset.accountId || ""
     };
-    extraColumns.forEach(col => item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '');
+    extraColumns.forEach(col => {
+      item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '';
+    });
     return item;
   });
 
   const payload = {
-    invoice_no: invoiceNo,
     bill_to: billTo,
     address: getInputValue('address'),
     tin: getInputValue('tin'),
@@ -801,8 +810,8 @@ async function saveToDatabase() {
     invoice_mode: getInputValue('invoiceMode'),
     invoice_category: getInputValue('invoiceCategory'),
     invoice_type: getInputValue('invoice_type'),
-    currency: currencySelect?.value || 'PHP',           
-    exchange_rate: parseFloat(exchangeRateInput?.value) || 1,  
+    currency: currencySelect?.value || 'PHP',
+    exchange_rate: parseFloat(exchangeRateInput?.value) || 1,
     items,
     extra_columns: extraColumns,
     tax_summary: {
@@ -821,29 +830,37 @@ async function saveToDatabase() {
     }
   };
 
+  let url = '/api/invoices';
+  let method = 'POST';
+
+  if (isEdit) {
+    // ✅ UPDATE EXISTING INVOICE
+    url = `/api/invoices/${encodeURIComponent(invoiceNo)}`;
+    method = 'PUT';
+    payload.invoice_no = invoiceNo;
+  }
+
   DBG.log('Saving invoice payload:', payload);
 
   try {
-    const res = await fetch('/api/invoices', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
     if (!res.ok) {
-      let errBody = null;
-      try { errBody = await res.json(); } catch (e) {}
-      const message = (errBody && (errBody.error || errBody.message)) || `${res.status} ${res.statusText}`;
-      DBG.error('saveToDatabase server error:', errBody || res.statusText);
-      alert('Failed to save invoice: ' + message);
-      throw new Error('Failed to save invoice: ' + message);
+      const err = await res.json().catch(() => ({}));
+      const msg = err.error || err.message || `${res.status} ${res.statusText}`;
+      DBG.error('saveToDatabase server error:', err);
+      throw new Error(msg);
     }
 
     alert('Invoice saved successfully!');
     window.location.reload();
   } catch (err) {
     DBG.error('saveToDatabase error:', err);
-    alert('Failed to save invoice');
+    alert('Failed to save invoice: ' + err.message);
   }
 }
 

@@ -6,116 +6,107 @@ const fetch = require('node-fetch');
 
 const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount', 'account_id'];
 
-// ---------------------- NORMALIZE TAX SUMMARY ----------------------
+/* =========================================================
+   HELPERS
+========================================================= */
+
 function normalizeTaxSummary(data) {
   if (!data) return null;
   const raw = data.payment || data.tax_summary || data.taxSummary || {};
-  const get = keys => keys.reduce((val, k) => val !== undefined ? val : raw[k], undefined) || 0;
+  const get = keys => {
+    for (const k of keys) if (raw[k] !== undefined) return raw[k];
+    return 0;
+  };
 
   return {
-    subtotal: parseFloat(get(['subtotal'])) || 0,
-    discount: parseFloat(get(['discount'])) || 0,
-    vatable_sales: parseFloat(get(['vatable_sales', 'vatableSales'])) || 0,
-    vat_exempt_sales: parseFloat(get(['vat_exempt_sales', 'vatExemptSales', 'vat_exempt'])) || 0,
-    zero_rated_sales: parseFloat(get(['zero_rated_sales', 'zeroRatedSales', 'zero_rated'])) || 0,
-    vat_amount: parseFloat(get(['vat_amount', 'vatAmount'])) || 0,
-    withholding: parseFloat(get(['withholding', 'withholdingTax'])) || 0,
-    total_payable: parseFloat(get(['total_payable', 'totalPayable', 'total'])) || 0
+    subtotal: +get(['subtotal']) || 0,
+    discount: +get(['discount']) || 0,
+    vatable_sales: +get(['vatable_sales', 'vatableSales']) || 0,
+    vat_exempt_sales: +get(['vat_exempt_sales', 'vatExemptSales']) || 0,
+    zero_rated_sales: +get(['zero_rated_sales', 'zeroRatedSales']) || 0,
+    vat_amount: +get(['vat_amount', 'vatAmount']) || 0,
+    withholding: +get(['withholding', 'withholdingTax']) || 0,
+    total_payable: +get(['total_payable', 'totalPayable', 'total']) || 0
   };
 }
 
-// ---------------------- FIXED GET EXCHANGE RATE ----------------------
-async function getExchangeRate(currency) {
-  currency = (currency || 'PHP').toUpperCase();
+async function getExchangeRate(currency = 'PHP') {
+  currency = currency.toUpperCase();
   if (currency === 'PHP') return 1;
 
-  const fallbackRates = { USD: 56, SGD: 42, AUD: 38, EUR: 60, PHP: 1 };
+  const fallbackRates = { USD: 56, SGD: 42, AUD: 38, EUR: 60 };
 
   try {
-    const BAP_URL = 'https://www.bap.org.ph/downloads/daily-rates.json';
-    const res = await fetch(BAP_URL, { timeout: 5000 });
-    if (!res.ok) throw new Error('BAP not available');
-
+    const res = await fetch('https://www.bap.org.ph/downloads/daily-rates.json', { timeout: 5000 });
+    if (!res.ok) throw new Error();
     const rates = await res.json();
     const rate = parseFloat(rates[currency]);
-    if (!rate || rate <= 0) throw new Error('Rate missing from BAP');
-
-    console.log('Exchange rate fetched from BAP:', currency, rate);
+    if (!rate || rate <= 0) throw new Error();
     return rate;
-
-  } catch (err) {
-    console.warn('BAP fetch failed, using fallback rate for', currency, err.message);
-    const fallback = fallbackRates[currency] || 1;
-    return fallback;
+  } catch {
+    return fallbackRates[currency] || 1;
   }
 }
 
-// ---------------------- GET COMPANY INFO ----------------------
+/* =========================================================
+   COMPANY INFO
+========================================================= */
+
 async function getCompanyInfo(req, res) {
   const conn = await getConn();
   try {
     const [rows] = await conn.execute('SELECT * FROM company_info LIMIT 1');
-    if (!rows.length) return res.status(404).json({ message: 'Company info not found' });
+    if (!rows.length) return res.status(404).json({ error: 'Company info not found' });
     res.json(rows[0]);
-  } catch (err) {
-    console.error('Error loading company info:', err);
-    res.status(500).json({ message: 'Server error' });
   } finally {
     conn.release();
   }
 }
 
-// ---------------------- CREATE INVOICE ----------------------
+/* =========================================================
+   CREATE INVOICE (POST)
+========================================================= */
+
 async function createInvoice(req, res) {
-  const data = req.body;
+  const data = { ...req.body };
+
+  // ✅ HARDENING FIX:
+  // Ignore invoice_no if client accidentally sends it
+  if (data.invoice_no) {
+    delete data.invoice_no;
+  }
+
   if (!data.bill_to || !data.date || !Array.isArray(data.items) || !data.items.length) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   const conn = await getConn();
+
   try {
     await conn.beginTransaction();
 
-    // Normalize currency from frontend
-    let currency = 'PHP';
-    if (data.currency && typeof data.currency === 'string') {
-      currency = data.currency.trim().toUpperCase();
-    }
+    const currency = (data.currency || 'PHP').toUpperCase();
     const exchangeRate = await getExchangeRate(currency);
 
-    const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
-    const invoiceMode = data.invoice_mode || 'standard';
-    const invoiceCategory = data.invoice_category || 'service';
-    const invoiceType = data.invoice_type || 'SERVICE INVOICE';
+    // ✅ Server is the ONLY source of truth
+    const invoiceNo = await generateInvoiceNo(conn);
 
-    console.log('Currency:', currency, 'Exchange rate:', exchangeRate);
-
-    // Compute extra columns dynamically
-    let extraColumns = [];
-    if (Array.isArray(data.extra_columns) && data.extra_columns.length) {
-      extraColumns = data.extra_columns;
-    } else {
-      const extraSet = new Set();
-      for (const it of data.items) {
-        Object.keys(it || {}).forEach(k => {
-          if (!defaultItemCols.includes(k)) extraSet.add(k);
-        });
-      }
-      extraColumns = Array.from(extraSet).map(k => k.replace(/[^a-zA-Z0-9_]/g, ''));
-    }
-
-    // Insert invoice
-    const [invoiceResult] = await conn.execute(
+    const [result] = await conn.execute(
       `INSERT INTO invoices
-        (invoice_no, invoice_mode, invoice_category, invoice_type, bill_to, address, tin, terms, currency, exchange_rate,
-         date, due_date, total_amount_due, foreign_total, logo, extra_columns, recurrence_type, recurrence_start_date,
-         recurrence_end_date, recurrence_status, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (invoice_no, invoice_mode, invoice_category, invoice_type,
+        bill_to, address, tin, terms,
+        currency, exchange_rate,
+        date, due_date,
+        total_amount_due, foreign_total,
+        logo, extra_columns,
+        recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status,
+        status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceNo,
-        invoiceMode,
-        invoiceCategory,
-        invoiceType,
+        data.invoice_mode || 'standard',
+        data.invoice_category || 'service',
+        data.invoice_type || 'SERVICE INVOICE',
         data.bill_to,
         data.address || null,
         data.tin || null,
@@ -124,10 +115,8 @@ async function createInvoice(req, res) {
         exchangeRate,
         data.date,
         data.due_date || null,
-        0,
-        0,
         data.logo || null,
-        JSON.stringify(extraColumns),
+        JSON.stringify(data.extra_columns || []),
         data.recurrence_type || null,
         data.recurrence_start_date || null,
         data.recurrence_end_date || null,
@@ -137,324 +126,169 @@ async function createInvoice(req, res) {
       ]
     );
 
-    const invoiceId = invoiceResult.insertId;
+    const invoiceId = result.insertId;
 
-    // ------------------ INSERT ITEMS ------------------
-    const [colRows] = await conn.execute('SHOW COLUMNS FROM invoice_items');
-    const existingCols = colRows.map(c => c.Field);
-    let totalAmount = 0;
-
-    for (const item of data.items) {
-      const quantity = parseFloat(item.quantity) || 0;
-      const unit_price = parseFloat(item.unit_price) || 0;
-      let itemAmount = parseFloat(item.amount);
-      if (Number.isNaN(itemAmount)) itemAmount = quantity * unit_price;
-
-      const extraKeys = Object.keys(item).filter(k => !defaultItemCols.includes(k));
-      for (let k of extraKeys) {
-        k = k.replace(/[^a-zA-Z0-9_]/g, '');
-        if (k && !existingCols.includes(k)) {
-          await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${k}\` VARCHAR(255)`);
-          existingCols.push(k);
-        }
-      }
-
-      const baseCols = ['invoice_id', 'description', 'quantity', 'unit_price', 'amount', 'account_id'];
-      const placeholders = ['?', '?', '?', '?', '?', '?'];
-      const vals = [invoiceId, item.description || '', quantity, unit_price, itemAmount, item.account_id || null];
-
-      for (let k of extraKeys) {
-        if (k) {
-          baseCols.push('`' + k + '`');
-          placeholders.push('?');
-          vals.push(item[k] || null);
-        }
-      }
-
-      await conn.execute(
-        `INSERT INTO invoice_items (${baseCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
-        vals
-      );
-
-      totalAmount += itemAmount;
-    }
-
-    const foreignTotal = parseFloat((totalAmount / exchangeRate).toFixed(2));
+    const totalAmount = await insertItems(conn, invoiceId, data.items);
+    const foreignTotal = +(totalAmount / exchangeRate).toFixed(2);
 
     await conn.execute(
-      'UPDATE invoices SET total_amount_due = ?, foreign_total = ? WHERE id = ?',
+      `UPDATE invoices SET total_amount_due=?, foreign_total=? WHERE id=?`,
       [totalAmount, foreignTotal, invoiceId]
     );
 
-    // ------------------ TAX SUMMARY ------------------
-    const normalized = normalizeTaxSummary(data);
-    if (normalized) {
-      await conn.execute(
-        `INSERT INTO invoice_tax_summary
-         (invoice_id, subtotal, discount, vatable_sales, vat_exempt_sales, zero_rated_sales, vat_amount, withholding, total_payable)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          invoiceId,
-          normalized.subtotal,
-          normalized.discount,
-          normalized.vatable_sales,
-          normalized.vat_exempt_sales,
-          normalized.zero_rated_sales,
-          normalized.vat_amount,
-          normalized.withholding,
-          normalized.total_payable
-        ]
-      );
-    }
-
-    // ------------------ FOOTER ------------------
-    if (data.footer) {
-      const f = data.footer;
-      await conn.execute(
-        `INSERT INTO invoice_footer (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [invoiceId, f.atp_no || null, f.atp_date || null, f.bir_permit_no || null, f.bir_date || null, f.serial_nos || null]
-      );
-    }
+    await insertTaxAndFooter(conn, invoiceId, data);
 
     await conn.commit();
 
     res.status(201).json({
       success: true,
-      invoiceId,
       invoiceNo,
-      total_amount_due: totalAmount,
-      foreign_total: foreignTotal,
-      invoice_mode: invoiceMode,
-      invoice_category: invoiceCategory,
-      invoice_type: invoiceType,
+      invoiceId,
       currency,
       exchange_rate: exchangeRate
     });
 
   } catch (err) {
-    await conn.rollback().catch(() => {});
+    await conn.rollback();
     console.error('Create invoice error:', err);
-    res.status(500).json({ error: 'Failed to create invoice', details: err.message });
+    res.status(500).json({ error: 'Failed to create invoice' });
   } finally {
     conn.release();
   }
 }
 
-// ---------------------- UPDATE INVOICE ----------------------
+/* =========================================================
+   UPDATE INVOICE (PUT)
+========================================================= */
+
 async function updateInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const data = req.body;
-  const conn = await getConn();
 
   if (!data.bill_to || !data.date || !Array.isArray(data.items) || !data.items.length) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
+  const conn = await getConn();
+
   try {
     await conn.beginTransaction();
 
-    const [rows] = await conn.execute('SELECT id, currency FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
-    if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Invoice not found' }); }
+    const [[invoice]] = await conn.execute(
+      'SELECT id FROM invoices WHERE invoice_no=? LIMIT 1',
+      [invoiceNo]
+    );
 
-    const invoiceId = rows[0].id;
-
-    // Normalize currency from frontend
-    let currency = rows[0].currency || 'PHP';
-    if (data.currency && typeof data.currency === 'string') {
-      currency = data.currency.trim().toUpperCase();
+    if (!invoice) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Invoice not found' });
     }
+
+    const currency = (data.currency || 'PHP').toUpperCase();
     const exchangeRate = await getExchangeRate(currency);
 
-    const invoiceMode = data.invoice_mode || 'standard';
-    const invoiceCategory = data.invoice_category || 'service';
-    const invoiceType = data.invoice_type || 'SERVICE INVOICE';
+    await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [invoice.id]);
+    await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id=?', [invoice.id]);
+    await conn.execute('DELETE FROM invoice_footer WHERE invoice_id=?', [invoice.id]);
 
-    // Delete old items, tax summary, footer
-    await conn.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
-    await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id = ?', [invoiceId]);
-    await conn.execute('DELETE FROM invoice_footer WHERE invoice_id = ?', [invoiceId]);
-
-    // ------------------ INSERT ITEMS ------------------
-    const [colRows] = await conn.execute('SHOW COLUMNS FROM invoice_items');
-    const existingCols = colRows.map(c => c.Field);
-    let totalAmount = 0;
-
-    for (const item of data.items) {
-      const quantity = parseFloat(item.quantity) || 0;
-      const unit_price = parseFloat(item.unit_price) || 0;
-      let itemAmount = parseFloat(item.amount);
-      if (Number.isNaN(itemAmount)) itemAmount = quantity * unit_price;
-
-      const extraKeys = Object.keys(item).filter(k => !defaultItemCols.includes(k));
-      for (let k of extraKeys) {
-        k = k.replace(/[^a-zA-Z0-9_]/g, '');
-        if (k && !existingCols.includes(k)) {
-          await conn.execute(`ALTER TABLE invoice_items ADD COLUMN \`${k}\` VARCHAR(255)`);
-          existingCols.push(k);
-        }
-      }
-
-      const baseCols = ['invoice_id', 'description', 'quantity', 'unit_price', 'amount', 'account_id'];
-      const placeholders = ['?', '?', '?', '?', '?', '?'];
-      const vals = [invoiceId, item.description || '', quantity, unit_price, itemAmount, item.account_id || null];
-
-      for (let k of extraKeys) {
-        if (k) {
-          baseCols.push('`' + k + '`');
-          placeholders.push('?');
-          vals.push(item[k] || null);
-        }
-      }
-
-      await conn.execute(
-        `INSERT INTO invoice_items (${baseCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
-        vals
-      );
-
-      totalAmount += itemAmount;
-    }
-
-    const foreignTotal = parseFloat((totalAmount / exchangeRate).toFixed(2));
+    const totalAmount = await insertItems(conn, invoice.id, data.items);
+    const foreignTotal = +(totalAmount / exchangeRate).toFixed(2);
 
     await conn.execute(
       `UPDATE invoices
-       SET invoice_mode=?, invoice_category=?, invoice_type=?, bill_to=?, address=?, tin=?, terms=?, date=?,
-           total_amount_due=?, foreign_total=?, logo=?, extra_columns=?, status=?, currency=?, exchange_rate=?
+       SET invoice_mode=?, invoice_category=?, invoice_type=?,
+           bill_to=?, address=?, tin=?, terms=?,
+           date=?, due_date=?,
+           total_amount_due=?, foreign_total=?,
+           currency=?, exchange_rate=?,
+           logo=?, extra_columns=?, status=?
        WHERE id=?`,
       [
-        invoiceMode,
-        invoiceCategory,
-        invoiceType,
+        data.invoice_mode || 'standard',
+        data.invoice_category || 'service',
+        data.invoice_type || 'SERVICE INVOICE',
         data.bill_to,
         data.address || null,
         data.tin || null,
         data.terms || null,
         data.date,
+        data.due_date || null,
         totalAmount,
         foreignTotal,
+        currency,
+        exchangeRate,
         data.logo || null,
         JSON.stringify(data.extra_columns || []),
         data.status || 'draft',
-        currency,
-        exchangeRate,
-        invoiceId
+        invoice.id
       ]
     );
 
-    const normalized = normalizeTaxSummary(data);
-    if (normalized) {
-      await conn.execute(
-        `INSERT INTO invoice_tax_summary
-         (invoice_id, subtotal, discount, vatable_sales, vat_exempt_sales, zero_rated_sales, vat_amount, withholding, total_payable)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          invoiceId,
-          normalized.subtotal,
-          normalized.discount,
-          normalized.vatable_sales,
-          normalized.vat_exempt_sales,
-          normalized.zero_rated_sales,
-          normalized.vat_amount,
-          normalized.withholding,
-          normalized.total_payable
-        ]
-      );
-    }
-
-    if (data.footer) {
-      const f = data.footer;
-      await conn.execute(
-        `INSERT INTO invoice_footer (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [invoiceId, f.atp_no || null, f.atp_date || null, f.bir_permit_no || null, f.bir_date || null, f.serial_nos || null]
-      );
-    }
+    await insertTaxAndFooter(conn, invoice.id, data);
 
     await conn.commit();
-
-    res.json({
-      success: true,
-      invoiceId,
-      total_amount_due: totalAmount,
-      foreign_total: foreignTotal,
-      invoice_mode: invoiceMode,
-      invoice_category: invoiceCategory,
-      invoice_type: invoiceType,
-      currency,
-      exchange_rate: exchangeRate
-    });
+    res.json({ success: true });
 
   } catch (err) {
-    await conn.rollback().catch(() => {});
+    await conn.rollback();
     console.error('Update invoice error:', err);
-    res.status(500).json({ error: 'Failed to update invoice', details: err.message });
+    res.status(500).json({ error: 'Failed to update invoice' });
   } finally {
     conn.release();
   }
 }
 
-// ---------------------- GET SINGLE INVOICE ----------------------
+/* =========================================================
+   GET / LIST / DELETE / NEXT
+========================================================= */
+
 async function getInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const conn = await getConn();
+
   try {
-    const [invoiceRows] = await conn.execute('SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
-    if (!invoiceRows.length) return res.status(404).json({ error: 'Invoice not found' });
-    const invoice = invoiceRows[0];
-
-    const [cols] = await conn.execute('SHOW COLUMNS FROM invoice_items');
-    const colNames = cols.map(c => c.Field);
-    const [items] = await conn.execute(
-      `SELECT ${colNames.map(c => '`' + c + '`').join(', ')} FROM invoice_items WHERE invoice_id = ?`,
-      [invoice.id]
+    const [[invoice]] = await conn.execute(
+      'SELECT * FROM invoices WHERE invoice_no=? LIMIT 1',
+      [invoiceNo]
     );
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    const [taxRows] = await conn.execute('SELECT * FROM invoice_tax_summary WHERE invoice_id = ? LIMIT 1', [invoice.id]);
-    const rawTax = taxRows[0] || {};
-    const tax_summary = {
-      vatable_sales: rawTax.vatable_sales || 0,
-      vat_amount: rawTax.vat_amount || 0,
-      vat_exempt_sales: rawTax.vat_exempt_sales || 0,
-      zero_rated_sales: rawTax.zero_rated_sales || 0,
-      subtotal: rawTax.subtotal || 0,
-      discount: rawTax.discount || 0,
-      withholding: rawTax.withholding || 0,
-      total_payable: rawTax.total_payable || 0
-    };
-
-    const [footers] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1', [invoice.id]);
-    const [companyRows] = await conn.execute('SELECT * FROM company_info LIMIT 1');
+    const [items] = await conn.execute('SELECT * FROM invoice_items WHERE invoice_id=?', [invoice.id]);
+    const [[tax]] = await conn.execute('SELECT * FROM invoice_tax_summary WHERE invoice_id=? LIMIT 1', [invoice.id]);
+    const [[footer]] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id=? LIMIT 1', [invoice.id]);
+    const [[company]] = await conn.execute('SELECT * FROM company_info LIMIT 1');
 
     invoice.items = items;
-    invoice.tax_summary = tax_summary;
-    invoice.footer = footers[0] || {};
-    invoice.company = companyRows[0] || {};
+    invoice.tax_summary = tax || {};
+    invoice.footer = footer || {};
+    invoice.company = company || {};
     invoice.extra_columns = invoice.extra_columns ? JSON.parse(invoice.extra_columns) : [];
 
     res.json(invoice);
-  } catch (err) {
-    console.error('Error fetching invoice:', err);
-    res.status(500).json({ error: 'Failed to fetch invoice', details: err.message });
   } finally {
     conn.release();
   }
 }
 
-// ---------------------- LIST INVOICES ----------------------
 async function listInvoices(req, res) {
   const conn = await getConn();
   try {
     const { status } = req.query;
-    let sql = `SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, i.total_amount_due, i.foreign_total,
-                      i.logo, i.status, i.invoice_mode, i.invoice_category, i.invoice_type, i.currency, i.exchange_rate
-               FROM invoices i`;
+    let sql = `
+      SELECT invoice_no, bill_to, date, due_date,
+             total_amount_due, foreign_total,
+             status, currency, exchange_rate
+      FROM invoices
+    `;
     const params = [];
+
     if (status) {
-      sql += ' WHERE i.status = ?';
+      sql += ' WHERE status=?';
       params.push(status);
     }
-    sql += ' ORDER BY i.date DESC';
+
+    sql += ' ORDER BY date DESC';
+
     const [rows] = await conn.execute(sql, params);
     res.json(rows);
   } finally {
@@ -462,54 +296,101 @@ async function listInvoices(req, res) {
   }
 }
 
-// ---------------------- DELETE INVOICE ----------------------
 async function deleteInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const conn = await getConn();
+
   try {
     await conn.beginTransaction();
-    const [rows] = await conn.execute('SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
-    if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Invoice not found' }); }
-    const id = rows[0].id;
-    await conn.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [id]);
-    await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id = ?', [id]);
-    await conn.execute('DELETE FROM invoice_footer WHERE invoice_id = ?', [id]);
-    await conn.execute('DELETE FROM invoices WHERE id = ?', [id]);
+
+    const [[inv]] = await conn.execute(
+      'SELECT id FROM invoices WHERE invoice_no=? LIMIT 1',
+      [invoiceNo]
+    );
+    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+
+    await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [inv.id]);
+    await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id=?', [inv.id]);
+    await conn.execute('DELETE FROM invoice_footer WHERE invoice_id=?', [inv.id]);
+    await conn.execute('DELETE FROM invoices WHERE id=?', [inv.id]);
+
     await conn.commit();
-    res.json({ success: true, message: 'Invoice deleted' });
+    res.json({ success: true });
+
   } catch (err) {
-    await conn.rollback().catch(() => {});
-    console.error('Delete invoice error:', err);
+    await conn.rollback();
     res.status(500).json({ error: 'Failed to delete invoice' });
   } finally {
     conn.release();
   }
 }
 
-// ---------------------- NEXT INVOICE NO (preview only) ----------------------
 async function nextInvoiceNo(req, res) {
   const conn = await getConn();
   try {
-    const [counterRows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1');
-    if (!counterRows.length) throw new Error('Invoice counter not initialized');
-    const counter = counterRows[0];
+    const [rows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1');
+    const counter = rows[0];
 
-    const [maxRows] = await conn.execute(
+    const [[max]] = await conn.execute(
       `SELECT MAX(CAST(SUBSTRING(invoice_no, ?) AS UNSIGNED)) AS max_no FROM invoices`,
       [counter.prefix.length + 1]
     );
-    const maxInvoice = maxRows[0].max_no || 0;
-    const nextNumber = Math.max(counter.last_number || 0, maxInvoice) + 1;
-    const invoiceNo = `${counter.prefix}${String(nextNumber).padStart(6, '0')}`;
 
-    res.json({ invoiceNo });
-  } catch (err) {
-    console.error('Next invoice number preview error:', err);
-    res.status(500).json({ error: 'Failed to get next invoice number', details: err.message });
+    const next = Math.max(counter.last_number || 0, max.max_no || 0) + 1;
+    res.json({ invoiceNo: `${counter.prefix}${String(next).padStart(6, '0')}` });
   } finally {
     conn.release();
   }
 }
+
+/* =========================================================
+   SHARED INSERTS
+========================================================= */
+
+async function insertItems(conn, invoiceId, items) {
+  let total = 0;
+
+  for (const it of items) {
+    const qty = +it.quantity || 0;
+    const price = +it.unit_price || 0;
+    const amount = +it.amount || qty * price;
+
+    await conn.execute(
+      `INSERT INTO invoice_items
+       (invoice_id, description, quantity, unit_price, amount, account_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [invoiceId, it.description || '', qty, price, amount, it.account_id || null]
+    );
+
+    total += amount;
+  }
+  return total;
+}
+
+async function insertTaxAndFooter(conn, invoiceId, data) {
+  const tax = normalizeTaxSummary(data);
+  if (tax) {
+    await conn.execute(
+      `INSERT INTO invoice_tax_summary
+       (invoice_id, subtotal, discount, vatable_sales, vat_exempt_sales,
+        zero_rated_sales, vat_amount, withholding, total_payable)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [invoiceId, ...Object.values(tax)]
+    );
+  }
+
+  if (data.footer) {
+    const f = data.footer;
+    await conn.execute(
+      `INSERT INTO invoice_footer
+       (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [invoiceId, f.atp_no, f.atp_date, f.bir_permit_no, f.bir_date, f.serial_nos]
+    );
+  }
+}
+
+/* ========================================================= */
 
 module.exports = {
   createInvoice,
