@@ -2,7 +2,7 @@ import { requireAnyRole } from './authClient.js'; // <-- ADD THIS
 
 'use strict';
 
-// -------------------- 0. DEBUG & DOM HELPERS --------------------
+/* -------------------- 0. DEBUG & DOM HELPERS (MOVED TO TOP) -------------------- */
 const DBG = {
   log: (...args) => console.log('[E-INVOICING]', ...args),
   warn: (...args) => console.warn('[E-INVOICING]', ...args),
@@ -11,9 +11,20 @@ const DBG = {
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
-
 const safeSetValue = (selector, value) => { const el = $(selector); if (el) el.value = value; };
 const safeSetText = (selector, text) => { const el = $(selector); if (el) el.textContent = text; };
+
+/* -------------------- 1. UTILITIES -------------------- */
+function dateToYYYYMMDD(dateValue) {
+  if (!dateValue) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
+  const d = new Date(dateValue);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear(); 
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function getInputValue(name) {
   const el = document.querySelector(`input[name="${name}"], select[name="${name}"]`) || document.getElementById(name);
@@ -26,114 +37,6 @@ function setInputValue(name, value) {
   if (!el) return;
   el.type === 'checkbox' ? el.checked = !!value : ('value' in el ? el.value = value : el.textContent = value);
 }
-
-function dateToYYYYMMDD(dateValue) {
-  if (!dateValue) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
-  const d = new Date(dateValue);
-  if (isNaN(d.getTime())) return "";
-  const year = d.getFullYear(); 
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-// -------------------- 1. FORM PERSISTENCE --------------------
-function saveFormState() {
-  try {
-    const formData = {
-      inputs: {},
-      items: [],
-      extraColumns: [],
-      currency: getInputValue('currency'),
-      exchangeRate: getInputValue('exchangeRate'),
-      vatType: getInputValue('vatType'),
-      discount: getInputValue('discount'),
-      ewt: getInputValue('withholdingTax'),
-      footer: {
-        atp_no: getInputValue('footerAtpNo'),
-        atp_date: getInputValue('footerAtpDate'),
-        bir_permit_no: getInputValue('footerBirPermit'),
-        bir_date: getInputValue('footerBirDate'),
-        serial_nos: getInputValue('footerSerialNos')
-      }
-    };
-
-    // Save all simple inputs
-    $$('input, select, textarea').forEach(el => {
-      const name = el.name || el.id;
-      if (name) formData.inputs[name] = el.value;
-    });
-
-    // Save extra columns headers
-    $$('#items-table thead th').forEach((th, idx) => {
-      if (idx >= 5) formData.extraColumns.push(th.textContent.trim());
-    });
-
-    // Save items rows
-    $$('#items-body tr').forEach(row => {
-      const item = {};
-      row.querySelectorAll('input, textarea').forEach(el => {
-        const name = el.name;
-        if (name) item[name] = el.value;
-      });
-      formData.items.push(item);
-    });
-
-    localStorage.setItem('invoiceFormState', JSON.stringify(formData));
-  } catch (err) {
-    DBG.error('saveFormState error:', err);
-  }
-}
-
-function restoreFormState() {
-  try {
-    const stored = localStorage.getItem('invoiceFormState');
-    if (!stored) return;
-    const formData = JSON.parse(stored);
-
-    // Restore simple inputs
-    for (const [name, value] of Object.entries(formData.inputs || {})) {
-      setInputValue(name, value);
-    }
-
-    // Restore extra columns
-    const theadRow = $("#items-table thead tr");
-    if (theadRow && formData.extraColumns?.length) {
-      formData.extraColumns.forEach(col => {
-        const colKey = col.toLowerCase().replace(/\s+/g, "_");
-        const th = document.createElement('th');
-        th.textContent = col;
-        th.setAttribute('data-colkey', colKey);
-        theadRow.appendChild(th);
-      });
-    }
-
-    // Restore items rows
-    const tbody = $("#items-body");
-    if (tbody && formData.items?.length) {
-      tbody.innerHTML = '';
-      formData.items.forEach(item => {
-        addRow();
-        const row = tbody.lastElementChild;
-        for (const [name, value] of Object.entries(item)) {
-          const el = row.querySelector(`[name="${name}"]`);
-          if (el) el.value = value;
-        }
-      });
-    }
-
-    calculateTotals();
-    adjustColumnWidths();
-  } catch (err) {
-    DBG.error('restoreFormState error:', err);
-  }
-}
-
-// Save form on any change
-document.addEventListener('input', saveFormState);
-document.addEventListener('change', saveFormState);
-
 
 /* -------------------- NOTIFICATIONS -------------------- */
 let notifications = [];
@@ -484,30 +387,39 @@ function addRow() {
   row.innerHTML = Array.from(ths).map((th, i) => {
     const colName = th.textContent.trim().toLowerCase().replace(/\s+/g, "_");
     switch(i) {
-      case 0: return `<td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea></td>`;
-      case 1:
+      case 0: // DESCRIPTION
+        return `<td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea></td>`;
+      case 1: // ACCOUNT
         return `<td class="Acc-col" style="position:relative;">
-          <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
-          <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
-        </td>`;
-      case 2: return `<td><input type="number" class="input-short" name="qty[]" value="0" oninput="updateAmount(this)"></td>`;
-      case 3: return `<td><input type="number" class="input-short" name="rate[]" value="0" oninput="updateAmount(this)"></td>`;
-      case 4: return `<td><input type="number" class="input-short" name="amt[]" value="0" readonly></td>`;
-      default: return `<td><input type="text" name="${colName}[]"></td>`;
+                  <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
+                  <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+                </td>`;
+      case 2: // QTY
+        return `<td><input type="number" class="input-short" name="qty[]" value="0" oninput="updateAmount(this)"></td>`;
+      case 3: // RATE
+        return `<td><input type="number" class="input-short" name="rate[]" value="0" oninput="updateAmount(this)"></td>`;
+      case 4: // AMOUNT
+        return `<td><input type="number" class="input-short" name="amt[]" value="0" readonly></td>`;
+      default: // EXTRA COLUMNS
+        return `<td><input type="text" name="${colName}[]"></td>`;
     }
   }).join('');
 
   tbody.appendChild(row);
 
+  // Populate account combo box
+  const selInput = row.querySelector('.account-input');
+  if (selInput && window._coaAccounts) setupAccountCombo(selInput, window._coaAccounts);
+
+  // Auto-resize description textarea
   const descTextarea = row.querySelector('.item-desc');
   if (descTextarea) {
     autoResize(descTextarea);
-    descTextarea.addEventListener('input', () => { autoResize(descTextarea); saveFormState(); });
+    descTextarea.addEventListener('input', () => autoResize(descTextarea));
   }
 
   adjustColumnWidths();
 }
-
 function removeRow() {
   const tbody = $("#items-body");
   if (!tbody || tbody.rows.length <= 1) return alert("At least one row must remain.");
@@ -770,20 +682,12 @@ async function saveToDatabase() {
   const billTo = getInputValue('billTo');
   const invoiceNo = getInputValue('invoiceNo');
   const date = getInputValue('date');
-
-  if (!billTo || !date) {
-    return alert("Fill Bill To and Date.");
-  }
+  if (!billTo || !invoiceNo || !date) return alert("Fill Bill To, Invoice No, Date.");
 
   calculateTotals();
 
-  const params = new URLSearchParams(window.location.search);
-  const isEdit = params.get('edit') === 'true' && params.get('invoice_no');
-
   const ths = $("#items-table thead tr").children;
-  const extraColumns = Array.from(ths)
-    .slice(5)
-    .map(th => th.textContent.trim().toLowerCase().replace(/\s+/g, "_"));
+  const extraColumns = Array.from(ths).slice(5).map(th => th.textContent.trim().toLowerCase().replace(/\s+/g,"_"));
 
   const rows = $$('#items-body tr');
   const items = rows.map(row => {
@@ -792,15 +696,14 @@ async function saveToDatabase() {
       quantity: parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0,
       unit_price: parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0,
       amount: parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0,
-      account_id: row.querySelector('[name="account[]"]')?.dataset.accountId || ""
+      account_id: row.querySelector('[name="account[]"]')?.value || ""
     };
-    extraColumns.forEach(col => {
-      item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '';
-    });
+    extraColumns.forEach(col => item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '');
     return item;
   });
 
   const payload = {
+    invoice_no: invoiceNo,
     bill_to: billTo,
     address: getInputValue('address'),
     tin: getInputValue('tin'),
@@ -810,8 +713,8 @@ async function saveToDatabase() {
     invoice_mode: getInputValue('invoiceMode'),
     invoice_category: getInputValue('invoiceCategory'),
     invoice_type: getInputValue('invoice_type'),
-    currency: currencySelect?.value || 'PHP',
-    exchange_rate: parseFloat(exchangeRateInput?.value) || 1,
+    currency: currencySelect?.value || 'PHP',           
+    exchange_rate: parseFloat(exchangeRateInput?.value) || 1,  
     items,
     extra_columns: extraColumns,
     tax_summary: {
@@ -830,38 +733,29 @@ async function saveToDatabase() {
     }
   };
 
-  let url = '/api/invoices';
-  let method = 'POST';
-
-  if (isEdit) {
-    // ✅ UPDATE EXISTING INVOICE
-    url = `/api/invoices/${encodeURIComponent(invoiceNo)}`;
-    method = 'PUT';
-    payload.invoice_no = invoiceNo;
-  }
-
   DBG.log('Saving invoice payload:', payload);
 
   try {
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch('/api/invoices', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = err.error || err.message || `${res.status} ${res.statusText}`;
-      DBG.error('saveToDatabase server error:', err);
-      throw new Error(msg);
+      let errBody = null;
+      try { errBody = await res.json(); } catch (e) {}
+      const message = (errBody && (errBody.error || errBody.message)) || `${res.status} ${res.statusText}`;
+      DBG.error('saveToDatabase server error:', errBody || res.statusText);
+      alert('Failed to save invoice: ' + message);
+      throw new Error('Failed to save invoice: ' + message);
     }
 
     alert('Invoice saved successfully!');
-    localStorage.removeItem('invoiceFormState');
     window.location.reload();
   } catch (err) {
     DBG.error('saveToDatabase error:', err);
-    alert('Failed to save invoice: ' + err.message);
+    alert('Failed to save invoice');
   }
 }
 
@@ -883,23 +777,9 @@ function autofillDates() {
   if (footerBirDate && !footerBirDate.value) footerBirDate.value = today;
 }
 
- const params = new URLSearchParams(window.location.search);
-const invoiceNo = params.get('invoice_no');
-
-if (!invoiceNo) {
-  // NEW invoice: restore draft if exists
-  const stored = localStorage.getItem('invoiceFormState');
-  if (stored) {
-    restoreFormState();
-  }
-} else {
-  // EDIT invoice: ignore localStorage
-  localStorage.removeItem('invoiceFormState');
-  await loadInvoiceForEdit(); // already in your code
-}
-
 window.addEventListener('DOMContentLoaded', async () => {
 
+  // ======= RBAC PROTECTION =======
   const allowed = await requireAnyRole(['super', 'approver', 'submitter']);
   if (!allowed) return;
 
@@ -913,9 +793,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadCompanyInfo();
 
   // ======= 4️⃣ LOAD NEXT INVOICE NO =======
-if (!isEdit) {
   await loadNextInvoiceNo();
-}
 
   // ======= 5️⃣ SET INVOICE TITLE =======
   setInvoiceTitleFromURL();
