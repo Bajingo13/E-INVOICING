@@ -234,4 +234,43 @@ router.get(
   asyncHandler(invoicesCtrl.nextInvoiceNo)
 );
 
+// ---------------- GET EXCHANGE RATE (BAP) ----------------
+const fetch = require('node-fetch');
+const AbortController = require('abort-controller');
+
+router.get('/exchange-rate', requireLogin, asyncHandler(async (req, res) => {
+  const to = req.query.to?.toUpperCase();
+  if (!to) return res.status(400).json({ error: 'Missing currency code' });
+
+  const fallbackRates = { USD: 56, SGD: 42, AUD: 38, PHP: 1 };
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+    const response = await fetch('https://www.bap.org.ph/downloads/daily-rates.json', {
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) throw new Error('BAP source not available');
+
+    const data = await response.json(); // e.g., { "USD": 56.1, "SGD": 42.5, ... }
+
+    if (to === 'PHP') return res.json({ rate: 1 });
+
+    const rate = Number(data[to]) || fallbackRates[to];
+    if (!rate) return res.status(404).json({ error: 'Exchange rate unavailable' });
+
+    const note = data[to] ? undefined : 'Using fallback rate';
+    res.json({ rate, note });
+
+  } catch (err) {
+    console.error('Exchange rate error:', err);
+    const rate = fallbackRates[to];
+    if (!rate) return res.status(500).json({ error: 'Exchange rate unavailable' });
+    res.json({ rate, note: 'Using fallback rate' });
+  }
+}));
+
 module.exports = router;

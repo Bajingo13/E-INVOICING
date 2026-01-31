@@ -8,9 +8,13 @@ console.log("✅ REPLICA.js loaded");
 // Main Invoice Renderer 
 // ============================
 function renderInvoice(data) {
-  const formatCurrency = (value) => {
+  const invoice = data;
+
+  // -------------------- FORMATTERS --------------------
+  const formatCurrency = (value, currency = "PHP") => {
     const num = parseFloat(value);
-    return isNaN(num) ? "0.00" : num.toLocaleString("en-PH", { style: "currency", currency: "PHP" });
+    if (isNaN(num)) return "0.00";
+    return num.toLocaleString("en-PH", { style: "currency", currency });
   };
 
   const formatDate = (dateStr) => {
@@ -24,89 +28,8 @@ function renderInvoice(data) {
     if (el) el.textContent = value || "";
   };
 
-// -------------------- ITEMS TABLE --------------------
-const buildTable = (items, extraColumns = []) => {
-  const theadRow = document.getElementById("replica-thead-row");
-  const colgroup = document.getElementById("invoice-colgroup");
-  const tbody = document.getElementById("itemRows");
-
-  theadRow.innerHTML = "";
-  colgroup.innerHTML = "";
-  tbody.innerHTML = "";
-
-  // ✅ MAIN COLUMNS — ALWAYS FIXED
-  const MAIN_COLUMNS = [
-  { key: "description", label: "Item Description / Nature Of Service", width: 30 },
-  { key: "quantity", label: "Quantity", width: 10 },
-  { key: "unit_price", label: "Unit Price/ Rate", width: 15 },
-  { key: "amount", label: "Amount", width: 15 }
-];
-
-  // ✅ EXTRA COLUMNS — ONLY FROM SAVED INVOICE
-  const extraFields = Array.isArray(extraColumns) ? extraColumns : [];
-
-  // ---------- HEADER ----------
-  [...MAIN_COLUMNS, ...extraFields.map(f => ({ key: f, label: f }))].forEach(col => {
-    const th = document.createElement("th");
-    th.textContent = col.label.replace(/_/g, " ").toUpperCase();
-    theadRow.appendChild(th);
-  });
-
-  // ---------- COLGROUP (WIDTH NEVER EXPANDS) ----------
-  MAIN_COLUMNS.forEach(col => {
-    const c = document.createElement("col");
-    c.style.width = col.width + "%";
-    colgroup.appendChild(c);
-  });
-
-  if (extraFields.length) {
-    const remaining = 100 - MAIN_COLUMNS.reduce((s, c) => s + c.width, 0);
-    const extraWidth = remaining / extraFields.length;
-    extraFields.forEach(() => {
-      const c = document.createElement("col");
-      c.style.width = extraWidth + "%";
-      colgroup.appendChild(c);
-    });
-  }
-
-  // ---------- ROWS ----------
-  const TOTAL_ROWS = 20;
-
-  for (let i = 0; i < TOTAL_ROWS; i++) {
-    const item = items[i] || {};
-    const tr = document.createElement("tr");
-
-    MAIN_COLUMNS.forEach(col => {
-      const td = document.createElement("td");
-
-      // ✅ Only add class if non-empty
-      if (col.key === "description") td.classList.add("desc");
-
-      let val = item[col.key];
-      if (col.key === "unit_price" || col.key === "amount") {
-        val = val ? parseFloat(val).toLocaleString("en-PH", { style: "currency", currency: "PHP" }) : "";
-      }
-
-      td.innerHTML = val || "&nbsp;";
-      tr.appendChild(td);
-    });
-
-    extraFields.forEach(f => {
-      const td = document.createElement("td");
-      td.innerHTML = item[f] ?? "&nbsp;";
-      tr.appendChild(td);
-    });
-
-    tbody.appendChild(tr);
-  }
-
-  return extraFields;
-};
-
-  
-
   // -------------------- COMPANY INFO --------------------
-  const company = data.company || {};
+  const company = invoice.company || {};
   fillById("company-name", company.company_name || "");
   fillById("company-address", company.company_address || "");
   fillById("company-tel", company.tel_no || "");
@@ -118,30 +41,124 @@ const buildTable = (items, extraColumns = []) => {
   }
 
   // -------------------- INVOICE HEADER --------------------
-  const invoice = data;
   fillById("invoice_no", invoice.invoice_no || "");
   fillById("invoice_date", invoice.date ? formatDate(invoice.date) : "");
   fillById("billTo", invoice.bill_to || "");
   fillById("address", invoice.address || "");
   fillById("tin", invoice.tin || "");
-  fillById("terms_table", invoice.terms || "");
 
-  // -------------------- ITEMS --------------------
-  const extraFields = buildTable(
-  invoice.items || [],
-  invoice.extra_columns || []
-);
+  // Render terms properly
+  const termsEl = document.getElementById("terms_table");
+  if (termsEl) termsEl.innerHTML = invoice.terms || "";
+
+  // -------------------- EXCHANGE RATE --------------------
+  const exchangeRateEl = document.getElementById("exchange_rate");
+  const exchangeRate = parseFloat(invoice.exchange_rate || 1);
+  if (exchangeRateEl) {
+    if (invoice.currency === "PHP") {
+      exchangeRateEl.textContent = "₱1.00";
+    } else {
+      exchangeRateEl.textContent = `1 ${invoice.currency} = ₱${exchangeRate.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+    }
+  }
+
+  // -------------------- ITEMS TABLE --------------------
+  const buildTable = (items, extraColumns = []) => {
+    const theadRow = document.getElementById("replica-thead-row");
+    const colgroup = document.getElementById("invoice-colgroup");
+    const tbody = document.getElementById("itemRows");
+
+    theadRow.innerHTML = "";
+    colgroup.innerHTML = "";
+    tbody.innerHTML = "";
+
+    const MAIN_COLUMNS = [
+      { key: "description", label: "Item Description / Nature Of Service", width: 30 },
+      { key: "quantity", label: "Quantity", width: 10 },
+      { key: "unit_price", label: "Unit Price/ Rate", width: 15 },
+      { key: "amount", label: "Amount", width: 15 }
+    ];
+
+    const extraFields = Array.isArray(extraColumns) ? extraColumns : [];
+
+    // HEADER
+    [...MAIN_COLUMNS, ...extraFields.map(f => ({ key: f, label: f }))].forEach(col => {
+      const th = document.createElement("th");
+      th.textContent = col.label.replace(/_/g, " ").toUpperCase();
+      theadRow.appendChild(th);
+    });
+
+    // COLGROUP
+    MAIN_COLUMNS.forEach(col => {
+      const c = document.createElement("col");
+      c.style.width = col.width + "%";
+      colgroup.appendChild(c);
+    });
+
+    if (extraFields.length) {
+      const remaining = 100 - MAIN_COLUMNS.reduce((s, c) => s + c.width, 0);
+      const extraWidth = remaining / extraFields.length;
+      extraFields.forEach(() => {
+        const c = document.createElement("col");
+        c.style.width = extraWidth + "%";
+        colgroup.appendChild(c);
+      });
+    }
+
+    // ROWS
+    const TOTAL_ROWS = 20;
+    for (let i = 0; i < TOTAL_ROWS; i++) {
+      const item = items[i] || {};
+      const tr = document.createElement("tr");
+
+      // Inside your buildTable → ROWS loop
+MAIN_COLUMNS.forEach(col => {
+  const td = document.createElement("td");
+  if (col.key === "description") td.classList.add("desc");
+
+  let val = item[col.key];
+
+  if (!val) {
+    td.innerHTML = "&nbsp;"; // EMPTY row, no zeros
+  } else if (col.key === "unit_price") {
+    td.innerHTML = formatCurrency(val, invoice.currency);
+  } else if (col.key === "amount") {
+    const num = parseFloat(val);
+    td.innerHTML = num ? "₱" + num.toLocaleString("en-PH", { minimumFractionDigits: 2 }) : "&nbsp;";
+  } else {
+    td.innerHTML = val;
+  }
+
+  tr.appendChild(td);
+});
+
+
+      extraFields.forEach(f => {
+        const td = document.createElement("td");
+        td.innerHTML = item[f] ?? "&nbsp;";
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    }
+
+    return extraFields;
+  };
+
+  const extraFields = buildTable(invoice.items || [], invoice.extra_columns || []);
 
   // -------------------- PAYMENT SUMMARY --------------------
   const payment = invoice.tax_summary || {};
-  fillById("vatableSales", formatCurrency(payment.vatable_sales));
-  fillById("vatAmount", formatCurrency(payment.vat_amount));
-  fillById("vatExemptSales", formatCurrency(payment.vat_exempt_sales));
-  fillById("zeroRatedSales", formatCurrency(payment.zero_rated_sales));
-  fillById("subtotal", formatCurrency(payment.subtotal));
-  fillById("discount", formatCurrency(payment.discount));
-  fillById("withholdingTax", formatCurrency(payment.withholding));
-  fillById("totalPayable", formatCurrency(payment.total_payable));
+  const showPHP = val => "₱" + ((parseFloat(val) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 }));
+
+  fillById("vatableSales", showPHP(payment.vatable_sales));
+  fillById("vatAmount", showPHP(payment.vat_amount));
+  fillById("vatExemptSales", showPHP(payment.vat_exempt_sales));
+  fillById("zeroRatedSales", showPHP(payment.zero_rated_sales));
+  fillById("subtotal", showPHP(payment.subtotal));
+  fillById("discount", showPHP(payment.discount));
+  fillById("withholdingTax", showPHP(payment.withholding));
+  fillById("totalPayable", showPHP(payment.total_payable));
 
   // -------------------- FOOTER --------------------
   const footer = invoice.footer || {};
@@ -152,23 +169,21 @@ const buildTable = (items, extraColumns = []) => {
   fillById("footer-serial-nos", footer.serial_nos || "");
 
   // -------------------- INVOICE TITLE & NOTICE --------------------
-const invoiceType = invoice.invoice_type || "SERVICE INVOICE";
-const titleEl = document.querySelector(".invoice-title");
-if (titleEl) titleEl.textContent = invoiceType.toUpperCase();
+  const invoiceType = invoice.invoice_type || "SERVICE INVOICE";
+  const titleEl = document.querySelector(".invoice-title");
+  if (titleEl) titleEl.textContent = invoiceType.toUpperCase();
 
-// Show/hide notices based on type
-const inputTaxNotice = document.getElementById("inputTaxNotice");
-const signatureNotice = document.getElementById("signature");
+  const inputTaxNotice = document.getElementById("inputTaxNotice");
+  const signatureNotice = document.getElementById("signature");
+  if (invoiceType.toUpperCase().includes("CREDIT") || invoiceType.toUpperCase().includes("DEBIT")) {
+    if (inputTaxNotice) inputTaxNotice.style.display = "block";
+    if (signatureNotice) signatureNotice.style.display = "none";
+  } else {
+    if (inputTaxNotice) inputTaxNotice.style.display = "none";
+    if (signatureNotice) signatureNotice.style.display = "block";
+  }
 
-if (invoiceType.toUpperCase().includes("CREDIT") || invoiceType.toUpperCase().includes("DEBIT")) {
-  if (inputTaxNotice) inputTaxNotice.style.display = "block";
-  if (signatureNotice) signatureNotice.style.display = "none";
-} else {
-  if (inputTaxNotice) inputTaxNotice.style.display = "none";
-  if (signatureNotice) signatureNotice.style.display = "block";
-}
-
-  // Save extra fields for export
+  // Save extra fields globally for export
   window._extraFields = extraFields;
 }
 
@@ -216,117 +231,7 @@ function downloadBlob(blob, filename) {
   document.body.removeChild(link);
 }
 
-function getInvoiceDataFromDOM() {
-  const getText = id => document.getElementById(id)?.textContent.trim() || "";
-  const extraFields = window._extraFields || [];
-
-  const items = [];
-  document.querySelectorAll('#itemRows tr').forEach(tr => {
-    const tds = tr.querySelectorAll('td');
-    if(tds.length){
-      const item = {
-        description: tds[0]?.textContent.trim(),
-        quantity: tds[1]?.textContent.trim(),
-        unit_price: tds[2]?.textContent.trim(),
-        amount: tds[3]?.textContent.trim()
-      };
-      extraFields.forEach((f, idx) => { item[f] = tds[4+idx]?.textContent.trim() || ""; });
-      if(Object.values(item).some(v=>v!=="")) items.push(item);
-    }
-  });
-
-  return {
-    company: {
-      companyName: getText('company-name'),
-      companyAddress: getText('company-address'),
-      companyTel: getText('company-tel'),
-      companyTIN: getText('company-tin')
-    },
-    invoice: {
-      billTo: getText('billTo'),
-      address: getText('address'),
-      tin: getText('tin'),
-      invoiceNumber: getText('invoice_no'),
-      invoiceDate: getText('invoice_date'),
-      terms: getText('terms_table')
-    },
-    items,
-    payment: {
-      vatableSales: getText('vatableSales'),
-      vatAmount: getText('vatAmount'),
-      vatExemptSales: getText('vatExemptSales'),
-      zeroRatedSales: getText('zeroRatedSales'),
-      subtotal: getText('subtotal'),
-      discount: getText('discount'),
-      withholdingTax: getText('withholdingTax'),
-      totalPayable: getText('totalPayable')
-    },
-    footer: {
-      atpNo: getText('footer-atp-no'),
-      atpDate: getText('footer-atp-date'),
-      birPermit: getText('footer-bir-permit'),
-      birDate: getText('footer-bir-date'),
-      serialNos: getText('footer-serial-nos')
-    }
-  };
-}
-
-function exportInvoice(type){
-  const data = getInvoiceDataFromDOM();
-  if(type==='json') downloadBlob(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'invoice.json');
-  else if(type==='xml') downloadBlob(new Blob([objectToXml(data,'invoice')],{type:'application/xml'}),'invoice.xml');
-  else if(type==='excel') downloadBlob(new Blob(['\uFEFF'+objectToCSV(data)],{type:'text/csv'}),'invoice.csv');
-}
-
-function objectToXml(obj, rootName){
-  let xml = `<${rootName}>`;
-  for(let key in obj){
-    if(Array.isArray(obj[key])){
-      xml+=`<${key}>`;
-      obj[key].forEach(item=>xml+=objectToXml(item,'item'));
-      xml+=`</${key}>`;
-    }else if(typeof obj[key]==='object' && obj[key]!==null){
-      xml+=objectToXml(obj[key],key);
-    }else{
-      xml+=`<${key}>${escapeXml(obj[key]??'')}</${key}>`;
-    }
-  }
-  xml+=`</${rootName}>`;
-  return xml;
-}
-function escapeXml(unsafe){return String(unsafe).replace(/[<>&'"]/g,c=>{switch(c){case'<':return'&lt;';case'>':return'&gt;';case'&':return'&amp;';case"'":return'&apos;';case'"':return'&quot;'}});}
-
-function objectToCSV(obj){
-  const lines=[];
-  lines.push(['Company Name', obj.company.companyName]);
-  lines.push(['Company Address', obj.company.companyAddress]);
-  lines.push(['Company Tel', obj.company.companyTel]);
-  lines.push(['Company TIN', obj.company.companyTIN]);
-  lines.push(['Bill To', obj.invoice.billTo]);
-  lines.push(['Address', obj.invoice.address]);
-  lines.push(['TIN', obj.invoice.tin]);
-  lines.push(['Invoice No', obj.invoice.invoiceNumber]);
-  lines.push(['Invoice Date', obj.invoice.invoiceDate]);
-  lines.push(['Terms', obj.invoice.terms]);
-  lines.push(['--- Items ---']);
-
-  const extraFields = window._extraFields || [];
-  const headers = ['Description','Quantity','Unit Price','Amount', ...extraFields];
-  lines.push(headers);
-
-  obj.items.forEach(item=>{
-    const row = [item.description,item.quantity,item.unit_price,item.amount,...extraFields.map(f=>item[f]||"")];
-    lines.push(row);
-  });
-
-  lines.push(['--- Payment ---']);
-  for(const k in obj.payment) lines.push([k,obj.payment[k]]);
-  lines.push(['--- Footer ---']);
-  for(const k in obj.footer) lines.push([k,obj.footer[k]]);
-
-  return lines.map(r=>r.map(x=>`"${(x??'').replace(/"/g,'""')}"`).join(',')).join('\n');
-}
-
+// -------------------- FOOTER UPDATE --------------------
 function updateOnScreenFooter() {
   const now = new Date();
   document.querySelectorAll('.print-timestamp')
@@ -335,7 +240,5 @@ function updateOnScreenFooter() {
     .forEach(el => el.textContent = 'Page 1 of 1');
 }
 
-
 window.addEventListener('DOMContentLoaded', updateOnScreenFooter);
 window.addEventListener('beforeprint', updateOnScreenFooter);
-

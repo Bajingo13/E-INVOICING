@@ -2,81 +2,7 @@ import { requireAnyRole } from './authClient.js'; // <-- ADD THIS
 
 'use strict';
 
-// -------------------- NOTIFICATIONS --------------------
-let notifications = [];
-
-// Fetch notifications and update badge
-async function loadNotifications() {
-  try {
-    const res = await fetch('/api/notifications', { credentials: 'include' });
-    if (!res.ok) return [];
-
-    const data = await res.json();
-    notifications = data || [];
-
-    const badge = document.getElementById('notifBadge');
-    if (!badge) return;
-
-    const unreadCount = notifications.filter(n => !n.is_read).length;
-
-    if (unreadCount > 0) {
-      badge.textContent = unreadCount;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
-
-    return notifications;
-  } catch (err) {
-    console.error('Failed to load notifications:', err);
-    return [];
-  }
-}
-
-/* ===================== RBAC APPROVAL UI (FIXED) ===================== */
-window.addEventListener('DOMContentLoaded', async () => {
-
-  const approveDropdown = document.querySelector('.dropdown[data-dropdown]');
-  if (!approveDropdown) return;
-
-  try {
-    const meRes = await fetch('/auth/me', { credentials: 'include' });
-    if (!meRes.ok) return approveDropdown.remove();
-
-    const { user } = await meRes.json();
-    if (!user) return approveDropdown.remove();
-
-    // get invoice context
-    const params = new URLSearchParams(window.location.search);
-    const invoiceNo = params.get('invoice_no');
-
-    if (!invoiceNo) {
-      // creating new invoice → never show approve
-      return approveDropdown.remove();
-    }
-
-    const invRes = await fetch(`/api/invoices/${invoiceNo}`);
-    if (!invRes.ok) return approveDropdown.remove();
-
-    const invoice = await invRes.json();
-
-    // IMPORTANT FIX: permissions are lowercase
-    const canApprove =
-      user.permissions?.includes('invoice_approve') &&
-      invoice.status === 'submitted' &&
-      invoice.created_by !== user.id;
-
-    if (!canApprove) {
-      approveDropdown.remove(); // 🔥 remove from DOM completely
-    }
-
-  } catch (err) {
-    console.error('RBAC approve UI error:', err);
-    approveDropdown.remove();
-  }
-});
-
-/* -------------------- 0. DEBUG & DOM HELPERS -------------------- */
+/* -------------------- 0. DEBUG & DOM HELPERS (MOVED TO TOP) -------------------- */
 const DBG = {
   log: (...args) => console.log('[E-INVOICING]', ...args),
   warn: (...args) => console.warn('[E-INVOICING]', ...args),
@@ -112,20 +38,129 @@ function setInputValue(name, value) {
   el.type === 'checkbox' ? el.checked = !!value : ('value' in el ? el.value = value : el.textContent = value);
 }
 
-// -------------------- AUTO-RESIZE TEXTAREA --------------------
-// Auto-resize textarea
-const textarea = document.getElementById('address');
+/* -------------------- NOTIFICATIONS -------------------- */
+let notifications = [];
 
-function autoResizeTextarea(el) {
-  el.style.height = 'auto';           // reset height
-  el.style.height = el.scrollHeight + 'px'; // expand to fit content
+async function loadNotifications() {
+  try {
+    const res = await fetch('/api/notifications', { credentials: 'include' });
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    notifications = data || [];
+
+    const badge = document.getElementById('notifBadge');
+    if (!badge) return;
+
+    const unreadCount = notifications.filter(n => !n.is_read).length;
+
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    return notifications;
+  } catch (err) {
+    console.error('Failed to load notifications:', err);
+    return [];
+  }
 }
 
-// On typing
-textarea.addEventListener('input', () => autoResizeTextarea(textarea));
+/* ===================== RBAC APPROVAL UI ===================== */
+window.addEventListener('DOMContentLoaded', async () => {
+  const approveDropdown = document.querySelector('.dropdown[data-dropdown]');
+  if (!approveDropdown) return;
 
-// On load/review (if value is already set)
-window.addEventListener('load', () => autoResizeTextarea(textarea));
+  try {
+    const meRes = await fetch('/auth/me', { credentials: 'include' });
+    if (!meRes.ok) return approveDropdown.remove();
+
+    const { user } = await meRes.json();
+    if (!user) return approveDropdown.remove();
+
+    const params = new URLSearchParams(window.location.search);
+    const invoiceNo = params.get('invoice_no');
+
+    if (!invoiceNo) return approveDropdown.remove();
+
+    const invRes = await fetch(`/api/invoices/${invoiceNo}`);
+    if (!invRes.ok) return approveDropdown.remove();
+
+    const invoice = await invRes.json();
+
+    const canApprove =
+      user.permissions?.includes('invoice_approve') &&
+      invoice.status === 'submitted' &&
+      invoice.created_by !== user.id;
+
+    if (!canApprove) approveDropdown.remove();
+  } catch (err) {
+    console.error('RBAC approve UI error:', err);
+    approveDropdown.remove();
+  }
+});
+
+/* -------------------- EXCHANGE RATE FETCHING -------------------- */
+const currencySelect = document.getElementById('currency');
+const exchangeRateInput = document.getElementById('exchangeRate');
+
+if (currencySelect && exchangeRateInput) {
+
+  async function updateExchangeRate() {
+    const currency = currencySelect.value.toUpperCase();
+
+    // PHP is base currency
+    if (currency === 'PHP') {
+      exchangeRateInput.value = 1;
+      calculateTotals();
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/exchange-rate?to=${currency}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to fetch exchange rate');
+      }
+
+      const data = await res.json();
+      const rate = parseFloat(data.rate);
+
+      if (!rate || isNaN(rate)) throw new Error('Invalid exchange rate received');
+
+      exchangeRateInput.value = rate.toFixed(4);
+      calculateTotals();
+
+    } catch (err) {
+      console.error('Exchange rate error:', err);
+      alert(`Failed to fetch exchange rate for ${currency}. Using fallback rate if available.`);
+
+      // Optional: fallback to 1 to allow user to continue
+      exchangeRateInput.value = 1;
+      calculateTotals();
+    }
+  }
+
+  // Update rate whenever currency changes
+  currencySelect.addEventListener('change', updateExchangeRate);
+
+  // Initial fetch on page load
+  updateExchangeRate();
+}
+
+/* -------------------- AUTO-RESIZE TEXTAREA -------------------- */
+const textarea = document.getElementById('address');
+if (textarea) {
+  function autoResizeTextarea(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  textarea.addEventListener('input', () => autoResizeTextarea(textarea));
+  window.addEventListener('load', () => autoResizeTextarea(textarea));
+}
 
 // Auto-resize all item description textareas
 function autoResize(el) {
@@ -197,6 +232,7 @@ function setInvoiceTitleFromURL() {
 
   localStorage.setItem('selectedInvoiceType', invoiceTitle);
 }
+
 
 /* -------------------- 5. LOAD INVOICE FOR EDIT (WITH ACCOUNT COMBO) -------------------- */
 async function loadInvoiceForEdit() {
@@ -422,46 +458,49 @@ async function loadEWTOptions() {
 function updateAmount(input) {
   const row = input.closest("tr");
   if (!row) return;
-
   const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
   const rate = parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0;
   const amtEl = row.querySelector('[name="amt[]"]');
-
-  const amount = qty * rate;
-  if (amtEl) amtEl.value = amount.toFixed(2);
-
-  calculateTotals();
+  if (amtEl) amtEl.value = (qty * rate).toFixed(2); // remove exchange rate here
+  calculateTotals(); // totals now handle exchange rate
 }
 
+
+// -------------------- CALCULATE TOTALS (with exchange rate) --------------------
 function calculateTotals() {
-  const rows = $$('tr', document.querySelector('#items-body'));
+  const rows = document.querySelectorAll('#items-body tr');
+  const exchangeRate = parseFloat(exchangeRateInput.value) || 1;
 
   let subtotal = 0;
-  let vatAmount = 0;         // For VATable items only
-  let vatExemptAmount = 0;   // VAT "amount" for exempt items (usually 0)
-  let zeroRatedAmount = 0;   // VAT "amount" for zero-rated items (usually 0)
+  let vatAmount = 0;
+  let vatExemptAmount = 0;
+  let zeroRatedAmount = 0;
 
-  let vatExemptSales = 0;    // total sales amount for exempt
-  let zeroRatedSales = 0;    // total sales amount for zero-rated
+  let vatExemptSales = 0;
+  let zeroRatedSales = 0;
 
   rows.forEach(row => {
-    const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
-    subtotal += amt;
+  const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
+  const rate = parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0;
+  const exchangeRate = parseFloat(exchangeRateInput.value) || 1;
 
+  const amt = qty * rate * exchangeRate; // apply exchange rate here
+  row.querySelector('[name="amt[]"]').value = amt.toFixed(2);
+
+  subtotal += amt;
     const accountId = row.querySelector('[name="account[]"]')?.dataset.accountId || '';
     const account = window._coaAccounts?.find(acc => String(acc.id) === String(accountId));
-
-    const taxType = account?.tax_type || 'vatable'; // default to VATable
+    const taxType = account?.tax_type || 'vatable';
     const taxRate = parseFloat(account?.tax_rate || 0) / 100;
 
     switch (taxType) {
       case 'exempt':
         vatExemptSales += amt;
-        vatExemptAmount += amt * taxRate; // normally 0
+        vatExemptAmount += amt * taxRate; // usually 0
         break;
       case 'zero':
         zeroRatedSales += amt;
-        zeroRatedAmount += amt * taxRate; // normally 0
+        zeroRatedAmount += amt * taxRate; // usually 0
         break;
       case 'vatable':
       default:
@@ -470,19 +509,18 @@ function calculateTotals() {
     }
   });
 
-  // Discount
-  let discountRate = parseFloat($('#discount')?.value) || 0;
+  // -------------------- DISCOUNT --------------------
+  let discountRate = parseFloat(document.querySelector('#discount')?.value) || 0;
   if (discountRate > 1) discountRate /= 100;
   const discountAmount = subtotal * discountRate;
   const subtotalAfterDiscount = subtotal - discountAmount;
 
-  // EWT
-  const ewtRate = parseFloat($('#withholdingTax')?.value) || 0;
+  // -------------------- EWT --------------------
+  const ewtRate = parseFloat(document.querySelector('#withholdingTax')?.value) || 0;
   const ewtAmount = subtotalAfterDiscount * (ewtRate / 100);
 
-  // VAT type
-  const vatType = $('#vatType')?.value || 'inclusive';
-
+  // -------------------- VAT TYPE HANDLING --------------------
+  const vatType = document.querySelector('#vatType')?.value || 'inclusive';
   let vatable = 0;
   let finalTotal = 0;
   let displaySubtotal = 0;
@@ -493,25 +531,13 @@ function calculateTotals() {
       displaySubtotal = subtotalAfterDiscount;
       finalTotal = subtotalAfterDiscount - ewtAmount;
       break;
-
     case 'exclusive':
       vatable = subtotal - vatExemptSales - zeroRatedSales;
       displaySubtotal = subtotalAfterDiscount + vatAmount;
       finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
       break;
-
     case 'exempt':
-      vatable = subtotal - vatExemptSales - zeroRatedSales; // VATable part if any
-      displaySubtotal = subtotalAfterDiscount;
-      finalTotal = subtotalAfterDiscount - ewtAmount;
-      break;
-
     case 'zero':
-      vatable = subtotal - vatExemptSales - zeroRatedSales;
-      displaySubtotal = subtotalAfterDiscount;
-      finalTotal = subtotalAfterDiscount - ewtAmount;
-      break;
-
     default:
       vatable = subtotal - vatExemptSales - zeroRatedSales;
       displaySubtotal = subtotalAfterDiscount;
@@ -519,24 +545,21 @@ function calculateTotals() {
       break;
   }
 
-  // Update fields
+  // -------------------- UPDATE DOM --------------------
   safeSetValue('#subtotal', displaySubtotal.toFixed(2));
   safeSetValue('#vatableSales', vatable.toFixed(2));
-  safeSetValue('#vatAmount', vatAmount.toFixed(2));          // only VATable
-  safeSetValue('#vatExemptSales', vatExemptSales.toFixed(2)); 
-  safeSetValue('#vatExemptAmount', vatExemptAmount.toFixed(2)); // new field for VAT Exempt VAT
-  safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2)); 
-  safeSetValue('#vatZeroRatedAmount', zeroRatedAmount.toFixed(2)); // new field for Zero Rated VAT
+  safeSetValue('#vatAmount', vatAmount.toFixed(2));
+  safeSetValue('#vatExemptSales', vatExemptSales.toFixed(2));
+  safeSetValue('#vatExemptAmount', vatExemptAmount.toFixed(2));
+  safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2));
+  safeSetValue('#vatZeroRatedAmount', zeroRatedAmount.toFixed(2));
   safeSetValue('#withholdingTaxAmount', ewtAmount.toFixed(2));
   safeSetValue('#totalPayable', finalTotal.toFixed(2));
 }
 
-
-const vatTypeEl = document.getElementById('vatType');
-if (vatTypeEl) vatTypeEl.addEventListener('change', calculateTotals);
-
-const discountEl = document.getElementById('discount');
-if (discountEl) discountEl.addEventListener('input', calculateTotals);
+// -------------------- EVENT LISTENERS --------------------
+document.getElementById('vatType')?.addEventListener('change', calculateTotals);
+document.getElementById('discount')?.addEventListener('input', calculateTotals);
 
 /* -------------------- 10. ADJUST COLUMN WIDTHS -------------------- */
 function adjustColumnWidths() {
@@ -690,6 +713,8 @@ async function saveToDatabase() {
     invoice_mode: getInputValue('invoiceMode'),
     invoice_category: getInputValue('invoiceCategory'),
     invoice_type: getInputValue('invoice_type'),
+    currency: currencySelect?.value || 'PHP',           
+    exchange_rate: parseFloat(exchangeRateInput?.value) || 1,  
     items,
     extra_columns: extraColumns,
     tax_summary: {

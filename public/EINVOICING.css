@@ -921,23 +921,25 @@ textarea.input-full,
 textarea.input-long,
 textarea.item-desc,
 textarea#address {
-  border: none;             /* remove full border */
-  border-bottom: 1px solid #000;  /* keep underline */
-  outline: none;            /* remove focus outline */
-  background: transparent;  /* keep background transparent */
-  resize: none;             /* prevent resizing */
-  overflow: hidden;         /* hide scrollbars */
-  width: 100%;              /* full width */
+  border: none;
+  border-bottom: 1px solid #000;
+  outline: none;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  width: 100%;
   font-family: inherit;
   font-size: 14px;
-  padding: 4px 0;
+  line-height: 1;  
+  padding: 0px 1px;    
   box-sizing: border-box;
 }
+
 
 /* Optional: change underline color on focus */
 textarea.input-full:focus,
 textarea.input-long:focus,
 textarea.item-desc:focus,
 textarea#address:focus {
-  border-bottom-color: #007BFF; /* blue underline on focus */
+  border-bottom-color: #007BFF;
 }

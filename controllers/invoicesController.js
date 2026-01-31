@@ -1,8 +1,8 @@
 'use strict';
 
-const { pool } = require('../helpers/db');
 const { getConn } = require('../helpers/db');
 const { generateInvoiceNo } = require('../utils/invoiceCounter');
+const fetch = require('node-fetch');
 
 const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount', 'account_id'];
 
@@ -24,17 +24,44 @@ function normalizeTaxSummary(data) {
   };
 }
 
-//---------------------- LOAD COMPANY INFO ----------------------
-async function getCompanyInfo(req, res) {
+// ---------------------- FIXED GET EXCHANGE RATE ----------------------
+async function getExchangeRate(currency) {
+  currency = (currency || 'PHP').toUpperCase();
+  if (currency === 'PHP') return 1;
+
+  const fallbackRates = { USD: 56, SGD: 42, AUD: 38, EUR: 60, PHP: 1 };
+
   try {
-    const conn = await getConn();
-    const [rows] = await conn.execute('SELECT * FROM company_info LIMIT 1'); // <- fixed table name
-    conn.release();
+    const BAP_URL = 'https://www.bap.org.ph/downloads/daily-rates.json';
+    const res = await fetch(BAP_URL, { timeout: 5000 });
+    if (!res.ok) throw new Error('BAP not available');
+
+    const rates = await res.json();
+    const rate = parseFloat(rates[currency]);
+    if (!rate || rate <= 0) throw new Error('Rate missing from BAP');
+
+    console.log('Exchange rate fetched from BAP:', currency, rate);
+    return rate;
+
+  } catch (err) {
+    console.warn('BAP fetch failed, using fallback rate for', currency, err.message);
+    const fallback = fallbackRates[currency] || 1;
+    return fallback;
+  }
+}
+
+// ---------------------- GET COMPANY INFO ----------------------
+async function getCompanyInfo(req, res) {
+  const conn = await getConn();
+  try {
+    const [rows] = await conn.execute('SELECT * FROM company_info LIMIT 1');
     if (!rows.length) return res.status(404).json({ message: 'Company info not found' });
     res.json(rows[0]);
   } catch (err) {
     console.error('Error loading company info:', err);
     res.status(500).json({ message: 'Server error' });
+  } finally {
+    conn.release();
   }
 }
 
@@ -49,13 +76,19 @@ async function createInvoice(req, res) {
   try {
     await conn.beginTransaction();
 
-   // Use provided invoice_no if given (e.g., manual override), otherwise generate safely
-const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
+    // Normalize currency from frontend
+    let currency = 'PHP';
+    if (data.currency && typeof data.currency === 'string') {
+      currency = data.currency.trim().toUpperCase();
+    }
+    const exchangeRate = await getExchangeRate(currency);
 
-
+    const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
     const invoiceMode = data.invoice_mode || 'standard';
     const invoiceCategory = data.invoice_category || 'service';
     const invoiceType = data.invoice_type || 'SERVICE INVOICE';
+
+    console.log('Currency:', currency, 'Exchange rate:', exchangeRate);
 
     // Compute extra columns dynamically
     let extraColumns = [];
@@ -74,9 +107,10 @@ const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
     // Insert invoice
     const [invoiceResult] = await conn.execute(
       `INSERT INTO invoices
-        (invoice_no, invoice_mode, invoice_category, invoice_type, bill_to, address, tin, terms, date, due_date, total_amount_due, logo, extra_columns,
-         recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (invoice_no, invoice_mode, invoice_category, invoice_type, bill_to, address, tin, terms, currency, exchange_rate,
+         date, due_date, total_amount_due, foreign_total, logo, extra_columns, recurrence_type, recurrence_start_date,
+         recurrence_end_date, recurrence_status, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceNo,
         invoiceMode,
@@ -86,8 +120,11 @@ const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
         data.address || null,
         data.tin || null,
         data.terms || null,
+        currency,
+        exchangeRate,
         data.date,
         data.due_date || null,
+        0,
         0,
         data.logo || null,
         JSON.stringify(extraColumns),
@@ -138,13 +175,18 @@ const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
         `INSERT INTO invoice_items (${baseCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
         vals
       );
+
       totalAmount += itemAmount;
     }
 
-    // Update total amount
-    await conn.execute('UPDATE invoices SET total_amount_due = ? WHERE id = ?', [totalAmount, invoiceId]);
+    const foreignTotal = parseFloat((totalAmount / exchangeRate).toFixed(2));
 
-    // ------------------ INSERT TAX SUMMARY ------------------
+    await conn.execute(
+      'UPDATE invoices SET total_amount_due = ?, foreign_total = ? WHERE id = ?',
+      [totalAmount, foreignTotal, invoiceId]
+    );
+
+    // ------------------ TAX SUMMARY ------------------
     const normalized = normalizeTaxSummary(data);
     if (normalized) {
       await conn.execute(
@@ -165,7 +207,7 @@ const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
       );
     }
 
-    // ------------------ INSERT FOOTER ------------------
+    // ------------------ FOOTER ------------------
     if (data.footer) {
       const f = data.footer;
       await conn.execute(
@@ -176,14 +218,18 @@ const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
     }
 
     await conn.commit();
+
     res.status(201).json({
       success: true,
       invoiceId,
       invoiceNo,
       total_amount_due: totalAmount,
+      foreign_total: foreignTotal,
       invoice_mode: invoiceMode,
       invoice_category: invoiceCategory,
-      invoice_type: invoiceType
+      invoice_type: invoiceType,
+      currency,
+      exchange_rate: exchangeRate
     });
 
   } catch (err) {
@@ -195,27 +241,31 @@ const invoiceNo = data.invoice_no?.trim() || await generateInvoiceNo(conn);
   }
 }
 
-
 // ---------------------- UPDATE INVOICE ----------------------
 async function updateInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const data = req.body;
   const conn = await getConn();
 
-  if (!data.bill_to || !data.date || !Array.isArray(data.items) || data.items.length === 0) {
+  if (!data.bill_to || !data.date || !Array.isArray(data.items) || !data.items.length) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
     await conn.beginTransaction();
 
-    const [rows] = await conn.execute('SELECT id FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
-    if (!rows.length) {
-      await conn.rollback();
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
+    const [rows] = await conn.execute('SELECT id, currency FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
+    if (!rows.length) { await conn.rollback(); return res.status(404).json({ error: 'Invoice not found' }); }
 
     const invoiceId = rows[0].id;
+
+    // Normalize currency from frontend
+    let currency = rows[0].currency || 'PHP';
+    if (data.currency && typeof data.currency === 'string') {
+      currency = data.currency.trim().toUpperCase();
+    }
+    const exchangeRate = await getExchangeRate(currency);
+
     const invoiceMode = data.invoice_mode || 'standard';
     const invoiceCategory = data.invoice_category || 'service';
     const invoiceType = data.invoice_type || 'SERVICE INVOICE';
@@ -261,20 +311,17 @@ async function updateInvoice(req, res) {
         `INSERT INTO invoice_items (${baseCols.join(', ')}) VALUES (${placeholders.join(', ')})`,
         vals
       );
+
       totalAmount += itemAmount;
     }
 
-    // Determine extra_columns
-    let extraColumnsToStore = [];
-    if (Array.isArray(data.extra_columns) && data.extra_columns.length) {
-      extraColumnsToStore = data.extra_columns;
-    } else if (data.items && data.items[0]) {
-      extraColumnsToStore = Object.keys(data.items[0]).filter(k => !defaultItemCols.includes(k));
-    }
+    const foreignTotal = parseFloat((totalAmount / exchangeRate).toFixed(2));
 
-    // Update invoice row
     await conn.execute(
-      `UPDATE invoices SET invoice_mode=?, invoice_category=?, invoice_type=?, bill_to=?, address=?, tin=?, terms=?, date=?, total_amount_due=?, logo=?, extra_columns=?, status=? WHERE id=?`,
+      `UPDATE invoices
+       SET invoice_mode=?, invoice_category=?, invoice_type=?, bill_to=?, address=?, tin=?, terms=?, date=?,
+           total_amount_due=?, foreign_total=?, logo=?, extra_columns=?, status=?, currency=?, exchange_rate=?
+       WHERE id=?`,
       [
         invoiceMode,
         invoiceCategory,
@@ -285,14 +332,16 @@ async function updateInvoice(req, res) {
         data.terms || null,
         data.date,
         totalAmount,
+        foreignTotal,
         data.logo || null,
-        JSON.stringify(extraColumnsToStore || []),
+        JSON.stringify(data.extra_columns || []),
         data.status || 'draft',
+        currency,
+        exchangeRate,
         invoiceId
       ]
     );
 
-    // Insert tax summary
     const normalized = normalizeTaxSummary(data);
     if (normalized) {
       await conn.execute(
@@ -313,7 +362,6 @@ async function updateInvoice(req, res) {
       );
     }
 
-    // Insert footer
     if (data.footer) {
       const f = data.footer;
       await conn.execute(
@@ -324,13 +372,17 @@ async function updateInvoice(req, res) {
     }
 
     await conn.commit();
+
     res.json({
       success: true,
       invoiceId,
       total_amount_due: totalAmount,
+      foreign_total: foreignTotal,
       invoice_mode: invoiceMode,
       invoice_category: invoiceCategory,
-      invoice_type: invoiceType
+      invoice_type: invoiceType,
+      currency,
+      exchange_rate: exchangeRate
     });
 
   } catch (err) {
@@ -347,12 +399,10 @@ async function getInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const conn = await getConn();
   try {
-    // Get invoice
     const [invoiceRows] = await conn.execute('SELECT * FROM invoices WHERE invoice_no = ? LIMIT 1', [invoiceNo]);
     if (!invoiceRows.length) return res.status(404).json({ error: 'Invoice not found' });
     const invoice = invoiceRows[0];
 
-    // Items
     const [cols] = await conn.execute('SHOW COLUMNS FROM invoice_items');
     const colNames = cols.map(c => c.Field);
     const [items] = await conn.execute(
@@ -360,7 +410,6 @@ async function getInvoice(req, res) {
       [invoice.id]
     );
 
-    // Tax summary
     const [taxRows] = await conn.execute('SELECT * FROM invoice_tax_summary WHERE invoice_id = ? LIMIT 1', [invoice.id]);
     const rawTax = taxRows[0] || {};
     const tax_summary = {
@@ -374,11 +423,8 @@ async function getInvoice(req, res) {
       total_payable: rawTax.total_payable || 0
     };
 
-    // Footer
     const [footers] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id = ? LIMIT 1', [invoice.id]);
-
-    // Company info -> correct table
-    const [companyRows] = await conn.execute('SELECT * FROM company_info LIMIT 1'); // <- fixed table name
+    const [companyRows] = await conn.execute('SELECT * FROM company_info LIMIT 1');
 
     invoice.items = items;
     invoice.tax_summary = tax_summary;
@@ -400,7 +446,9 @@ async function listInvoices(req, res) {
   const conn = await getConn();
   try {
     const { status } = req.query;
-    let sql = `SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, i.total_amount_due, i.logo, i.status, i.invoice_mode, i.invoice_category, i.invoice_type FROM invoices i`;
+    let sql = `SELECT i.id, i.invoice_no, i.bill_to, i.date AS invoice_date, i.total_amount_due, i.foreign_total,
+                      i.logo, i.status, i.invoice_mode, i.invoice_category, i.invoice_type, i.currency, i.exchange_rate
+               FROM invoices i`;
     const params = [];
     if (status) {
       sql += ' WHERE i.status = ?';
@@ -442,24 +490,19 @@ async function deleteInvoice(req, res) {
 async function nextInvoiceNo(req, res) {
   const conn = await getConn();
   try {
-    // Get the current invoice counter without incrementing
     const [counterRows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1');
     if (!counterRows.length) throw new Error('Invoice counter not initialized');
     const counter = counterRows[0];
 
-    // Find the highest existing invoice number in the invoices table
     const [maxRows] = await conn.execute(
       `SELECT MAX(CAST(SUBSTRING(invoice_no, ?) AS UNSIGNED)) AS max_no FROM invoices`,
-      [counter.prefix.length + 1] // Skip prefix characters
+      [counter.prefix.length + 1]
     );
     const maxInvoice = maxRows[0].max_no || 0;
-
-    // The next invoice number for preview (does NOT increment last_number)
     const nextNumber = Math.max(counter.last_number || 0, maxInvoice) + 1;
     const invoiceNo = `${counter.prefix}${String(nextNumber).padStart(6, '0')}`;
 
     res.json({ invoiceNo });
-
   } catch (err) {
     console.error('Next invoice number preview error:', err);
     res.status(500).json({ error: 'Failed to get next invoice number', details: err.message });
@@ -468,7 +511,6 @@ async function nextInvoiceNo(req, res) {
   }
 }
 
-
 module.exports = {
   createInvoice,
   updateInvoice,
@@ -476,5 +518,7 @@ module.exports = {
   listInvoices,
   deleteInvoice,
   nextInvoiceNo,
-  getCompanyInfo
+  getCompanyInfo,
+  getExchangeRate,
+  normalizeTaxSummary
 };
