@@ -2,7 +2,7 @@ import { requireAnyRole } from './authClient.js'; // <-- ADD THIS
 
 'use strict';
 
-/* -------------------- 0. DEBUG & DOM HELPERS (MOVED TO TOP) -------------------- */
+// -------------------- 0. DEBUG & DOM HELPERS --------------------
 const DBG = {
   log: (...args) => console.log('[E-INVOICING]', ...args),
   warn: (...args) => console.warn('[E-INVOICING]', ...args),
@@ -11,20 +11,9 @@ const DBG = {
 
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
+
 const safeSetValue = (selector, value) => { const el = $(selector); if (el) el.value = value; };
 const safeSetText = (selector, text) => { const el = $(selector); if (el) el.textContent = text; };
-
-/* -------------------- 1. UTILITIES -------------------- */
-function dateToYYYYMMDD(dateValue) {
-  if (!dateValue) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
-  const d = new Date(dateValue);
-  if (isNaN(d.getTime())) return "";
-  const year = d.getFullYear(); 
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 function getInputValue(name) {
   const el = document.querySelector(`input[name="${name}"], select[name="${name}"]`) || document.getElementById(name);
@@ -37,6 +26,114 @@ function setInputValue(name, value) {
   if (!el) return;
   el.type === 'checkbox' ? el.checked = !!value : ('value' in el ? el.value = value : el.textContent = value);
 }
+
+function dateToYYYYMMDD(dateValue) {
+  if (!dateValue) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
+  const d = new Date(dateValue);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear(); 
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// -------------------- 1. FORM PERSISTENCE --------------------
+function saveFormState() {
+  try {
+    const formData = {
+      inputs: {},
+      items: [],
+      extraColumns: [],
+      currency: getInputValue('currency'),
+      exchangeRate: getInputValue('exchangeRate'),
+      vatType: getInputValue('vatType'),
+      discount: getInputValue('discount'),
+      ewt: getInputValue('withholdingTax'),
+      footer: {
+        atp_no: getInputValue('footerAtpNo'),
+        atp_date: getInputValue('footerAtpDate'),
+        bir_permit_no: getInputValue('footerBirPermit'),
+        bir_date: getInputValue('footerBirDate'),
+        serial_nos: getInputValue('footerSerialNos')
+      }
+    };
+
+    // Save all simple inputs
+    $$('input, select, textarea').forEach(el => {
+      const name = el.name || el.id;
+      if (name) formData.inputs[name] = el.value;
+    });
+
+    // Save extra columns headers
+    $$('#items-table thead th').forEach((th, idx) => {
+      if (idx >= 5) formData.extraColumns.push(th.textContent.trim());
+    });
+
+    // Save items rows
+    $$('#items-body tr').forEach(row => {
+      const item = {};
+      row.querySelectorAll('input, textarea').forEach(el => {
+        const name = el.name;
+        if (name) item[name] = el.value;
+      });
+      formData.items.push(item);
+    });
+
+    localStorage.setItem('invoiceFormState', JSON.stringify(formData));
+  } catch (err) {
+    DBG.error('saveFormState error:', err);
+  }
+}
+
+function restoreFormState() {
+  try {
+    const stored = localStorage.getItem('invoiceFormState');
+    if (!stored) return;
+    const formData = JSON.parse(stored);
+
+    // Restore simple inputs
+    for (const [name, value] of Object.entries(formData.inputs || {})) {
+      setInputValue(name, value);
+    }
+
+    // Restore extra columns
+    const theadRow = $("#items-table thead tr");
+    if (theadRow && formData.extraColumns?.length) {
+      formData.extraColumns.forEach(col => {
+        const colKey = col.toLowerCase().replace(/\s+/g, "_");
+        const th = document.createElement('th');
+        th.textContent = col;
+        th.setAttribute('data-colkey', colKey);
+        theadRow.appendChild(th);
+      });
+    }
+
+    // Restore items rows
+    const tbody = $("#items-body");
+    if (tbody && formData.items?.length) {
+      tbody.innerHTML = '';
+      formData.items.forEach(item => {
+        addRow();
+        const row = tbody.lastElementChild;
+        for (const [name, value] of Object.entries(item)) {
+          const el = row.querySelector(`[name="${name}"]`);
+          if (el) el.value = value;
+        }
+      });
+    }
+
+    calculateTotals();
+    adjustColumnWidths();
+  } catch (err) {
+    DBG.error('restoreFormState error:', err);
+  }
+}
+
+// Save form on any change
+document.addEventListener('input', saveFormState);
+document.addEventListener('change', saveFormState);
+
 
 /* -------------------- NOTIFICATIONS -------------------- */
 let notifications = [];
@@ -387,39 +484,30 @@ function addRow() {
   row.innerHTML = Array.from(ths).map((th, i) => {
     const colName = th.textContent.trim().toLowerCase().replace(/\s+/g, "_");
     switch(i) {
-      case 0: // DESCRIPTION
-        return `<td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea></td>`;
-      case 1: // ACCOUNT
+      case 0: return `<td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea></td>`;
+      case 1:
         return `<td class="Acc-col" style="position:relative;">
-                  <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
-                  <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
-                </td>`;
-      case 2: // QTY
-        return `<td><input type="number" class="input-short" name="qty[]" value="0" oninput="updateAmount(this)"></td>`;
-      case 3: // RATE
-        return `<td><input type="number" class="input-short" name="rate[]" value="0" oninput="updateAmount(this)"></td>`;
-      case 4: // AMOUNT
-        return `<td><input type="number" class="input-short" name="amt[]" value="0" readonly></td>`;
-      default: // EXTRA COLUMNS
-        return `<td><input type="text" name="${colName}[]"></td>`;
+          <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
+          <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+        </td>`;
+      case 2: return `<td><input type="number" class="input-short" name="qty[]" value="0" oninput="updateAmount(this)"></td>`;
+      case 3: return `<td><input type="number" class="input-short" name="rate[]" value="0" oninput="updateAmount(this)"></td>`;
+      case 4: return `<td><input type="number" class="input-short" name="amt[]" value="0" readonly></td>`;
+      default: return `<td><input type="text" name="${colName}[]"></td>`;
     }
   }).join('');
 
   tbody.appendChild(row);
 
-  // Populate account combo box
-  const selInput = row.querySelector('.account-input');
-  if (selInput && window._coaAccounts) setupAccountCombo(selInput, window._coaAccounts);
-
-  // Auto-resize description textarea
   const descTextarea = row.querySelector('.item-desc');
   if (descTextarea) {
     autoResize(descTextarea);
-    descTextarea.addEventListener('input', () => autoResize(descTextarea));
+    descTextarea.addEventListener('input', () => { autoResize(descTextarea); saveFormState(); });
   }
 
   adjustColumnWidths();
 }
+
 function removeRow() {
   const tbody = $("#items-body");
   if (!tbody || tbody.rows.length <= 1) return alert("At least one row must remain.");
