@@ -857,6 +857,7 @@ async function saveToDatabase() {
     }
 
     alert('Invoice saved successfully!');
+    localStorage.removeItem('invoiceFormState');
     window.location.reload();
   } catch (err) {
     DBG.error('saveToDatabase error:', err);
@@ -882,9 +883,23 @@ function autofillDates() {
   if (footerBirDate && !footerBirDate.value) footerBirDate.value = today;
 }
 
+ const params = new URLSearchParams(window.location.search);
+const invoiceNo = params.get('invoice_no');
+
+if (!invoiceNo) {
+  // NEW invoice: restore draft if exists
+  const stored = localStorage.getItem('invoiceFormState');
+  if (stored) {
+    restoreFormState();
+  }
+} else {
+  // EDIT invoice: ignore localStorage
+  localStorage.removeItem('invoiceFormState');
+  await loadInvoiceForEdit(); // already in your code
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
 
-  // ======= RBAC PROTECTION =======
   const allowed = await requireAnyRole(['super', 'approver', 'submitter']);
   if (!allowed) return;
 
@@ -898,7 +913,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadCompanyInfo();
 
   // ======= 4️⃣ LOAD NEXT INVOICE NO =======
+if (!isEdit) {
   await loadNextInvoiceNo();
+}
 
   // ======= 5️⃣ SET INVOICE TITLE =======
   setInvoiceTitleFromURL();
