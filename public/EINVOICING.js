@@ -437,66 +437,100 @@ function calculateTotals() {
   const rows = $$('tr', document.querySelector('#items-body'));
 
   let subtotal = 0;
-  let vatAmount = 0;
-  let vatExemptSales = 0;
-  let zeroRatedSales = 0;
+  let vatAmount = 0;         // For VATable items only
+  let vatExemptAmount = 0;   // VAT "amount" for exempt items (usually 0)
+  let zeroRatedAmount = 0;   // VAT "amount" for zero-rated items (usually 0)
+
+  let vatExemptSales = 0;    // total sales amount for exempt
+  let zeroRatedSales = 0;    // total sales amount for zero-rated
 
   rows.forEach(row => {
     const amt = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
     subtotal += amt;
 
-    // Use dataset.accountId instead of value
     const accountId = row.querySelector('[name="account[]"]')?.dataset.accountId || '';
     const account = window._coaAccounts?.find(acc => String(acc.id) === String(accountId));
 
-    const taxType = account?.tax_type || 'vatable';
+    const taxType = account?.tax_type || 'vatable'; // default to VATable
     const taxRate = parseFloat(account?.tax_rate || 0) / 100;
 
-    if (taxType === 'exempt') vatExemptSales += amt;
-    if (taxType === 'zero') zeroRatedSales += amt;
-
-    if (taxType === 'vatable') {
-      vatAmount += amt * taxRate;
+    switch (taxType) {
+      case 'exempt':
+        vatExemptSales += amt;
+        vatExemptAmount += amt * taxRate; // normally 0
+        break;
+      case 'zero':
+        zeroRatedSales += amt;
+        zeroRatedAmount += amt * taxRate; // normally 0
+        break;
+      case 'vatable':
+      default:
+        vatAmount += amt * taxRate;
+        break;
     }
   });
 
+  // Discount
   let discountRate = parseFloat($('#discount')?.value) || 0;
   if (discountRate > 1) discountRate /= 100;
-
   const discountAmount = subtotal * discountRate;
   const subtotalAfterDiscount = subtotal - discountAmount;
 
+  // EWT
   const ewtRate = parseFloat($('#withholdingTax')?.value) || 0;
   const ewtAmount = subtotalAfterDiscount * (ewtRate / 100);
 
+  // VAT type
   const vatType = $('#vatType')?.value || 'inclusive';
 
   let vatable = 0;
   let finalTotal = 0;
   let displaySubtotal = 0;
 
-  if (vatType === 'inclusive') {
-    vatable = subtotal - vatAmount;
-    finalTotal = subtotalAfterDiscount - ewtAmount;
-    displaySubtotal = subtotalAfterDiscount;
-  } else if (vatType === 'exclusive') {
-    vatable = subtotal;
-    finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
-    displaySubtotal = subtotalAfterDiscount + vatAmount;
-  } else {
-    vatable = subtotal;
-    finalTotal = subtotalAfterDiscount - ewtAmount;
-    displaySubtotal = subtotalAfterDiscount;
+  switch (vatType) {
+    case 'inclusive':
+      vatable = subtotal - vatExemptSales - zeroRatedSales - vatAmount;
+      displaySubtotal = subtotalAfterDiscount;
+      finalTotal = subtotalAfterDiscount - ewtAmount;
+      break;
+
+    case 'exclusive':
+      vatable = subtotal - vatExemptSales - zeroRatedSales;
+      displaySubtotal = subtotalAfterDiscount + vatAmount;
+      finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
+      break;
+
+    case 'exempt':
+      vatable = subtotal - vatExemptSales - zeroRatedSales; // VATable part if any
+      displaySubtotal = subtotalAfterDiscount;
+      finalTotal = subtotalAfterDiscount - ewtAmount;
+      break;
+
+    case 'zero':
+      vatable = subtotal - vatExemptSales - zeroRatedSales;
+      displaySubtotal = subtotalAfterDiscount;
+      finalTotal = subtotalAfterDiscount - ewtAmount;
+      break;
+
+    default:
+      vatable = subtotal - vatExemptSales - zeroRatedSales;
+      displaySubtotal = subtotalAfterDiscount;
+      finalTotal = subtotalAfterDiscount - ewtAmount;
+      break;
   }
 
+  // Update fields
   safeSetValue('#subtotal', displaySubtotal.toFixed(2));
   safeSetValue('#vatableSales', vatable.toFixed(2));
-  safeSetValue('#vatAmount', vatAmount.toFixed(2));
-  safeSetValue('#vatExemptSales', vatExemptSales.toFixed(2));
-  safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2));
+  safeSetValue('#vatAmount', vatAmount.toFixed(2));          // only VATable
+  safeSetValue('#vatExemptSales', vatExemptSales.toFixed(2)); 
+  safeSetValue('#vatExemptAmount', vatExemptAmount.toFixed(2)); // new field for VAT Exempt VAT
+  safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2)); 
+  safeSetValue('#vatZeroRatedAmount', zeroRatedAmount.toFixed(2)); // new field for Zero Rated VAT
   safeSetValue('#withholdingTaxAmount', ewtAmount.toFixed(2));
   safeSetValue('#totalPayable', finalTotal.toFixed(2));
 }
+
 
 const vatTypeEl = document.getElementById('vatType');
 if (vatTypeEl) vatTypeEl.addEventListener('change', calculateTotals);

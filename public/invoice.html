@@ -172,13 +172,15 @@
     </table>
 
     <div class="vat-type-container">
-      <label for="vatType">VAT Type:</label>
-      <select id="vatType" name="vatType" onchange="calculateTotals()">
-        <option value="inclusive">VAT Inclusive</option>
-        <option value="exclusive">VAT Exclusive</option>
-        <option value="nonvat">Non-VAT</option>
-      </select>
-    </div>
+  <label for="vatType">VAT Type:</label>
+  <select id="vatType" name="vatType" onchange="calculateTotals()">
+    <option value="inclusive">VAT Inclusive</option>
+    <option value="exclusive">VAT Exclusive</option>
+    <option value="exempt">VAT Exempt</option>
+    <option value="zero">VAT Zero-Rated</option>
+  </select>
+</div>
+
 
     <!-- === TAX SUMMARY (Visible Table) === -->
     <table class="payment-table">
