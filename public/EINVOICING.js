@@ -800,43 +800,44 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     if (!billToInput || !billToDropdown) return;
 
-    billToInput.addEventListener('input', () => {
-      const value = billToInput.value.toLowerCase();
-      billToDropdown.innerHTML = '';
+   billToInput.addEventListener('input', () => {
+  const value = billToInput.value.toLowerCase();
+  billToDropdown.innerHTML = '';
 
-      if (!value) {
-        billToDropdown.style.display = 'none';
-        billToIdInput.value = '';
-        return;
-      }
+  if (!value) {
+    billToDropdown.style.display = 'none';
+    billToIdInput.value = '';
+    return;
+  }
 
-      const filtered = contacts.filter(c => {
-        const nameToCheck = (c.business_name || c.name || '').toLowerCase();
-        return nameToCheck.includes(value);
-      });
+  const filtered = contacts.filter(c => {
+    if (!c.business) return false;
+    return c.business.toLowerCase().includes(value);
+  });
 
-      filtered.forEach(c => {
-        const item = document.createElement('div');
-        item.textContent = c.business_name || c.name;
-        item.style.padding = '4px 8px';
-        item.style.cursor = 'pointer';
+  filtered.forEach(c => {
+    const item = document.createElement('div');
+    item.textContent = c.business;
+    item.style.padding = '4px 8px';
+    item.style.cursor = 'pointer';
 
-        item.addEventListener('click', () => {
-          billToInput.value = c.business_name || c.name;
-          billToIdInput.value = c.id;
+    item.addEventListener('click', () => {
+      billToInput.value = c.business;
+      billToIdInput.value = c.id;
 
-          tinInput.value = c.tin || '';
-          addressInput.value = c.address || '';
-          if (termsInput) termsInput.value = c.terms || '';
+      tinInput.value = c.tin || '';
+      addressInput.value = c.address || '';
+      if (termsInput) termsInput.value = c.terms || '';
 
-          billToDropdown.style.display = 'none';
-        });
-
-        billToDropdown.appendChild(item);
-      });
-
-      billToDropdown.style.display = filtered.length ? 'block' : 'none';
+      billToDropdown.style.display = 'none';
     });
+
+    billToDropdown.appendChild(item);
+  });
+
+  billToDropdown.style.display = filtered.length ? 'block' : 'none';
+});
+
 
     document.addEventListener('click', e => {
       if (!e.target.closest('#billTo') && !e.target.closest('#billToDropdown')) {
