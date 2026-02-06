@@ -379,15 +379,13 @@ async function insertTaxAndFooter(conn, invoiceId, data) {
     );
   }
 
-  if (data.footer) {
-    const f = data.footer;
-    await conn.execute(
-      `INSERT INTO invoice_footer
-       (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [invoiceId, f.atp_no, f.atp_date, f.bir_permit_no, f.bir_date, f.serial_nos]
-    );
-  }
+  const f = data.footer || {};
+  await conn.execute(
+    `INSERT INTO invoice_footer
+     (invoice_id, atp_no, atp_date, bir_permit_no, bir_date, serial_nos)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [invoiceId, f.atp_no || '', f.atp_date || null, f.bir_permit_no || '', f.bir_date || null, f.serial_nos || '']
+  );
 }
 
 /* ========================================================= */

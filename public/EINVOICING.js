@@ -756,7 +756,14 @@ async function saveToDatabase() {
         vat_amount: parseFloat($('#vatAmount')?.value) || 0,
         withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
         total_payable: parseFloat($('#totalPayable')?.value) || 0
-      }
+      },
+      footer: {
+    atp_no: getFooterValue('footerAtpNo'),
+    atp_date: getFooterValue('footerAtpDate'),
+    bir_permit_no: getFooterValue('footerBirPermitNo'),
+    bir_date: getFooterValue('footerBirDate'),
+    serial_nos: getFooterValue('footerSerialNos')
+  }
     };
 
     const endpoint = isEdit
