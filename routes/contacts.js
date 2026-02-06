@@ -1,4 +1,3 @@
-// routes/contacts.js
 const express = require('express');
 const router = express.Router();
 const { getConn } = require('../helpers/db');
@@ -15,6 +14,28 @@ router.get('/', asyncHandler(async (req, res) => {
   }
 }));
 
+// ----------------- GET next contact code -----------------
+router.get('/next-code', asyncHandler(async (req, res) => {
+  const conn = await getConn();
+  try {
+    const [rows] = await conn.execute(
+      `SELECT code FROM contacts ORDER BY id DESC LIMIT 1`
+    );
+    let lastCode = rows[0]?.code || null;
+
+    let nextNumber = 4; // start from 004 if none exists
+    if (lastCode) {
+      const match = lastCode.match(/CUST-(\d+)/);
+      if (match) nextNumber = parseInt(match[1], 10) + 1;
+    }
+
+    const nextCode = 'CUST-' + String(nextNumber).padStart(3, '0');
+    res.json({ nextCode });
+  } finally {
+    conn.release();
+  }
+}));
+
 // ----------------- POST add new contact -----------------
 router.post('/', asyncHandler(async (req, res) => {
   const { type, code, name, phone, business, address, vat_registration, tin, email } = req.body;
@@ -22,6 +43,16 @@ router.post('/', asyncHandler(async (req, res) => {
   if (!code || !name) {
     return res.status(400).json({ error: "Code and Name are required" });
   }
+  // Check for duplicate code
+const [existing] = await conn.execute(
+  'SELECT id FROM contacts WHERE code = ? LIMIT 1',
+  [code]
+);
+
+if (existing.length) {
+  return res.status(400).json({ error: 'Contact code already exists' });
+}
+
 
   const conn = await getConn();
   try {
@@ -40,11 +71,22 @@ router.post('/', asyncHandler(async (req, res) => {
 // ----------------- PUT update contact -----------------
 router.put('/:id', asyncHandler(async (req, res) => {
   const id = req.params.id;
-  const { type, code, name, phone, business, address, vat_registration, tin, email } = req.body;
+  let { type, code, name, phone, business, address, vat_registration, tin, email } = req.body;
 
   if (!code || !name) {
     return res.status(400).json({ error: "Code and Name are required" });
   }
+
+  // Fix undefined values
+  type = type ?? null;
+  code = code ?? null;
+  name = name ?? null;
+  phone = phone ?? null;
+  business = business ?? null;
+  address = address ?? null;
+  vat_registration = vat_registration ?? null;
+  tin = tin ?? null;
+  email = email ?? null;
 
   const conn = await getConn();
   try {
@@ -59,6 +101,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
     conn.release();
   }
 }));
+
 
 // ----------------- DELETE contact -----------------
 router.delete('/:id', asyncHandler(async (req, res) => {

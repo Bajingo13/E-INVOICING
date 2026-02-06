@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>Service Invoice</title>
   <link rel="stylesheet" href="EINVOICING.css" />
-<input type="hidden" name="invoice_type" id="invoice_type" value="SERVICE INVOICE">
+
 
   <style>
     .row-controls {
@@ -25,6 +25,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.worker.min.js"></script>
 </head> 
 <body>
+    <input type="hidden" name="invoice_type" id="invoice_type" value="SERVICE INVOICE">
 <!-- Topbar / Main Navigation -->
 <header class="topbar">
   <div class="brand">My Company</div>
@@ -112,12 +113,47 @@
 <div class="billing-info" style="display:flex; justify-content:space-between; gap:40px; margin-bottom:20px; flex-wrap:wrap;">
 
   <!-- LEFT COLUMN -->
-  <div class="billing-left" style="flex:1; min-width:280px; display:flex; flex-direction:column; gap:12px;">
-    <div class="billing-field">
+   <div class="billing-left" style="flex:1; min-width:280px; display:flex; flex-direction:column; gap:12px;">
+    <div class="billing-field" style="position:relative;">
       <label for="billTo"><strong>SOLD TO:</strong></label>
-      <input type="text" id="billTo" name="billTo" class="input-long" autocomplete="off">
+      <input type="text" id="billTo" name="billTo" class="input-long" autocomplete="off" placeholder="Type customer name..." style="padding-right:24px;">
       <input type="hidden" id="billToId" name="billToId">
-      <div id="billToDropdown" class="combo-dropdown"></div>
+      <!-- Clear button inside input -->
+      <button type="button" id="billToClearBtn" style="
+        display:none;
+        position:absolute;
+        right:4px;
+        top:50%;
+        transform:translateY(-50%);
+        background:none;
+        border:none;
+        font-size:16px;
+        cursor:pointer;
+        color:#ff0000;
+        line-height:1;
+      ">×</button>
+      <div id="billToDropdown" class="combo-dropdown" style="position:absolute; top:100%; left:0; width:100%; border:1px solid #ccc; background:#fff; display:none; max-height:200px; overflow-y:auto; z-index:1000;"></div>
+      <div id="contactCard" class="contact-card" style="display:none;">
+  <div class="card-header">
+    <div class="avatar" id="contactAvatar">--</div>
+    <div class="card-title">
+      <div class="business" id="cardBusiness">Company Name</div>
+      <div class="account" id="cardCode">Account #: ---</div>
+    </div>
+    <button id="editContactBtn" type="button">Edit</button>
+  </div>
+  <div class="card-section">
+    <strong>Billing address</strong>
+    <div id="cardAddress" class="muted">—</div>
+  </div>
+  <div class="card-section">
+    <strong>Invoice totals</strong>
+    <div class="row">
+      <span>They owe you</span>
+      <span id="cardBalance">0.00</span>
+    </div>
+  </div>
+</div>
     </div>
 
     <div class="billing-field">
@@ -156,46 +192,43 @@
 
 </div>
 
+<!-- === ROW & COLUMN CONTROLS === -->
+<div class="row-controls">
+  <button type="button" onclick="addRow()">➕ Add Row</button>
+  <button type="button" onclick="showAddColumnModal()">➕ Add Column</button>
+  <button type="button" onclick="removeRow()">➖ Remove Row</button>
+  <button type="button" onclick="showRemoveColumnModal()">➖ Remove Column</button>
+</div>
 
-
-
-    <!-- === ROW & COLUMN CONTROLS === -->
-    <div class="row-controls">
-      <button type="button" onclick="addRow()">➕ Add Row</button>
-      <button type="button" onclick="showAddColumnModal()">➕ Add Column</button>
-      <button type="button" onclick="removeRow()">➖ Remove Row</button>
-      <button type="button" onclick="showRemoveColumnModal()">➖ Remove Column</button>
-    </div>
-
-    <!-- === ITEMS TABLE === -->
-    <table class="bordered" id="items-table">
-      <thead>
-        <tr>
-          <th class="desc-col">ITEM DESCRIPTION/ <br> NATURE OF SERVICE </th>
-          <th class="Acc-col">ACCOUNT</th>
-          <th class="qty-col">QUANTITY</th>
-          <th class="unit-col">UNIT PRICE/ RATE</th>
-          <th class="amt-col">AMOUNT</th>
-        </tr>
-      </thead>
-      <tbody id="items-body">
-        <tr>
-          <td>
-  <textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea>
+<!-- === ITEMS TABLE === -->
+<table class="bordered" id="items-table">
+  <thead>
+    <tr>
+      <th class="desc-col">ITEM DESCRIPTION/ <br> NATURE OF SERVICE </th>
+      <th class="Acc-col">ACCOUNT</th>
+      <th class="qty-col">QUANTITY</th>
+      <th class="unit-col">UNIT PRICE/ RATE</th>
+      <th class="amt-col">AMOUNT</th>
+    </tr>
+  </thead>
+  <tbody id="items-body">
+    <tr>
+      <td>
+<textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea>
 </td>
 
-          <td class="Acc-col">
-  <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
-  <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+      <td class="Acc-col">
+<input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
+<div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
 </td>
-          <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)" /></td>
-          <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)" /></td>
-          <td><input type="number" class="input-short" name="amt[]" readonly /></td>
-        </tr>
-      </tbody>
-    </table>
+      <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)" /></td>
+      <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)" /></td>
+      <td><input type="number" class="input-short" name="amt[]" readonly /></td>
+    </tr>
+  </tbody>
+</table>
 
-    <div class="vat-type-container">
+<div class="vat-type-container">
   <label for="vatType">VAT Type:</label>
   <select id="vatType" name="vatType" onchange="calculateTotals()">
     <option value="inclusive">VAT Inclusive</option>
@@ -205,100 +238,91 @@
   </select>
 </div>
 
+<!-- === TAX SUMMARY (Visible Table) === -->
+<table class="payment-table">
+  <colgroup>
+    <col style="width: 50%;">
+    <col style="width: 50%;">
+  </colgroup>
+  <thead>
+    <tr>
+      <th colspan="2" class="form-payment-label"></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>VATable Sales</td>
+      <td><input type="number" step="0.01" id="vatableSales" name="vatableSales" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>Add: VAT Amount</td>
+      <td><input type="number" step="0.01" id="vatAmount" name="vatAmount" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>VAT Exempt Sales</td>
+      <td><input type="number" step="0.01" id="vatExemptSales" name="vatExemptSales" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>VAT Zero Rated Sales</td>
+      <td><input type="number" step="0.01" id="zeroRatedSales" name="zeroRatedSales" value="0.00" class="input-full"></td>
+    </tr>
+    <tr>
+      <td>Subtotal</td>
+      <td><input type="number" step="0.01" id="subtotal" name="subtotal" value="0.00" class="input-full" readonly></td>
+    </tr>
+    <tr>
+      <td>Less: Discount (SC/PWD)</td>
+      <td>
+        <select id="discount" name="discount" class="input-full">
+          <option value="0.00">0%</option>
+          <option value="0.05">5%</option>
+          <option value="0.10">10%</option>
+          <option value="0.15">15%</option>
+          <option value="0.20">20%</option>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <td>Less: Withholding Tax</td>
+      <td style="display: flex; align-items: center; gap: 8px;">
+        <input type="number" step="0.01" id="withholdingTaxAmount" name="withholdingTaxAmount" value="0.00" class="input-full" readonly>
+        <select id="withholdingTax" name="withholdingTax" class="input-short">
+          <option value="0">-- Select EWT --</option>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <td>Total Amount Due</td>
+      <td><input type="number" step="0.01" id="totalPayable" name="totalPayable" value="0.00" class="input-full" readonly></td>
+    </tr>
+  </tbody>
+</table>
 
-    <!-- === TAX SUMMARY (Visible Table) === -->
-    <table class="payment-table">
-      <colgroup>
-        <col style="width: 50%;">
-        <col style="width: 50%;">
-      </colgroup>
-      <thead>
-        <tr>
-          <th colspan="2" class="form-payment-label"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>VATable Sales</td>
-          <td><input type="number" step="0.01" id="vatableSales" name="vatableSales" value="0.00" class="input-full"></td>
-        </tr>
-        <tr>
-          <td>Add: VAT Amount</td>
-          <td><input type="number" step="0.01" id="vatAmount" name="vatAmount" value="0.00" class="input-full"></td>
-        </tr>
-        <tr>
-          <td>VAT Exempt Sales</td>
-          <td><input type="number" step="0.01" id="vatExemptSales" name="vatExemptSales" value="0.00" class="input-full"></td>
-        </tr>
-        <tr>
-          <td>VAT Zero Rated Sales</td>
-          <td><input type="number" step="0.01" id="zeroRatedSales" name="zeroRatedSales" value="0.00" class="input-full"></td>
-        </tr>
-        <tr>
-          <td>Subtotal</td>
-          <td><input type="number" step="0.01" id="subtotal" name="subtotal" value="0.00" class="input-full" readonly></td>
-        </tr>
-        <tr>
-          <td>Less: Discount (SC/PWD)</td>
-          <td>
-            <select id="discount" name="discount" class="input-full">
-              <option value="0.00">0%</option>
-              <option value="0.05">5%</option>
-              <option value="0.10">10%</option>
-              <option value="0.15">15%</option>
-              <option value="0.20">20%</option>
-            </select>
-          </td>
-        </tr>
-        <tr>
-  <tr>
-  <tr>
-  <td>Less: Withholding Tax</td>
-  <td style="display: flex; align-items: center; gap: 8px;">
-    <!-- Display calculated withholding amount -->
-    <input type="number" step="0.01" id="withholdingTaxAmount" name="withholdingTaxAmount" 
-           value="0.00" class="input-full" readonly>
-
-    <!-- EWT dropdown beside it -->
-    <select id="withholdingTax" name="withholdingTax" class="input-short">
-      <option value="0">-- Select EWT --</option>
-      <!-- EWT options will populate dynamically -->
-    </select>
-  </td>
-</tr>
-
-        <tr>
-          <td>Total Amount Due</td>
-          <td><input type="number" step="0.01" id="totalPayable" name="totalPayable" value="0.00" class="input-full" readonly></td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="footer">
-      <div class="footer-container">
-        <div class="footer-section">
-          <div class="footer-row">
-            ATP No./OCN: <input type="text" name="footerAtpNo" class="input-footer" readonly/>
-          </div>
-          <div class="footer-row">
-            Date Issued: <input type="date" name="footerAtpDate" class="input-footer" readonly/>
-          </div>
-        </div>
-        <div class="footer-section footer-section-large">
-          <div class="footer-row">
-            BIR Permit No.: <input type="text" name="footerBirPermit" class="input-footer" />
-          </div>
-          <div class="footer-row">
-            Date Issued: <input type="date" name="footerBirDate" class="input-footer" />
-          </div>
-          <div class="footer-row">
-            Approved Inclusive Serial Nos.: <input type="text" name="footerSerialNos" class="input-footer" />
-          </div>
-        </div>
+<div class="footer">
+  <div class="footer-container">
+    <div class="footer-section">
+      <div class="footer-row">
+        ATP No./OCN: <input type="text" name="footerAtpNo" class="input-footer" readonly/>
+      </div>
+      <div class="footer-row">
+        Date Issued: <input type="date" name="footerAtpDate" class="input-footer" readonly/>
       </div>
     </div>
+    <div class="footer-section footer-section-large">
+      <div class="footer-row">
+        BIR Permit No.: <input type="text" name="footerBirPermit" class="input-footer" />
+      </div>
+      <div class="footer-row">
+        Date Issued: <input type="date" name="footerBirDate" class="input-footer" />
+      </div>
+      <div class="footer-row">
+        Approved Inclusive Serial Nos.: <input type="text" name="footerSerialNos" class="input-footer" />
+      </div>
+    </div>
+  </div>
+</div>
 
-  </div> <!-- /.invoice-container -->
+</div> <!-- /.invoice-container -->
 </form>
 
 <!-- preview iframe (optional) -->
@@ -315,8 +339,95 @@
 <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
 
 <!-- modals -->
-<div id="addColumnModal" class="modal"><div class="modal-content"><input id="newColumnName" type="text"><div id="addColumnMessage"></div><button id="addColumnConfirm">Confirm</button><button onclick="closeModal('addColumnModal')">Cancel</button></div></div>
-<div id="removeColumnModal" class="modal"><div class="modal-content"><input id="removeColumnName" type="text"><div id="removeColumnMessage"></div><button id="removeColumnConfirm">Confirm</button><button onclick="closeModal('removeColumnModal')">Cancel</button></div></div>
+<div id="addColumnModal" class="modal">
+  <div class="modal-content">
+    <input id="newColumnName" type="text">
+    <div id="addColumnMessage"></div>
+    <button id="addColumnConfirm">Confirm</button>
+    <button onclick="closeModal('addColumnModal')">Cancel</button>
+  </div>
+</div>
+<div id="removeColumnModal" class="modal">
+  <div class="modal-content">
+    <input id="removeColumnName" type="text">
+    <div id="removeColumnMessage"></div>
+    <button id="removeColumnConfirm">Confirm</button>
+    <button onclick="closeModal('removeColumnModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- Create / Edit Contact Modal -->
+<div id="contactModal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <h2 id="modalTitle">Create New Contact</h2>
+
+    <div class="modal-form-row">
+      <div class="modal-form-group">
+        <label for="modalType">Type</label>
+        <select id="modalType">
+          <option value="Customer">Customer</option>
+          <option value="Supplier">Supplier</option>
+        </select>
+      </div>
+      <div class="modal-form-group">
+        <label for="modalCode">Code</label>
+        <input type="text" id="modalCode" readonly />
+      </div>
+    </div>
+
+    <div class="modal-form-row">
+      <div class="modal-form-group full">
+        <label for="modalBusiness">Company Name</label>
+        <input type="text" id="modalBusiness" placeholder="Enter company name" />
+      </div>
+    </div>
+
+    <div class="modal-form-row">
+      <div class="modal-form-group full">
+        <label for="modalAddress">Address</label>
+        <input type="text" id="modalAddress" placeholder="Enter address" />
+      </div>
+    </div>
+
+    <div class="modal-form-row">
+      <div class="modal-form-group">
+        <label for="modalVatReg">VAT Registration</label>
+        <input type="text" id="modalVatReg" placeholder="Enter VAT Registration" />
+      </div>
+      <div class="modal-form-group">
+        <label for="modalTIN">TIN</label>
+        <input type="text" id="modalTIN" placeholder="Enter TIN" />
+      </div>
+    </div>
+
+    <div class="modal-form-row">
+      <div class="modal-form-group">
+        <label for="modalName">Contact Person</label>
+        <input type="text" id="modalName" placeholder="Enter name" />
+      </div>
+      <div class="modal-form-group">
+        <label for="modalPhone">Phone</label>
+        <input type="text" id="modalPhone" placeholder="Enter phone" />
+      </div>
+    </div>
+
+    <div class="modal-form-row">
+      <div class="modal-form-group full">
+        <label for="modalEmail">Email</label>
+        <input type="email" id="modalEmail" placeholder="Enter email" />
+      </div>
+    </div>
+
+    <div class="modal-buttons">
+      <button id="modalSave" type="button">Save</button>
+<button id="modalCancel" type="button">Cancel</button>
+
+    </div>
+  </div>
+</div>
+
+
+
 
 <script type="module" src="EINVOICING.js"></script>
 </body>

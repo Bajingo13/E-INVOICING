@@ -73,10 +73,10 @@ function renderInvoice(data) {
     tbody.innerHTML = "";
 
     const MAIN_COLUMNS = [
-      { key: "description", label: "Item Description / Nature Of Service", width: 30 },
+      { key: "description", label: "Item Description / Nature Of Service", width: 40 },
       { key: "quantity", label: "Quantity", width: 10 },
-      { key: "unit_price", label: "Unit Price/ Rate", width: 15 },
-      { key: "amount", label: "Amount", width: 15 }
+      { key: "unit_price", label: "Unit Price / Rate", width: 20 },
+      { key: "amount", label: "Amount", width: 20 }
     ];
 
     const extraFields = Array.isArray(extraColumns) ? extraColumns : [];
@@ -94,7 +94,6 @@ function renderInvoice(data) {
       c.style.width = col.width + "%";
       colgroup.appendChild(c);
     });
-
     if (extraFields.length) {
       const remaining = 100 - MAIN_COLUMNS.reduce((s, c) => s + c.width, 0);
       const extraWidth = remaining / extraFields.length;
@@ -105,33 +104,29 @@ function renderInvoice(data) {
       });
     }
 
-    // ROWS
-    const TOTAL_ROWS = 20;
-    for (let i = 0; i < TOTAL_ROWS; i++) {
-      const item = items[i] || {};
+    // ROWS — only actual items
+    items.forEach(item => {
       const tr = document.createElement("tr");
 
-      // Inside your buildTable → ROWS loop
-MAIN_COLUMNS.forEach(col => {
-  const td = document.createElement("td");
-  if (col.key === "description") td.classList.add("desc");
+      MAIN_COLUMNS.forEach(col => {
+        const td = document.createElement("td");
+        if (col.key === "description") td.classList.add("desc");
 
-  let val = item[col.key];
+        let val = item[col.key];
 
-  if (!val) {
-    td.innerHTML = "&nbsp;"; // EMPTY row, no zeros
-  } else if (col.key === "unit_price") {
-    td.innerHTML = formatCurrency(val, invoice.currency);
-  } else if (col.key === "amount") {
-    const num = parseFloat(val);
-    td.innerHTML = num ? "₱" + num.toLocaleString("en-PH", { minimumFractionDigits: 2 }) : "&nbsp;";
-  } else {
-    td.innerHTML = val;
-  }
+        if (!val) {
+          td.innerHTML = "&nbsp;";
+        } else if (col.key === "unit_price") {
+          td.innerHTML = formatCurrency(val, invoice.currency);
+        } else if (col.key === "amount") {
+          const num = parseFloat(val);
+          td.innerHTML = num ? formatCurrency(num, invoice.currency) : "&nbsp;";
+        } else {
+          td.textContent = val;
+        }
 
-  tr.appendChild(td);
-});
-
+        tr.appendChild(td);
+      });
 
       extraFields.forEach(f => {
         const td = document.createElement("td");
@@ -140,7 +135,7 @@ MAIN_COLUMNS.forEach(col => {
       });
 
       tbody.appendChild(tr);
-    }
+    });
 
     return extraFields;
   };
@@ -162,8 +157,6 @@ MAIN_COLUMNS.forEach(col => {
 
   // -------------------- FOOTER --------------------
   const footer = invoice.footer || {};
-  fillById("footer-atp-no", footer.atp_no || "");
-  fillById("footer-atp-date", footer.atp_date ? formatDate(footer.atp_date) : "");
   fillById("footer-bir-permit", footer.bir_permit_no || "");
   fillById("footer-bir-date", footer.bir_date ? formatDate(footer.bir_date) : "");
   fillById("footer-serial-nos", footer.serial_nos || "");

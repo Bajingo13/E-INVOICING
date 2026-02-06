@@ -677,85 +677,116 @@ function getFooterValue(name) {
   return el ? el.value : null;
 }
 
-/* -------------------- 13. SAVE INVOICE -------------------- */
+/* -------------------- 13. SAVE INVOICE (ENTERPRISE FLOW) -------------------- */
+
+let __SAVE_LOCK__ = false; // 🚫 prevent double save
+
 async function saveToDatabase() {
-  const billTo = getInputValue('billTo');
-  const invoiceNo = getInputValue('invoiceNo');
-  const date = getInputValue('date');
-  if (!billTo || !invoiceNo || !date) return alert("Fill Bill To, Invoice No, Date.");
 
-  calculateTotals();
+  if (__SAVE_LOCK__) {
+    DBG.warn('Save blocked: already saving');
+    return false;
+  }
 
-  const ths = $("#items-table thead tr").children;
-  const extraColumns = Array.from(ths).slice(5).map(th => th.textContent.trim().toLowerCase().replace(/\s+/g,"_"));
-
-  const rows = $$('#items-body tr');
-  const items = rows.map(row => {
-    const item = {
-      description: row.querySelector('[name="desc[]"]')?.value || "",
-      quantity: parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0,
-      unit_price: parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0,
-      amount: parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0,
-      account_id: row.querySelector('[name="account[]"]')?.value || ""
-    };
-    extraColumns.forEach(col => item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '');
-    return item;
-  });
-
-  const payload = {
-    invoice_no: invoiceNo,
-    bill_to: billTo,
-    address: getInputValue('address'),
-    tin: getInputValue('tin'),
-    date,
-    terms: getInputValue('terms'),
-    invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
-    invoice_mode: getInputValue('invoiceMode'),
-    invoice_category: getInputValue('invoiceCategory'),
-    invoice_type: getInputValue('invoice_type'),
-    currency: currencySelect?.value || 'PHP',           
-    exchange_rate: parseFloat(exchangeRateInput?.value) || 1,  
-    items,
-    extra_columns: extraColumns,
-    tax_summary: {
-      subtotal: parseFloat($('#subtotal')?.value) || 0,
-      vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
-      vat_amount: parseFloat($('#vatAmount')?.value) || 0,
-      withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
-      total_payable: parseFloat($('#totalPayable')?.value) || 0
-    },
-    footer: {
-      atp_no: getFooterValue('footerAtpNo'),
-      atp_date: getFooterValue('footerAtpDate'),
-      bir_permit_no: getFooterValue('footerBirPermit'),
-      bir_date: getFooterValue('footerBirDate'),
-      serial_nos: getFooterValue('footerSerialNos')
-    }
-  };
-
-  DBG.log('Saving invoice payload:', payload);
+  __SAVE_LOCK__ = true;
 
   try {
-    const res = await fetch('/api/invoices', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+
+    const billTo = getInputValue('billTo');
+    const invoiceNo = getInputValue('invoiceNo');
+    const date = getInputValue('date');
+
+    if (!billTo || !invoiceNo || !date) {
+      alert("Fill Bill To, Invoice No, Date.");
+      return false;
+    }
+
+    calculateTotals();
+
+    const params = new URLSearchParams(window.location.search);
+
+    // 🧠 ENTERPRISE EDIT DETECTION
+    const isEdit =
+      params.get('edit') === 'true' ||
+      params.get('invoice_no') !== null;
+
+    const ths = $("#items-table thead tr").children;
+    const extraColumns = Array.from(ths)
+      .slice(5)
+      .map(th => th.textContent.trim().toLowerCase().replace(/\s+/g,"_"));
+
+    const rows = $$('#items-body tr');
+
+    const items = rows.map(row => {
+
+      const item = {
+        description: row.querySelector('[name="desc[]"]')?.value || "",
+        quantity: parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0,
+        unit_price: parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0,
+        amount: parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0,
+        account_id:
+          row.querySelector('[name="account[]"]')?.dataset.accountId || ""
+      };
+
+      extraColumns.forEach(col => {
+        item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '';
+      });
+
+      return item;
+    });
+
+    const payload = {
+      invoice_no: invoiceNo,
+      bill_to: billTo,
+      address: getInputValue('address'),
+      tin: getInputValue('tin'),
+      date,
+      terms: getInputValue('terms'),
+      invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
+      invoice_mode: getInputValue('invoiceMode'),
+      invoice_category: getInputValue('invoiceCategory'),
+      invoice_type: getInputValue('invoice_type'),
+      currency: currencySelect?.value || 'PHP',
+      exchange_rate: parseFloat(exchangeRateInput?.value) || 1,
+      items,
+      extra_columns: extraColumns,
+      tax_summary: {
+        subtotal: parseFloat($('#subtotal')?.value) || 0,
+        vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
+        vat_amount: parseFloat($('#vatAmount')?.value) || 0,
+        withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
+        total_payable: parseFloat($('#totalPayable')?.value) || 0
+      }
+    };
+
+    const endpoint = isEdit
+      ? `/api/invoices/${encodeURIComponent(invoiceNo)}`
+      : '/api/invoices';
+
+    const method = isEdit ? 'PUT' : 'POST';
+
+    DBG.log(`[SAVE] ${method} ${endpoint}`);
+
+    const res = await fetch(endpoint, {
+      method,
+      headers: { 'Content-Type':'application/json' },
       body: JSON.stringify(payload)
     });
 
     if (!res.ok) {
-      let errBody = null;
-      try { errBody = await res.json(); } catch (e) {}
-      const message = (errBody && (errBody.error || errBody.message)) || `${res.status} ${res.statusText}`;
-      DBG.error('saveToDatabase server error:', errBody || res.statusText);
-      alert('Failed to save invoice: ' + message);
-      throw new Error('Failed to save invoice: ' + message);
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || err.message || 'Save failed');
     }
 
-    alert('Invoice saved successfully!');
-    window.location.reload();
+    DBG.log('Invoice saved successfully');
+    return true;
+
   } catch (err) {
     DBG.error('saveToDatabase error:', err);
-    alert('Failed to save invoice');
+    alert('Failed to save invoice: ' + err.message);
+    return false;
+  } finally {
+    __SAVE_LOCK__ = false;
   }
 }
 
@@ -773,8 +804,6 @@ function autofillDates() {
   const footerAtpDate = document.getElementsByName('footerAtpDate')[0];
   if (footerAtpDate && !footerAtpDate.value) footerAtpDate.value = today;
 
-  const footerBirDate = document.getElementsByName('footerBirDate')[0];
-  if (footerBirDate && !footerBirDate.value) footerBirDate.value = today;
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -803,78 +832,296 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // ======= 7️⃣ LOAD EWT OPTIONS =======
   await loadEWTOptions();
+  
+    // ======= 9️⃣ ADJUST COLUMN WIDTHS =======
+  adjustColumnWidths();
+});
 
-  // ======= 8️⃣ CONTACTS AUTOCOMPLETE =======
-  const billToInput = document.getElementById("billTo");
-  const billToIdInput = document.getElementById("billToId");
-  const billToDropdown = document.getElementById("billToDropdown");
-  const tinInput = document.getElementById("tin");
-  const addressInput = document.getElementById("address");
-  const termsInput = document.getElementById("terms");
+// ===== 8️⃣ CONTACTS AUTOCOMPLETE + MODAL CREATION =====
+// ===== ELEMENTS =====
+const billToInput = document.getElementById("billTo");
+const billToIdInput = document.getElementById("billToId");
+const billToDropdown = document.getElementById("billToDropdown");
+const tinInput = document.getElementById("tin");
+const addressInput = document.getElementById("address");
+const termsInput = document.getElementById("terms");
+const contactCard = document.getElementById("contactCard");
+const billToClearBtn = document.getElementById("billToClearBtn");
+const modal = document.getElementById("contactModal");
 
-  let contacts = [];
+let contacts = [];
+let selectedContact = null;
+let isEditing = false;
 
-  (async function loadContacts() {
-    try {
-      const res = await fetch('/api/contacts?type=Customer');
-      if (!res.ok) throw new Error('Failed to fetch contacts');
-      contacts = await res.json();
-    } catch (err) {
-      console.error('Failed to load contacts:', err);
+// ===== LOAD CONTACTS =====
+async function loadContacts() {
+  try {
+    const res = await fetch('/api/contacts');
+    if (!res.ok) throw new Error('Failed to fetch contacts');
+    contacts = await res.json();
+  } catch (err) {
+    console.error('Failed to load contacts:', err);
+    contacts = [];
+  }
+}
+loadContacts();
+
+// ===== HELPERS =====
+function getSelectedContact() {
+  const id = billToIdInput.value;
+  if (!id) return null;
+  return contacts.find(c => String(c.id) === String(id)) || null;
+}
+
+// ===== DROPDOWN =====
+function renderDropdown(list, searchValue = '') {
+  if (selectedContact) return; // locked, don't show dropdown
+
+  billToDropdown.innerHTML = '';
+  list.forEach(c => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:6px 10px; cursor:pointer; display:flex; justify-content:space-between; align-items:center';
+
+    const left = document.createElement('div');
+    const name = document.createElement('div');
+    name.textContent = c.business;
+    name.style.fontWeight = 'bold';
+    left.appendChild(name);
+    if (c.tin) {
+      const tin = document.createElement('div');
+      tin.textContent = c.tin;
+      tin.style.cssText = 'font-size:10px; color:#666';
+      left.appendChild(tin);
     }
 
-    if (!billToInput || !billToDropdown) return;
-
-   billToInput.addEventListener('input', () => {
-  const value = billToInput.value.toLowerCase();
-  billToDropdown.innerHTML = '';
-
-  if (!value) {
-    billToDropdown.style.display = 'none';
-    billToIdInput.value = '';
-    return;
-  }
-
-  const filtered = contacts.filter(c => {
-    if (!c.business) return false;
-    return c.business.toLowerCase().includes(value);
-  });
-
-  filtered.forEach(c => {
-    const item = document.createElement('div');
-    item.textContent = c.business;
-    item.style.padding = '4px 8px';
-    item.style.cursor = 'pointer';
-
-    item.addEventListener('click', () => {
-      billToInput.value = c.business;
-      billToIdInput.value = c.id;
-
-      tinInput.value = c.tin || '';
-      addressInput.value = c.address || '';
-      if (termsInput) termsInput.value = c.terms || '';
-
-      billToDropdown.style.display = 'none';
+    const right = document.createElement('div');
+    (c.type || '').split(',').forEach(t => {
+      if (!t.trim()) return;
+      const tag = document.createElement('span');
+      tag.textContent = t.trim();
+      tag.style.cssText = 'font-size:10px; margin-left:4px; padding:2px 6px; border-radius:4px; background:#e9ecef; font-weight:bold';
+      right.appendChild(tag);
     });
+
+    item.appendChild(left);
+    item.appendChild(right);
+    item.addEventListener('click', () => selectContact(c));
 
     billToDropdown.appendChild(item);
   });
 
-  billToDropdown.style.display = filtered.length ? 'block' : 'none';
+  if (searchValue && !list.length) {
+    const createItem = document.createElement('div');
+    createItem.textContent = `➕ Create "${searchValue}" as a new contact`;
+    createItem.style.cssText = 'padding:6px 10px; cursor:pointer; font-weight:bold; color:#0d6efd';
+    createItem.addEventListener('click', () => openContactModal(searchValue));
+    billToDropdown.appendChild(createItem);
+  }
+
+  billToDropdown.style.display = billToDropdown.children.length ? 'block' : 'none';
+}
+
+// ===== CONTACT CARD =====
+function showContactCard(c) {
+  if (!contactCard) return;
+
+  document.getElementById('cardBusiness').textContent = c.business;
+  document.getElementById('cardCode').textContent = `Account #: ${c.code || '—'}`;
+  document.getElementById('cardAddress').textContent = c.address || '—';
+  document.getElementById('cardBalance').textContent = (c.balance || 0).toFixed(2);
+
+  const initials = c.business
+    .split(' ')
+    .map(w => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  document.getElementById('contactAvatar').textContent = initials;
+
+  document.getElementById('editContactBtn').addEventListener('click', e => {
+  e.preventDefault();
+  openContactModal(null, selectedContact);
 });
 
 
-    document.addEventListener('click', e => {
-      if (!e.target.closest('#billTo') && !e.target.closest('#billToDropdown')) {
-        billToDropdown.style.display = 'none';
-      }
-    });
-  })();
+  contactCard.style.display = 'block';
+}
 
-  // ======= 9️⃣ ADJUST COLUMN WIDTHS =======
-  adjustColumnWidths();
+// ===== SELECT CONTACT =====
+function selectContact(c) {
+  selectedContact = c;
+  billToInput.value = c.business;
+  billToInput.readOnly = true;
+  billToInput.classList.add('locked');
+  billToIdInput.value = c.id;
+  tinInput.value = c.tin || '';
+  addressInput.value = c.address || '';
+  if (termsInput) termsInput.value = c.terms || '';
+  billToDropdown.style.display = 'none';
+  billToClearBtn.style.display = 'block';
+  showContactCard(c);
+}
+
+// ===== CLEAR CONTACT =====
+function clearSelectedContact() {
+  selectedContact = null;
+  billToInput.value = '';
+  billToInput.readOnly = false;
+  billToInput.classList.remove('locked');
+  billToIdInput.value = '';
+  tinInput.value = '';
+  addressInput.value = '';
+  if (termsInput) termsInput.value = '';
+  contactCard.style.display = 'none';
+  billToClearBtn.style.display = 'none';
+  billToInput.focus();
+}
+
+// ===== INPUT EVENTS =====
+billToInput.addEventListener('input', () => {
+  if (selectedContact) return;
+  const value = billToInput.value.trim().toLowerCase();
+  if (!value) {
+    billToIdInput.value = '';
+    billToDropdown.style.display = 'none';
+    return;
+  }
+  const filtered = contacts.filter(c => c.business && c.business.toLowerCase().includes(value));
+  renderDropdown(filtered, billToInput.value);
 });
 
+billToInput.addEventListener('click', () => {
+  if (selectedContact) {
+    contactCard.style.display = contactCard.style.display === 'block' ? 'none' : 'block';
+  } else {
+    renderDropdown(contacts);
+  }
+});
+
+billToClearBtn.addEventListener('click', clearSelectedContact);
+
+// ===== CLICK OUTSIDE =====
+document.addEventListener('click', e => {
+  if (!e.target.closest('#billTo') &&
+      !e.target.closest('#billToDropdown') &&
+      !e.target.closest('#contactCard') &&
+      !e.target.closest('#billToClearBtn') &&
+      !e.target.closest('#contactModal')) {
+    billToDropdown.style.display = 'none';
+    contactCard.style.display = 'none';
+  }
+});
+
+// ===== MODAL =====
+async function openContactModal(name = '', contact = null) {
+  isEditing = !!contact;
+  modal.style.display = 'flex';
+  document.getElementById('modalTitle').textContent = isEditing ? 'Edit Contact' : 'Create New Contact';
+
+  // stop clicks inside modal-content from closing modal
+  const modalContent = modal.querySelector('.modal-content');
+  modalContent.addEventListener('click', e => e.stopPropagation());
+
+  const fields = [
+    'modalType','modalCode','modalBusiness','modalName',
+    'modalAddress','modalVatReg','modalTIN','modalPhone','modalEmail'
+  ];
+  fields.forEach(id => document.getElementById(id).value = '');
+
+  if (isEditing && contact) {
+    document.getElementById('modalType').value = contact.type || 'Customer';
+    document.getElementById('modalCode').value = contact.code || '';
+    document.getElementById('modalBusiness').value = contact.business || '';
+    document.getElementById('modalName').value = contact.name || '';
+    document.getElementById('modalAddress').value = contact.address || '';
+    document.getElementById('modalVatReg').value = contact.vatReg || '';
+    document.getElementById('modalTIN').value = contact.tin || '';
+    document.getElementById('modalPhone').value = contact.phone || '';
+    document.getElementById('modalEmail').value = contact.email || '';
+  } else {
+    if (name) document.getElementById('modalBusiness').value = name;
+    try {
+      const res = await fetch('/api/contacts/next-code');
+      if (!res.ok) throw new Error('Failed to get next contact code');
+      const data = await res.json();
+      document.getElementById('modalCode').value = data.nextCode;
+    } catch (err) {
+      console.error(err);
+      alert('Failed to get next contact code');
+    }
+  }
+}
+
+// Close modal function
+function closeContactModal() {
+  modal.style.display = 'none';
+}
+
+// ===== SAVE MODAL =====
+document.getElementById('modalSave').addEventListener('click', async e => {
+  e.preventDefault();
+
+  const payload = {
+    type: document.getElementById('modalType').value,
+    code: document.getElementById('modalCode').value,
+    business: document.getElementById('modalBusiness').value,
+    name: document.getElementById('modalName').value,
+    address: document.getElementById('modalAddress').value,
+    vatReg: document.getElementById('modalVatReg').value,
+    tin: document.getElementById('modalTIN').value,
+    phone: document.getElementById('modalPhone').value,
+    email: document.getElementById('modalEmail').value
+  };
+
+  if (!payload.code || !payload.business || !payload.name) {
+    return alert('Required fields missing');
+  }
+
+  try {
+    let res, savedContact;
+
+    if (isEditing && selectedContact) {
+      res = await fetch(`/api/contacts/${selectedContact.id}`, {
+        method: 'PUT',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Failed to update contact');
+      savedContact = await res.json();
+
+      const index = contacts.findIndex(c => c.id === selectedContact.id);
+      if (index !== -1) contacts[index] = { ...contacts[index], ...payload };
+      selectContact(contacts[index]);
+
+    } else {
+      res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('Failed to create contact');
+      savedContact = await res.json();
+
+      contacts.push({ id: savedContact.id, ...payload });
+      selectContact({ id: savedContact.id, ...payload });
+    }
+
+    closeContactModal();
+
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
+  }
+});
+
+// Cancel button
+document.getElementById('modalCancel').addEventListener('click', e => {
+  e.preventDefault();
+  closeContactModal();
+});
+
+// Clicking outside modal closes it
+modal.addEventListener('click', closeContactModal);
 
 /* -------------------- 15. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
 document.addEventListener('DOMContentLoaded', () => {
@@ -933,25 +1180,50 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+/* -------------------- ENTERPRISE SAVE ACTION HANDLER -------------------- */
+
 async function handleSaveCloseAction(action) {
-  await saveToDatabase();
+
+  const invoiceNo = getInputValue('invoiceNo');
+
+  // ✅ SAVE ONLY ONCE
+  const saved = await saveToDatabase();
+  if (!saved) return;
+
+  if (action === 'preview') {
+
+    window.location.href =
+      `InvoicePreviewViewer.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
+    return;
+  }
 
   if (action === 'addAnother') {
     window.location.href = '/Dashboard.html';
-  } else if (action === 'submitApproval') {
-    const invoiceNo = getInputValue('invoiceNo');
+    return;
+  }
 
-    // IMPORTANT: submit only allowed for submitter
-    const user = await fetch('/auth/me', { credentials: 'include' }).then(r => r.json());
-    if (!user?.user?.role || user.user.role !== 'submitter') {
-      return alert('Only Submitter can submit for approval');
+  if (action === 'submitApproval') {
+
+    const user = await fetch('/auth/me', { credentials: 'include' })
+      .then(r => r.json());
+
+    if (user?.user?.role !== 'submitter') {
+      alert('Only Submitter can submit for approval');
+      return;
     }
 
     try {
-      const res = await fetch(`/api/invoices/${invoiceNo}/submit`, { method: 'POST' });
+
+      const res = await fetch(
+        `/api/invoices/${encodeURIComponent(invoiceNo)}/submit`,
+        { method: 'POST' }
+      );
+
       if (!res.ok) throw new Error('Submit failed');
+
       alert('Invoice submitted for approval!');
-      window.location.reload();
+      window.location.href = '/Dashboard.html';
+
     } catch (err) {
       console.error('Submit error:', err);
       alert('Failed to submit for approval');
@@ -959,124 +1231,199 @@ async function handleSaveCloseAction(action) {
   }
 }
 
-/* -------------------- PREVIEW IFRAME HANDLING (on-demand) -------------------- */
-function loadPreviewHTML() {
-  const iframe = document.getElementById('invoicePreviewFrame');
-  if (!iframe) return Promise.reject(new Error('Preview iframe not present'));
-
-  return fetch('Replica.html')
-    .then(res => {
-      if (!res.ok) throw new Error('Failed to fetch preview HTML');
-      return res.text();
-    })
-    .then(html => {
-      const doc = iframe.contentDocument || iframe.contentWindow.document;
-      if (!doc) throw new Error('Preview iframe document not accessible');
-      doc.open();
-      doc.write(html);
-      doc.close();
-      return true;
-    });
-}
-
-function updatePreview(data) {
-  const iframe = document.getElementById('invoicePreviewFrame');
-  if (!iframe) { DBG.warn('Preview iframe not present. Skipping updatePreview.'); return; }
-  const doc = iframe.contentDocument || iframe.contentWindow.document;
-  if (!doc || !doc.body.innerHTML.trim()) { DBG.warn('Preview not ready yet.'); return; }
-
-  const formatCurrency = (value) => {
-    const num = parseFloat(value);
-    return isNaN(num) ? '' : num.toLocaleString('en-PH', { style:'currency', currency:'PHP' });
-  };
-
-  const getById = id => doc.getElementById(id) || { textContent: '' };
-  getById('customerName').textContent = data.customerName || '';
-  getById('invoiceNumber').textContent = data.invoiceNumber || '';
-  getById('invoiceDate').textContent = data.date || '';
-
-  const itemsContainer = doc.getElementById('invoiceItems');
-  if (itemsContainer) {
-    itemsContainer.innerHTML = '';
-    (data.items || []).forEach(item => {
-      const row = doc.createElement('tr');
-      row.innerHTML = `
-        <td>${item.description}</td>
-        <td>${item.qty}</td>
-        <td>${formatCurrency(item.price)}</td>
-        <td>${formatCurrency(item.amount)}</td>
-      `;
-      itemsContainer.appendChild(row);
-    });
-  }
-
-  const totalElem = doc.getElementById('totalAmount');
-  if (totalElem) totalElem.textContent = formatCurrency(data.total);
-}
+/* -------------------- LIVE PREVIEW -------------------- */
 
 const form = document.getElementById('invoiceForm');
 const previewBtn = document.getElementById('previewBtn');
+const iframe = document.getElementById('invoicePreviewFrame');
 
+// Load Replica.html into iframe (once)
+async function loadPreviewHTML() {
+  if (!iframe) throw new Error('Preview iframe not found');
+  if (iframe.dataset.loaded === 'true') return;
+
+  const res = await fetch('Replica.html');
+  if (!res.ok) throw new Error('Failed to fetch Replica.html');
+
+  const html = await res.text();
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  iframe.dataset.loaded = 'true'; // ✅ assignment is correct
+}
+
+// Get all data from the form
 function getInvoiceData() {
-  if (!form) return { customerName: '', invoiceNumber: '', date: '', items: [], total: 0 };
+  if (!form) return {};
+  
+  const rows = Array.from(form.querySelectorAll('#items-body tr'));
+  const items = rows.map(row => {
+    const desc = row.querySelector('[name="desc[]"]')?.value || '';
+    const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
+    const price = parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0;
+    const amount = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
+
+    return { description: desc, qty, price, amount };
+  });
+
   return {
-    customerName: form.querySelector('[name="billTo"]')?.value || '',
-    invoiceNumber: form.querySelector('[name="invoiceNo"]')?.value || '',
+    invoice_no: form.querySelector('#invoice_no')?.value || '',
     date: form.querySelector('[name="date"]')?.value || '',
-    items: Array.from(form.querySelectorAll('tr')).filter(r => r.querySelector('[name="desc[]"]')).map(row => ({
-      description: row.querySelector('[name="desc[]"]')?.value || '',
-      qty: row.querySelector('[name="qty[]"]')?.value || '',
-      price: row.querySelector('[name="rate[]"]')?.value || '',
-      amount: row.querySelector('[name="amt[]"]')?.value || ''
-    })),
-    total: Array.from(form.querySelectorAll('[name="amt[]"]'))
-                 .reduce((sum, el) => sum + (parseFloat(el.value) || 0), 0)
+    billTo: form.querySelector('#billTo')?.value || '',
+    address: form.querySelector('#address')?.value || '',
+    tin: form.querySelector('#tin')?.value || '',
+    terms_table: form.querySelector('#terms')?.value || '',
+    exchange_rate: form.querySelector('#exchangeRate')?.value || '',
+    items,
+    vatableSales: form.querySelector('#vatableSales')?.value || '0.00',
+    vatAmount: form.querySelector('#vatAmount')?.value || '0.00',
+    vatExemptSales: form.querySelector('#vatExemptSales')?.value || '0.00',
+    zeroRatedSales: form.querySelector('#zeroRatedSales')?.value || '0.00',
+    subtotal: form.querySelector('#subtotal')?.value || '0.00',
+    discount: form.querySelector('#discount')?.value || '0.00',
+    withholdingTax: form.querySelector('#withholdingTaxAmount')?.value || '0.00',
+    totalPayable: form.querySelector('#totalPayable')?.value || '0.00',
+    footer_bir_permit: form.querySelector('[name="footerBirPermit"]')?.value || '',
+    footer_bir_date: form.querySelector('[name="footerBirDate"]')?.value || '',
+    footer_serial_nos: form.querySelector('[name="footerSerialNos"]')?.value || ''
   };
 }
 
+// Format number as PHP currency
+function formatCurrency(value) {
+  const num = parseFloat(value);
+  if (isNaN(num)) return '';
+  return num.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' });
+}
+
+// Update the iframe content
+function updatePreview() {
+  if (!iframe || !iframe.contentDocument) return;
+
+  const data = getInvoiceData();
+  const doc = iframe.contentDocument;
+
+  // ---------- HEADER ----------
+  const headerFields = [
+    'invoice_no',
+    'invoice_date',
+    'billTo',
+    'address',
+    'tin',
+    'terms_table',
+    'exchange_rate'
+  ];
+
+  headerFields.forEach(id => {
+    const el = doc.getElementById(id);
+    if (el) {
+      // exchange_rate may be a number
+      if (id === 'exchange_rate') {
+        el.textContent = data.exchange_rate ?? '';
+      } else {
+        el.textContent = data[id] ?? '';
+      }
+    }
+  });
+
+  // ---------- ITEMS TABLE ----------
+  const tbody = doc.getElementById('itemRows');
+  if (tbody) {
+    tbody.innerHTML = '';
+
+    data.items.forEach(item => {
+      const tr = doc.createElement('tr');
+
+      const descTd = doc.createElement('td');
+      descTd.textContent = item.description || '';
+      tr.appendChild(descTd);
+
+      const qtyTd = doc.createElement('td');
+      qtyTd.textContent = item.qty ?? 0;
+      tr.appendChild(qtyTd);
+
+      const priceTd = doc.createElement('td');
+      priceTd.textContent = formatCurrency(item.price ?? 0);
+      tr.appendChild(priceTd);
+
+      const amountTd = doc.createElement('td');
+      amountTd.textContent = formatCurrency(item.amount ?? 0);
+      tr.appendChild(amountTd);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---------- TAX SUMMARY ----------
+  const taxFields = [
+    { id: 'vatableSales', value: data.vatableSales },
+    { id: 'vatAmount', value: data.vatAmount },
+    { id: 'vatExemptSales', value: data.vatExemptSales },
+    { id: 'zeroRatedSales', value: data.zeroRatedSales },
+    { id: 'subtotal', value: data.subtotal },
+    { id: 'discount', value: data.discount },
+    { id: 'withholdingTax', value: parseFloat(data.withholdingTax) || 0 },
+    { id: 'withholdingTaxAmount', value: data.withholdingTax },
+    { id: 'totalPayable', value: data.totalPayable }
+  ];
+
+  taxFields.forEach(f => {
+    const el = doc.getElementById(f.id);
+    if (!el) return;
+
+    if (f.id === 'discount') {
+      el.value = f.value ?? 0;
+    } else if (f.id === 'withholdingTax') {
+      el.value = f.value ?? 0;
+    } else if (f.id === 'withholdingTaxAmount') {
+      el.textContent = formatCurrency(f.value ?? 0);
+    } else {
+      el.textContent = formatCurrency(f.value ?? 0);
+    }
+  });
+
+  // ---------- FOOTER ----------
+  const footerFields = [
+    { id: 'footer-bir-permit', value: data.footer_bir_permit },
+    { id: 'footer-bir-date', value: data.footer_bir_date },
+    { id: 'footer-serial-nos', value: data.footer_serial_nos }
+  ];
+
+  footerFields.forEach(f => {
+    const el = doc.getElementById(f.id);
+    if (el) el.textContent = f.value ?? '';
+  });
+}
+
+
+// Toggle iframe preview
 async function showPreviewToggle() {
-  const iframe = document.getElementById('invoicePreviewFrame');
-  if (!iframe) { DBG.warn('Preview iframe not present in DOM.'); return; }
+  if (!iframe) return;
 
   const visible = iframe.style.display && iframe.style.display !== 'none';
   if (visible) {
     iframe.style.display = 'none';
-    previewBtn?.setAttribute('aria-pressed', 'false');
+    previewBtn.setAttribute('aria-pressed', 'false');
     return;
   }
 
-  iframe.style.display = 'block';
-  previewBtn?.setAttribute('aria-pressed', 'true');
-
   try {
     await loadPreviewHTML();
-    updatePreview(getInvoiceData());
+    updatePreview();
+    iframe.style.display = 'block';
+    previewBtn.setAttribute('aria-pressed', 'true');
   } catch (err) {
-    DBG.error('Failed to show preview:', err);
-    alert('Failed to load preview: ' + (err.message || err));
-    iframe.style.display = 'none';
-    previewBtn?.setAttribute('aria-pressed', 'false');
+    console.error('Failed to load preview', err);
+    alert('Failed to load preview: ' + err.message);
   }
 }
 
-if (previewBtn) {
-  previewBtn.addEventListener('click', () => {
-    showPreviewToggle();
-  });
-} else {
-  DBG.warn('previewBtn not found in DOM; preview disabled.');
-}
+// Event listeners
+if (previewBtn) previewBtn.addEventListener('click', showPreviewToggle);
+if (form) form.addEventListener('input', updatePreview);
 
-if (form) {
-  form.addEventListener('input', () => {
-    const iframe = document.getElementById('invoicePreviewFrame');
-    if (iframe && iframe.style.display && iframe.style.display !== 'none') {
-      updatePreview(getInvoiceData());
-    }
-  });
-} else {
-  DBG.warn('invoiceForm not found in DOM; live preview and some selectors may not work.');
-}
 
 // ====== FIXED DROPDOWN (SAFE) ======
 const invoiceDropdown = document.getElementById('invoiceDropdown');

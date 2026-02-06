@@ -283,8 +283,21 @@ function downloadPDF() {
   frame.contentWindow.focus();
   frame.contentWindow.print();
 }
+function closePreview() {
+  // If this window was opened by JS (popup), we can safely close it
+  if (window.opener) {
+    window.close();
+  } 
+  // If we have a referrer (navigated from another page), go back
+  else if (document.referrer) {
+    window.history.back();
+  } 
+  // Fallback to invoice list
+  else {
+    window.location.href = '/invoice-list.html';
+  }
+}
 
-function closePreview() { window.close(); }
 function openSettings() { alert('Invoice settings (future)'); }
 
 /* ===============================
@@ -293,8 +306,15 @@ function openSettings() { alert('Invoice settings (future)'); }
 const params = new URLSearchParams(window.location.search);
 const invoiceNo = params.get('invoice_no');
 
-if (!invoiceNo) alert('No invoice number provided in the URL.');
-else frame.src = `Replica.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
+if (!invoiceNo) {
+  alert('No invoice number provided in the URL.');
+  frame.src = ''; // prevent broken iframe
+} else {
+  // ✅ Fully encode invoiceNo to prevent URL issues
+  const encodedInvoice = encodeURIComponent(invoiceNo.trim());
+  frame.src = `Replica.html?invoice_no=${encodedInvoice}`;
+}
+
 
 /* ===============================
    EXPORT DROPDOWN TOGGLE

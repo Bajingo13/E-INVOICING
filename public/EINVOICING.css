@@ -943,3 +943,219 @@ textarea.item-desc:focus,
 textarea#address:focus {
   border-bottom-color: #007BFF;
 }
+
+/* ================= MODALS ================= */
+
+/* Modal overlay */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+/* Modal box */
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 25px 20px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content h2 {
+  margin-bottom: 20px;
+  font-family: 'Segoe UI', sans-serif;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+}
+
+.modal-form-row {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-form-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-form-group.full {
+  flex: 100%;
+}
+
+.modal-form-group label {
+  margin-bottom: 4px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #555;
+}
+
+.modal-form-group input,
+.modal-form-group select {
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.modal-form-group input:focus,
+.modal-form-group select:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 2px rgba(13,110,253,0.2);
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.modal-buttons .btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modal-buttons .btn.save {
+  background: #0d6efd;
+  color: #fff;
+  border: none;
+}
+
+.modal-buttons .btn.save:hover {
+  background: #0b5ed7;
+}
+
+.modal-buttons .btn.cancel {
+  background: #f8f9fa;
+  border: 1px solid #ccc;
+  color: #333;
+}
+
+.modal-buttons .btn.cancel:hover {
+  background: #e9ecef;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 500px) {
+  .modal-form-row {
+    flex-direction: column;
+  }
+}
+
+/* ================= CONTACT CARD ================= */
+.contact-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.contact-card {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 280px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+  padding: 12px;
+  font-family: Arial, sans-serif;
+}
+
+.contact-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.contact-card .avatar {
+  width: 40px;
+  height: 40px;
+  background: #0d6efd;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: bold;
+}
+
+.contact-card .card-title {
+  flex: 1;
+  margin-left: 8px;
+}
+
+.contact-card .card-title .business {
+  font-weight: 600;
+}
+
+.contact-card .card-title .account {
+  font-size: 12px;
+  color: #555;
+}
+
+.contact-card .edit-btn {
+  background: none;
+  border: none;
+  color: #0d6efd;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.contact-card .card-section {
+  margin-top: 8px;
+  border-top: 1px solid #eee;
+  padding-top: 6px;
+  font-size: 13px;
+}
+
+.contact-card .card-section .row {
+  display: flex;
+  justify-content: space-between;
+}
+#billToClearBtn {
+  display: none;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 24px;       /* bigger X */
+  font-weight: bold;     /* makes it pop */
+  cursor: pointer;
+  color: #ff0000;
+  line-height: 1;
+  padding: 0;
+  width: 22px;           /* square clickable area */
+  height: 22px;
+  text-align: center;
+}
+
