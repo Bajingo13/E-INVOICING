@@ -3,6 +3,7 @@ const router = express.Router();
 const { getConn } = require('../helpers/db');
 const asyncHandler = require('../middleware/asynchandler');
 
+
 // ----------------- GET all contacts -----------------
 router.get('/', asyncHandler(async (req, res) => {
   const conn = await getConn();
@@ -16,20 +17,26 @@ router.get('/', asyncHandler(async (req, res) => {
 
 // ----------------- GET next contact code -----------------
 router.get('/next-code', asyncHandler(async (req, res) => {
+  let { type } = req.query;           // type may come from ?type=Customer
+  type = type || 'Customer';          // default to Customer if undefined
+
   const conn = await getConn();
   try {
+    const prefix = type === 'Supplier' ? 'SUP-' : 'CUST-';
     const [rows] = await conn.execute(
-      `SELECT code FROM contacts ORDER BY id DESC LIMIT 1`
+      `SELECT code FROM contacts WHERE type=? ORDER BY id DESC LIMIT 1`,
+      [type]
     );
-    let lastCode = rows[0]?.code || null;
 
-    let nextNumber = 4; // start from 004 if none exists
+    let lastCode = rows[0]?.code || null;
+    let nextNumber = 1;
+
     if (lastCode) {
-      const match = lastCode.match(/CUST-(\d+)/);
+      const match = lastCode.match(/-(\d+)$/);
       if (match) nextNumber = parseInt(match[1], 10) + 1;
     }
 
-    const nextCode = 'CUST-' + String(nextNumber).padStart(3, '0');
+    const nextCode = prefix + String(nextNumber).padStart(3, '0');
     res.json({ nextCode });
   } finally {
     conn.release();

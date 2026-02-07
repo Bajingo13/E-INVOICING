@@ -92,6 +92,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/login-history', loginHistoryRoutes);
 app.use('/api/invoice-settings', invoiceSettingsRoutes);
 app.use('/api/reports', reportsRouter);
+app.use('/api/invoices/import', require('./routes/invoiceImport'));
 
 /* =========================
    Static pages

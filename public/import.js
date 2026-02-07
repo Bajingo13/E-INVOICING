@@ -1,4 +1,6 @@
-// import.js
+'use strict';
+
+// ===== DOM ELEMENTS =====
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 const preview = document.getElementById('preview');
@@ -7,62 +9,106 @@ const uploadBtn = document.getElementById('upload-btn');
 const statusEl = document.getElementById('status');
 
 let currentFile = null;
-let parsedPreview = null;
 
-// visual drag handlers
+// ===== DRAG & DROP STYLING =====
 ['dragenter', 'dragover'].forEach(ev => {
-  dropZone.addEventListener(ev, (e) => {
+  dropZone.addEventListener(ev, e => {
     e.preventDefault();
     e.stopPropagation();
     dropZone.classList.add('dragover');
   });
 });
+
 ['dragleave', 'drop'].forEach(ev => {
-  dropZone.addEventListener(ev, (e) => {
+  dropZone.addEventListener(ev, e => {
     e.preventDefault();
     e.stopPropagation();
     dropZone.classList.remove('dragover');
   });
 });
 
-dropZone.addEventListener('drop', (e) => {
+// ===== FILE DROP =====
+dropZone.addEventListener('drop', e => {
   const f = e.dataTransfer.files[0];
   handleFile(f);
 });
 
-fileInput.addEventListener('change', (e) => {
+// ===== FILE SELECT =====
+fileInput.addEventListener('change', e => {
   const f = e.target.files[0];
   handleFile(f);
 });
 
-uploadBtn.addEventListener('click', () => {
-  if (!currentFile) return;
-  uploadFile(currentFile);
+// ===== UPLOAD & SAVE BUTTON =====
+uploadBtn.addEventListener('click', async () => {
+  if (!currentFile) return setStatus('No file selected', true);
+
+  try {
+    setStatus('Uploading and saving...');
+    uploadBtn.disabled = true;
+
+    const form = new FormData();
+    form.append('file', currentFile);
+
+    // 1️⃣ Upload & parse
+    const parseRes = await fetch('/api/invoices/import', { method: 'POST', body: form });
+    if (!parseRes.ok) throw new Error('Upload failed');
+    const parseData = await parseRes.json();
+
+    if (!parseData.preview || !parseData.preview.length) {
+      setStatus('No rows found in the file', true);
+      uploadBtn.disabled = false;
+      return;
+    }
+
+    // 2️⃣ Save to DB
+    const saveRes = await fetch('/api/invoices/import/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parseData.preview)
+    });
+    const saveData = await saveRes.json();
+    if (!saveRes.ok) throw new Error(saveData.error || 'Save failed');
+
+    setStatus(
+      `✅ Saved ${saveData.inserted} invoices (${saveData.skipped || 0} skipped)`,
+      false,
+      true
+    );
+
+    // Clear current file & preview
+    currentFile = null;
+    preview.hidden = true;
+    previewJson.textContent = '';
+
+  } catch (err) {
+    console.error(err);
+    setStatus('Error: ' + (err.message || 'Unknown'), true);
+  } finally {
+    uploadBtn.disabled = false;
+  }
 });
 
+// ===== HANDLE FILE =====
 function handleFile(file) {
   if (!file) return;
-  const allowed = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                   'application/vnd.ms-excel', 'text/csv'];
-  // No hard-block: accept by extension too
+  const allowedExts = ['xlsx', 'xls', 'csv'];
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+
+  if (!allowedExts.includes(ext)) {
     setStatus('Unsupported file type — please upload .xlsx, .xls or .csv', true);
     return;
   }
 
   currentFile = file;
-  setStatus(`Selected: ${file.name}`);
-  // Attempt client preview by reading file as binary/text and showing first rows (minimal)
+  setStatus(`Selected file: ${file.name}`);
+
   const reader = new FileReader();
-  reader.onload = (ev) => {
-    const content = ev.target.result;
-    // For privacy & simplicity: show first 20k chars for CSV, or note for XLSX
+  reader.onload = () => {
     if (ext === 'csv') {
-      const text = content.slice(0, 20000);
-      previewJson.textContent = text;
+      previewJson.textContent = reader.result.slice(0, 20000);
     } else {
-      previewJson.textContent = `Binary file detected (${file.name}). Preview is limited in-browser. Click "Upload to server" to parse.`;
+      previewJson.textContent = `Binary file detected (${file.name}). Click "Upload & Save" to parse and save to DB.`;
     }
     preview.hidden = false;
   };
@@ -71,34 +117,12 @@ function handleFile(file) {
   else reader.readAsArrayBuffer(file);
 }
 
-function uploadFile(file) {
-  const form = new FormData();
-  form.append('file', file);
-  setStatus('Uploading...');
-  fetch('/import', {
-    method: 'POST',
-    body: form
-  })
-  .then(res => {
-    if (!res.ok) throw new Error('Upload failed');
-    return res.json();
-  })
-  .then(data => {
-    setStatus('Upload successful', false, true);
-    // show parsed JSON (truncate if huge)
-    const pretty = JSON.stringify(data.rows || data, null, 2);
-    previewJson.textContent = pretty.slice(0, 20000) + (pretty.length > 20000 ? '\n\n...truncated...' : '');
-  })
-  .catch(err => {
-    console.error(err);
-    setStatus('Error: ' + (err.message || 'Unknown'), true);
-  });
-}
-
+// ===== SET STATUS =====
 function setStatus(msg, isError = false, isSuccess = false) {
   statusEl.textContent = msg;
   statusEl.classList.remove('success');
   statusEl.style.color = '';
+
   if (isError) statusEl.style.color = 'crimson';
   if (isSuccess) {
     statusEl.classList.add('success');

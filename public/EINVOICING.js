@@ -1018,7 +1018,6 @@ document.addEventListener('click', e => {
     contactCard.style.display = 'none';
   }
 });
-
 // ===== MODAL =====
 async function openContactModal(name = '', contact = null) {
   isEditing = !!contact;
@@ -1036,6 +1035,7 @@ async function openContactModal(name = '', contact = null) {
   fields.forEach(id => document.getElementById(id).value = '');
 
   if (isEditing && contact) {
+    selectedContact = contact; // remember for editing
     document.getElementById('modalType').value = contact.type || 'Customer';
     document.getElementById('modalCode').value = contact.code || '';
     document.getElementById('modalBusiness').value = contact.business || '';
@@ -1046,46 +1046,70 @@ async function openContactModal(name = '', contact = null) {
     document.getElementById('modalPhone').value = contact.phone || '';
     document.getElementById('modalEmail').value = contact.email || '';
   } else {
+    selectedContact = null;
     if (name) document.getElementById('modalBusiness').value = name;
-    try {
-      const res = await fetch('/api/contacts/next-code');
-      if (!res.ok) throw new Error('Failed to get next contact code');
-      const data = await res.json();
-      document.getElementById('modalCode').value = data.nextCode;
-    } catch (err) {
-      console.error(err);
-      alert('Failed to get next contact code');
-    }
+    await updateNextCode(); // fetch code for new contact
   }
 }
 
-// Close modal function
-function closeContactModal() {
-  modal.style.display = 'none';
+// ===== Fetch next code based on type =====
+const modalType = document.getElementById('modalType');
+const modalCode = document.getElementById('modalCode');
+
+async function updateNextCode() {
+  const type = modalType.value || 'Customer';
+  try {
+    const res = await fetch(`/api/contacts/next-code?type=${type}`);
+    if (!res.ok) throw new Error('Failed to get next code');
+    const data = await res.json();
+    modalCode.value = data.nextCode;
+  } catch (err) {
+    console.error(err);
+    modalCode.value = ''; // fallback empty
+  }
 }
+
+// --- Update code automatically when type changes ---
+modalType.addEventListener('change', () => {
+  if (!isEditing) updateNextCode();
+});
 
 // ===== SAVE MODAL =====
 document.getElementById('modalSave').addEventListener('click', async e => {
   e.preventDefault();
 
-  const payload = {
-  type: document.getElementById('modalType').value,
-  code: document.getElementById('modalCode').value,
-  business: document.getElementById('modalBusiness').value,
-  name: document.getElementById('modalName').value,
-  address: document.getElementById('modalAddress').value,
-  vat_registration: document.getElementById('modalVatReg').value, 
-  tin: document.getElementById('modalTIN').value,
-  phone: document.getElementById('modalPhone').value,
-  email: document.getElementById('modalEmail').value
-};
-
+  const type = modalType.value;
+  let payload = {
+    type,
+    code: modalCode.value.trim(),
+    business: document.getElementById('modalBusiness').value.trim(),
+    name: document.getElementById('modalName').value.trim(),
+    address: document.getElementById('modalAddress').value.trim(),
+    vat_registration: document.getElementById('modalVatReg').value.trim(),
+    tin: document.getElementById('modalTIN').value.trim(),
+    phone: document.getElementById('modalPhone').value.trim(),
+    email: document.getElementById('modalEmail').value.trim()
+  };
 
   if (!payload.code || !payload.business || !payload.name) {
     return alert('Required fields missing');
   }
 
   try {
+    // --- Check for duplicate code ---
+    const resAll = await fetch('/api/contacts');
+    const allContacts = await resAll.json();
+    const duplicate = allContacts.find(c => c.code === payload.code && c.type === type && (!isEditing || c.id !== selectedContact?.id));
+
+    if (duplicate) {
+      // Auto-generate next code for this type
+      const resCode = await fetch(`/api/contacts/next-code?type=${type}`);
+      if (!resCode.ok) throw new Error('Failed to get next contact code');
+      const data = await resCode.json();
+      payload.code = data.nextCode;
+      alert(`Duplicate ${type} code detected. Code changed to ${payload.code}`);
+    }
+
     let res, savedContact;
 
     if (isEditing && selectedContact) {
@@ -1122,14 +1146,17 @@ document.getElementById('modalSave').addEventListener('click', async e => {
   }
 });
 
-// Cancel button
+// ===== Cancel modal =====
 document.getElementById('modalCancel').addEventListener('click', e => {
   e.preventDefault();
   closeContactModal();
 });
 
-// Clicking outside modal closes it
+// ===== Close modal on outside click =====
 modal.addEventListener('click', closeContactModal);
+function closeContactModal() {
+  modal.style.display = 'none';
+}
 
 /* -------------------- 15. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
 document.addEventListener('DOMContentLoaded', () => {
@@ -1206,7 +1233,7 @@ async function handleSaveCloseAction(action) {
   }
 
   if (action === 'addAnother') {
-    window.location.href = '/Dashboard.html';
+    window.location.href = '/invoice.html';
     return;
   }
 

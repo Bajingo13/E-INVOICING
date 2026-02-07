@@ -1159,3 +1159,13 @@ textarea#address:focus {
   text-align: center;
 }
 
+.footer-row input[name="footerAtpNo"],
+.footer-row input[name="footerAtpDate"] {
+  display: none; /* hide input */
+}
+
+/* hide entire row */
+.footer-row:has(input[name="footerAtpNo"]),
+.footer-row:has(input[name="footerAtpDate"]) {
+  display: none;
+}
