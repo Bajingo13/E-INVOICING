@@ -39,29 +39,31 @@ router.get('/next-code', asyncHandler(async (req, res) => {
 // ----------------- POST add new contact -----------------
 router.post('/', asyncHandler(async (req, res) => {
   const { type, code, name, phone, business, address, vat_registration, tin, email } = req.body;
-  
+
   if (!code || !name) {
     return res.status(400).json({ error: "Code and Name are required" });
   }
-  // Check for duplicate code
-const [existing] = await conn.execute(
-  'SELECT id FROM contacts WHERE code = ? LIMIT 1',
-  [code]
-);
 
-if (existing.length) {
-  return res.status(400).json({ error: 'Contact code already exists' });
-}
-
-
-  const conn = await getConn();
+  const conn = await getConn(); // <-- initialize first
   try {
+    // Check for duplicate code
+    const [existing] = await conn.execute(
+      'SELECT id FROM contacts WHERE code = ? LIMIT 1',
+      [code]
+    );
+
+    if (existing.length) {
+      return res.status(400).json({ error: 'Contact code already exists' });
+    }
+
+    // Insert new contact
     const [result] = await conn.execute(
       `INSERT INTO contacts 
        (type, code, name, phone, business, address, vat_registration, tin, email)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [type, code, name, phone, business, address, vat_registration, tin, email]
     );
+
     res.json({ id: result.insertId });
   } finally {
     conn.release();
@@ -77,7 +79,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Code and Name are required" });
   }
 
-  // Fix undefined values
   type = type ?? null;
   code = code ?? null;
   name = name ?? null;
@@ -101,7 +102,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
     conn.release();
   }
 }));
-
 
 // ----------------- DELETE contact -----------------
 router.delete('/:id', asyncHandler(async (req, res) => {

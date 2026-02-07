@@ -139,22 +139,37 @@ saveBtn.addEventListener("click", async (e) => {
   if (!obj.code || !obj.name) return alert("Please provide at least Code and Name.");
 
   try {
+    let res, data;
+
     if (editIndex === null) {
-      const res = await fetch('/api/contacts', {
+      // ADD NEW
+      res = await fetch('/api/contacts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(obj)
       });
-      const data = await res.json();
+      data = await res.json();
+
+      if (!res.ok) {
+        // Server returned an error
+        return alert(data.error || "Failed to save contact.");
+      }
+
       obj.id = data.id;
       contacts.push(obj);
+
     } else {
+      // EDIT EXISTING
       const id = contacts[editIndex].id;
-      await fetch(`/api/contacts/${id}`, {
+      res = await fetch(`/api/contacts/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(obj)
       });
+      data = await res.json();
+
+      if (!res.ok) return alert(data.error || "Failed to update contact.");
+
       obj.id = contacts[editIndex].id;
       contacts[editIndex] = obj;
     }
@@ -166,9 +181,10 @@ saveBtn.addEventListener("click", async (e) => {
 
   } catch(err) {
     console.error(err);
-    alert("Failed to save contact.");
+    alert("Failed to save contact. Check console for details.");
   }
 });
+
 
 // --- CANCEL ---
 cancelBtn.addEventListener("click", () => {
