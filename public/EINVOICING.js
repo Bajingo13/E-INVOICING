@@ -750,7 +750,7 @@ async function saveToDatabase() {
       exchange_rate: parseFloat(exchangeRateInput?.value) || 1,
       items,
       extra_columns: extraColumns,
-      tax_summary: {
+      tax_summary: { 
         subtotal: parseFloat($('#subtotal')?.value) || 0,
         vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
         vat_amount: parseFloat($('#vatAmount')?.value) || 0,
@@ -1069,16 +1069,17 @@ document.getElementById('modalSave').addEventListener('click', async e => {
   e.preventDefault();
 
   const payload = {
-    type: document.getElementById('modalType').value,
-    code: document.getElementById('modalCode').value,
-    business: document.getElementById('modalBusiness').value,
-    name: document.getElementById('modalName').value,
-    address: document.getElementById('modalAddress').value,
-    vatReg: document.getElementById('modalVatReg').value,
-    tin: document.getElementById('modalTIN').value,
-    phone: document.getElementById('modalPhone').value,
-    email: document.getElementById('modalEmail').value
-  };
+  type: document.getElementById('modalType').value,
+  code: document.getElementById('modalCode').value,
+  business: document.getElementById('modalBusiness').value,
+  name: document.getElementById('modalName').value,
+  address: document.getElementById('modalAddress').value,
+  vat_registration: document.getElementById('modalVatReg').value, 
+  tin: document.getElementById('modalTIN').value,
+  phone: document.getElementById('modalPhone').value,
+  email: document.getElementById('modalEmail').value
+};
+
 
   if (!payload.code || !payload.business || !payload.name) {
     return alert('Required fields missing');

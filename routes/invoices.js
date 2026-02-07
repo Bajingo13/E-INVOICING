@@ -12,7 +12,7 @@ const { requireLogin } = require('../middleware/roles');
 const { requirePermission } = require('../middleware/permissions');
 const { PERMISSIONS } = require('../config/permissions');
 const { exportInvoicesExcel } = require('../controllers/invoiceExportController');
-
+const { nextInvoiceNo } = require('../controllers/invoicesController');
 const { getApprovers } = require('../utils/getApprovers');
 
 // ---------------- HELPERS ----------------
@@ -23,6 +23,7 @@ async function loadInvoice(invoiceNo) {
   );
   return invoice;
 }
+
 
 // ---------------- GET COMPANY INFO ----------------
 router.get(
