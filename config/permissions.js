@@ -1,37 +1,37 @@
 module.exports = {
   PERMISSIONS: {
-    // INVOICE MODULE
-    INVOICE_CREATE: 'invoice_create',
-    INVOICE_SUBMIT: 'invoice_submit',
-    INVOICE_APPROVE: 'invoice_approve',
-    INVOICE_DELETE: 'invoice_delete',
-    INVOICE_VIEW: 'invoice_view',
-    INVOICE_LIST: 'invoice_list',
-    INVOICE_EXPORT: 'invoice.export',
 
+  // INVOICE
+  INVOICE_CREATE: 'invoice_create',
+  INVOICE_EDIT: 'invoice_edit',
+  INVOICE_DELETE: 'invoice_delete',
+  INVOICE_CANCEL: 'invoice_cancel',
+  INVOICE_SUBMIT: 'invoice_submit',
+  INVOICE_APPROVE: 'invoice_approve',
+  INVOICE_VIEW: 'invoice_view',
+  INVOICE_LIST: 'invoice_list',
+  INVOICE_EXPORT: 'invoice_export',
 
-    // COA MODULE
-    COA_VIEW: 'coa_view',
-    COA_MANAGE: 'coa_manage',
+  // CONTACTS
+  CONTACT_VIEW: 'contact_view',
+  CONTACT_ADD: 'contact_add',
+  CONTACT_EDIT: 'contact_edit',
+  CONTACT_DELETE: 'contact_delete',
 
-    // SETTINGS MODULE
-    SETTINGS_ACCESS: 'settings_access',
-    INVOICE_SETTINGS: 'invoice_settings',
+  // REPORTS
+  REPORT_GENERATE: 'report_generate',
+  REPORT_EXPORT: 'report_export',
 
-    // USER MANAGEMENT
-    USER_MANAGE: 'user_manage',
-    USER_CREATE: 'user_create',
-    USER_INVITE: 'user_invite',
-    USER_ASSIGN_ROLE: 'user_assign_role',
+  // COA
+  COA_VIEW: 'coa_view',
 
-    // REPORTS
-    REPORTS_VIEW: 'reports_view',
+  // SYSTEM
+  SETTINGS_ACCESS: 'settings_access',
+  INVOICE_SETTINGS: 'invoice_settings',
+  AUDIT_TRAIL: 'audit_trail',
+  LOCK_PERIOD: 'lock_period',
 
-    // LOCK PERIOD
-    LOCK_PERIOD: 'lock_period',
-
-    // AUDIT TRAIL
-    AUDIT_TRAIL: 'audit_trail'
-    
-  }
+  // USERS
+  USER_MANAGE: 'user_manage'
+}
 };

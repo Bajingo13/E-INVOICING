@@ -72,15 +72,18 @@ router.post(
 router.put(
   '/invoices/:invoiceNo',
   requireLogin,
-  requirePermission(PERMISSIONS.INVOICE_CREATE),
+  requirePermission(PERMISSIONS.INVOICE_EDIT),
   asyncHandler(async (req, res) => {
-    const invoice = await loadInvoice(req.params.invoiceNo);
-    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-    if (invoice.status !== 'draft') return res.status(400).json({ error: 'Only draft invoices can be edited' });
 
-    // Only creator or admin can edit
-    if (invoice.created_by !== req.session.user.id && !['super','admin'].includes(req.session.user.role)) {
-      return res.status(403).json({ error: 'You cannot edit this invoice' });
+    const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    if (invoice.status !== 'draft') {
+      return res.status(400).json({
+        error: 'Only draft invoices can be edited'
+      });
     }
 
     return invoicesCtrl.updateInvoice(req, res);
