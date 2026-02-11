@@ -12,9 +12,14 @@ const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount', 'acc
 
 function normalizeTaxSummary(data) {
   if (!data) return null;
+
+  // accept multiple possible client payload shapes
   const raw = data.payment || data.tax_summary || data.taxSummary || {};
-  const get = keys => {
-    for (const k of keys) if (raw[k] !== undefined) return raw[k];
+
+  const get = (keys) => {
+    for (const k of keys) {
+      if (raw?.[k] !== undefined && raw?.[k] !== null) return raw[k];
+    }
     return 0;
   };
 
@@ -25,9 +30,24 @@ function normalizeTaxSummary(data) {
     vat_exempt_sales: +get(['vat_exempt_sales', 'vatExemptSales']) || 0,
     zero_rated_sales: +get(['zero_rated_sales', 'zeroRatedSales']) || 0,
     vat_amount: +get(['vat_amount', 'vatAmount']) || 0,
-    withholding: +get(['withholding', 'withholdingTax']) || 0,
+
+    // ✅ FIX: support your frontend ids/keys
+    withholding: +get([
+      'withholding',              // old
+      'withholdingTax',           // old
+      'withholding_tax_amount',   // ✅ new
+      'withholdingTaxAmount',     // ✅ new
+      'withholding_tax'           // just in case
+    ]) || 0,
+
     total_payable: +get(['total_payable', 'totalPayable', 'total']) || 0
   };
+}
+
+function normalizeVatType(v) {
+  const val = String(v || '').toLowerCase().trim();
+  const allowed = new Set(['inclusive', 'exclusive', 'exempt', 'zero']);
+  return allowed.has(val) ? val : 'inclusive';
 }
 
 async function getExchangeRate(currency = 'PHP') {
@@ -70,11 +90,8 @@ async function getCompanyInfo(req, res) {
 async function createInvoice(req, res) {
   const data = { ...req.body };
 
-  // ✅ HARDENING FIX:
-  // Ignore invoice_no if client accidentally sends it
-  if (data.invoice_no) {
-    delete data.invoice_no;
-  }
+  // Ignore invoice_no if client sends it
+  if (data.invoice_no) delete data.invoice_no;
 
   if (!data.bill_to || !data.date || !Array.isArray(data.items) || !data.items.length) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -88,20 +105,24 @@ async function createInvoice(req, res) {
     const currency = (data.currency || 'PHP').toUpperCase();
     const exchangeRate = await getExchangeRate(currency);
 
-    // ✅ Server is the ONLY source of truth
+    // Server is the ONLY source of truth for invoice number
     const invoiceNo = await generateInvoiceNo(conn);
+
+    // ✅ FIX: save vat_type from client (or default)
+    const vatType = normalizeVatType(data.vat_type);
 
     const [result] = await conn.execute(
       `INSERT INTO invoices
        (invoice_no, invoice_mode, invoice_category, invoice_type,
         bill_to, address, tin, terms,
         currency, exchange_rate,
+        vat_type,                 -- ✅
         date, due_date,
         total_amount_due, foreign_total,
         logo, extra_columns,
         recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status,
         status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceNo,
         data.invoice_mode || 'standard',
@@ -113,6 +134,7 @@ async function createInvoice(req, res) {
         data.terms || null,
         currency,
         exchangeRate,
+        vatType,                  // ✅
         data.date,
         data.due_date || null,
         data.logo || null,
@@ -187,6 +209,9 @@ async function updateInvoice(req, res) {
     const currency = (data.currency || 'PHP').toUpperCase();
     const exchangeRate = await getExchangeRate(currency);
 
+    // ✅ FIX: save vat_type from client (or default)
+    const vatType = normalizeVatType(data.vat_type);
+
     await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [invoice.id]);
     await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id=?', [invoice.id]);
     await conn.execute('DELETE FROM invoice_footer WHERE invoice_id=?', [invoice.id]);
@@ -198,9 +223,10 @@ async function updateInvoice(req, res) {
       `UPDATE invoices
        SET invoice_mode=?, invoice_category=?, invoice_type=?,
            bill_to=?, address=?, tin=?, terms=?,
+           currency=?, exchange_rate=?,
+           vat_type=?,               -- ✅
            date=?, due_date=?,
            total_amount_due=?, foreign_total=?,
-           currency=?, exchange_rate=?,
            logo=?, extra_columns=?, status=?
        WHERE id=?`,
       [
@@ -211,12 +237,13 @@ async function updateInvoice(req, res) {
         data.address || null,
         data.tin || null,
         data.terms || null,
+        currency,
+        exchangeRate,
+        vatType,                    // ✅
         data.date,
         data.due_date || null,
         totalAmount,
         foreignTotal,
-        currency,
-        exchangeRate,
         data.logo || null,
         JSON.stringify(data.extra_columns || []),
         data.status || 'draft',
@@ -264,6 +291,8 @@ async function getInvoice(req, res) {
     invoice.company = company || {};
     invoice.extra_columns = invoice.extra_columns ? JSON.parse(invoice.extra_columns) : [];
 
+    // invoice.vat_type is now persisted on invoices table ✅
+
     res.json(invoice);
   } finally {
     conn.release();
@@ -277,7 +306,7 @@ async function listInvoices(req, res) {
     let sql = `
       SELECT invoice_no, bill_to, date, due_date,
              total_amount_due, foreign_total,
-             status, currency, exchange_rate
+             status, currency, exchange_rate, vat_type
       FROM invoices
     `;
     const params = [];
@@ -355,12 +384,27 @@ async function insertItems(conn, invoiceId, items) {
     const price = +it.unit_price || 0;
     const amount = +it.amount || qty * price;
 
+    // ✅ Optional: if you added invoice_items.ewt_id, save it here
+    const ewtId = it.ewt_id ? Number(it.ewt_id) : null;
+
+    // If you did NOT add ewt_id column, use the 6-column INSERT below.
+    // If you DID add ewt_id column, use the 7-column INSERT below.
+
+    // --- 7-column (WITH ewt_id) ---
     await conn.execute(
       `INSERT INTO invoice_items
-       (invoice_id, description, quantity, unit_price, amount, account_id)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [invoiceId, it.description || '', qty, price, amount, it.account_id || null]
+       (invoice_id, description, quantity, unit_price, amount, account_id, ewt_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [invoiceId, it.description || '', qty, price, amount, it.account_id || null, ewtId]
     );
+
+    // --- 6-column (WITHOUT ewt_id) ---
+    // await conn.execute(
+    //   `INSERT INTO invoice_items
+    //    (invoice_id, description, quantity, unit_price, amount, account_id)
+    //    VALUES (?, ?, ?, ?, ?, ?)`,
+    //   [invoiceId, it.description || '', qty, price, amount, it.account_id || null]
+    // );
 
     total += amount;
   }
@@ -369,13 +413,24 @@ async function insertItems(conn, invoiceId, items) {
 
 async function insertTaxAndFooter(conn, invoiceId, data) {
   const tax = normalizeTaxSummary(data);
+
   if (tax) {
     await conn.execute(
       `INSERT INTO invoice_tax_summary
        (invoice_id, subtotal, discount, vatable_sales, vat_exempt_sales,
         zero_rated_sales, vat_amount, withholding, total_payable)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [invoiceId, ...Object.values(tax)]
+      [
+        invoiceId,
+        tax.subtotal,
+        tax.discount,
+        tax.vatable_sales,
+        tax.vat_exempt_sales,
+        tax.zero_rated_sales,
+        tax.vat_amount,
+        tax.withholding,      // ✅ now reads your key
+        tax.total_payable
+      ]
     );
   }
 

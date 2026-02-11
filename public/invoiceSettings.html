@@ -13,6 +13,7 @@
     <section class="setting-box" id="layoutBox">
       <h2>Invoice Layout</h2>
       <p>Select the invoice layout for printing/exporting invoices.</p>
+
       <div class="field">
         <label for="invoiceLayout">Layout:</label>
         <select id="invoiceLayout" name="invoiceLayout">
@@ -21,6 +22,7 @@
           <option value="compact">Compact</option>
         </select>
       </div>
+
       <button id="saveLayout" class="btn">Save Layout</button>
       <span id="layoutMsg" class="save-msg"></span>
     </section>
@@ -30,31 +32,67 @@
       <h2>Invoice Prefix & Current Number</h2>
       <p>View the current invoice prefix and last used number. You may override the next number to use more digits if needed.</p>
 
-      <!-- Current Prefix -->
       <div class="field">
         <label for="invoicePrefix">Prefix:</label>
-        <input type="text" id="invoicePrefix" name="invoicePrefix"> 
+        <input type="text" id="invoicePrefix" name="invoicePrefix">
         <button id="savePrefix" class="btn">Save Prefix</button>
       </div>
 
-      <!-- Last Invoice Number -->
       <div class="field">
         <label for="currentInvoiceNo">Last Invoice Number Used:</label>
         <input type="number" id="currentInvoiceNo" name="currentInvoiceNo" readonly>
       </div>
 
-      <!-- Optional Next Number -->
       <div class="field">
         <label for="nextInvoiceNo">Set Next Invoice Number (optional, ≥ 6 digits):</label>
         <input type="number" id="nextInvoiceNo" name="nextInvoiceNo" placeholder="Enter only if overriding" min="100000">
       </div>
 
       <button id="saveNextInvoice" class="btn">Save Next Invoice Number</button>
-      
-      <!-- ⭐ Add this line ⭐ -->
+
       <span id="prefixMsg" class="save-msg"></span>
       <span id="nextNumberMsg" class="save-msg"></span>
     </section>
+
+    <!-- ================== TAX DEFAULTS  ================== -->
+    <section class="setting-box" id="taxDefaultsBox">
+      <h2>Tax Defaults</h2>
+      <p>Sets the default tax treatment for new transactions.</p>
+
+      <div class="tax-default-row">
+        <div class="tax-default-left">
+          <label for="salesTaxDefault">For Sales</label>
+          <select id="salesTaxDefault" name="salesTaxDefault">
+            <option value="exclusive">Tax exclusive</option>
+            <option value="inclusive">Tax inclusive</option>
+            <option value="exempt">Tax exempt</option>
+            <option value="zero">Tax zero-rated</option>
+          </select>
+        </div>
+        <div class="tax-default-right">
+          Includes invoices, quotes, credit notes and receive money items
+        </div>
+      </div>
+
+      <div class="tax-default-row">
+        <div class="tax-default-left">
+          <label for="purchaseTaxDefault">For Purchases</label>
+          <select id="purchaseTaxDefault" name="purchaseTaxDefault">
+            <option value="exclusive">Tax exclusive</option>
+            <option value="inclusive">Tax inclusive</option>
+            <option value="exempt">Tax exempt</option>
+            <option value="zero">Tax zero-rated</option>
+          </select>
+        </div>
+        <div class="tax-default-right">
+          Includes bills, purchase orders, credit notes, and spend money items
+        </div>
+      </div>
+
+      <button id="saveTaxDefaults" class="btn">Save Tax Defaults</button>
+      <span id="taxDefaultsMsg" class="save-msg"></span>
+    </section>
+
   </main>
 
   <script src="/js/shortcuts.js"></script>

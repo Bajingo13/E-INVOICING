@@ -7,16 +7,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveNextInvoiceBtn = document.getElementById('saveNextInvoice');
 
   const prefixMsg = document.getElementById('prefixMsg');
-  const nextNumberMsg = document.getElementById('nextNumberMsg'); // <-- add this
+  const nextNumberMsg = document.getElementById('nextNumberMsg');
 
   const invoiceLayoutSelect = document.getElementById('invoiceLayout');
   const saveLayoutBtn = document.getElementById('saveLayout');
   const layoutMsg = document.getElementById('layoutMsg');
 
+  // ===== TAX DEFAULTS =====
+  const salesTaxDefaultSelect = document.getElementById('salesTaxDefault');
+  const purchaseTaxDefaultSelect = document.getElementById('purchaseTaxDefault');
+  const saveTaxDefaultsBtn = document.getElementById('saveTaxDefaults');
+  const taxDefaultsMsg = document.getElementById('taxDefaultsMsg');
+
   const BASE_URL = '';
 
   function padInvoiceNumber(num) {
     return String(num).padStart(6, '0');
+  }
+
+  function setMsg(el, text, color = 'green') {
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = color;
   }
 
   async function loadInvoiceSettings() {
@@ -26,34 +38,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await res.json();
 
-      invoicePrefixInput.value = data.prefix || 'INV-';
+      // Prefix
+      if (invoicePrefixInput) invoicePrefixInput.value = data.prefix || 'INV-';
 
-      // ===== FIXED HERE =====
-      currentInvoiceNoInput.value = padInvoiceNumber(data.last_number || 0);
-      nextInvoiceNoInput.value = padInvoiceNumber((data.last_number || 0) + 1);
+      // Last & Next number (display)
+      const lastNum = Number(data.last_number || 0);
+      if (currentInvoiceNoInput) currentInvoiceNoInput.value = padInvoiceNumber(lastNum);
+      if (nextInvoiceNoInput) nextInvoiceNoInput.value = padInvoiceNumber(lastNum + 1);
 
-      invoiceLayoutSelect.value = data.layout || 'standard';
+      // Layout
+      if (invoiceLayoutSelect) invoiceLayoutSelect.value = data.layout || 'standard';
 
-      prefixMsg.textContent = '';
-      layoutMsg.textContent = '';
-      nextNumberMsg.textContent = ''; // <-- clear it too
+      // Tax Defaults
+      if (salesTaxDefaultSelect) salesTaxDefaultSelect.value = data.sales_tax_default || 'inclusive';
+      if (purchaseTaxDefaultSelect) purchaseTaxDefaultSelect.value = data.purchase_tax_default || 'inclusive';
+
+      // Clear messages
+      setMsg(prefixMsg, '');
+      setMsg(layoutMsg, '');
+      setMsg(nextNumberMsg, '');
+      setMsg(taxDefaultsMsg, '');
 
     } catch (err) {
       console.error(err);
-      prefixMsg.textContent = 'Error loading settings';
-      prefixMsg.style.color = 'red';
-      layoutMsg.textContent = 'Error loading settings';
-      layoutMsg.style.color = 'red';
+      setMsg(prefixMsg, 'Error loading settings', 'red');
+      setMsg(layoutMsg, 'Error loading settings', 'red');
+      setMsg(nextNumberMsg, '', 'red');
+      setMsg(taxDefaultsMsg, 'Error loading tax defaults', 'red');
     }
   }
 
+  // Initial load
   loadInvoiceSettings();
 
+  // ---------------- SAVE PREFIX ----------------
   savePrefixBtn?.addEventListener('click', async () => {
-    const prefix = invoicePrefixInput.value.trim();
+    const prefix = (invoicePrefixInput?.value || '').trim();
+
     if (prefix.length < 2) {
-      prefixMsg.textContent = 'Prefix must be at least 2 characters';
-      prefixMsg.style.color = 'red';
+      setMsg(prefixMsg, 'Prefix must be at least 2 characters', 'red');
       return;
     }
 
@@ -65,26 +88,24 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ prefix })
       });
 
-      if (!res.ok) throw new Error('Failed to save prefix');
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.message || 'Failed to save prefix');
 
-      prefixMsg.textContent = 'Prefix saved!';
-      prefixMsg.style.color = 'green';
-
+      setMsg(prefixMsg, 'Prefix saved!', 'green');
       loadInvoiceSettings();
 
     } catch (err) {
       console.error(err);
-      prefixMsg.textContent = 'Error saving prefix';
-      prefixMsg.style.color = 'red';
+      setMsg(prefixMsg, err.message || 'Error saving prefix', 'red');
     }
   });
 
+  // ---------------- SAVE NEXT NUMBER ----------------
   saveNextInvoiceBtn?.addEventListener('click', async () => {
-    const nextNumber = Number(nextInvoiceNoInput.value);
+    const nextNumber = Number(nextInvoiceNoInput?.value);
 
     if (!Number.isInteger(nextNumber) || nextNumber < 100000) {
-      nextNumberMsg.textContent = 'Next invoice number must be at least 6 digits';
-      nextNumberMsg.style.color = 'red';
+      setMsg(nextNumberMsg, 'Next invoice number must be at least 6 digits', 'red');
       return;
     }
 
@@ -96,23 +117,27 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ next_number: nextNumber })
       });
 
-      if (!res.ok) throw new Error('Failed to save next invoice number');
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.message || 'Failed to save next invoice number');
 
-      nextNumberMsg.textContent = 'Next invoice number updated!';
-      nextNumberMsg.style.color = 'green';
-      nextInvoiceNoInput.value = '';
-
+      setMsg(nextNumberMsg, 'Next invoice number updated!', 'green');
+      if (nextInvoiceNoInput) nextInvoiceNoInput.value = '';
       loadInvoiceSettings();
 
     } catch (err) {
       console.error(err);
-      nextNumberMsg.textContent = 'Error saving next invoice number';
-      nextNumberMsg.style.color = 'red';
+      setMsg(nextNumberMsg, err.message || 'Error saving next invoice number', 'red');
     }
   });
 
+  // ---------------- SAVE LAYOUT ----------------
   saveLayoutBtn?.addEventListener('click', async () => {
-    const layout = invoiceLayoutSelect.value;
+    const layout = invoiceLayoutSelect?.value;
+
+    if (!layout) {
+      setMsg(layoutMsg, 'Layout is required', 'red');
+      return;
+    }
 
     try {
       const res = await fetch(`${BASE_URL}/api/invoice-settings/layout`, {
@@ -122,15 +147,39 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ layout })
       });
 
-      if (!res.ok) throw new Error('Failed to save layout'); 
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.message || 'Failed to save layout');
 
-      layoutMsg.textContent = 'Layout saved!';
-      layoutMsg.style.color = 'green';
+      setMsg(layoutMsg, 'Layout saved!', 'green');
 
     } catch (err) {
       console.error(err);
-      layoutMsg.textContent = 'Error saving layout';
-      layoutMsg.style.color = 'red';
+      setMsg(layoutMsg, err.message || 'Error saving layout', 'red');
+    }
+  });
+
+  // ---------------- SAVE TAX DEFAULTS ----------------
+  saveTaxDefaultsBtn?.addEventListener('click', async () => {
+    const sales_tax_default = salesTaxDefaultSelect?.value || 'inclusive';
+    const purchase_tax_default = purchaseTaxDefaultSelect?.value || 'inclusive';
+
+    try {
+      const res = await fetch(`${BASE_URL}/api/invoice-settings/tax-defaults`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sales_tax_default, purchase_tax_default })
+      });
+
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.message || 'Failed to save tax defaults');
+
+      setMsg(taxDefaultsMsg, 'Tax defaults saved!', 'green');
+      loadInvoiceSettings();
+
+    } catch (err) {
+      console.error(err);
+      setMsg(taxDefaultsMsg, err.message || 'Error saving tax defaults', 'red');
     }
   });
 

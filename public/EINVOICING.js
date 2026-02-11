@@ -281,6 +281,8 @@ async function loadInvoiceForEdit() {
     setInputValue('invoiceMode', data.invoice_mode || 'standard');
     setInputValue('invoiceCategory', data.invoice_category || 'service');
     safeSetText('.invoice-title', data.invoice_title || 'SERVICE INVOICE');
+    setInputValue('vatType', data.vat_type || 'inclusive');
+
 
     // Header
     const theadRow = $("#items-table thead tr");
@@ -922,14 +924,21 @@ async function saveToDatabase() {
       invoice_type: getInputValue('invoice_type'),
       currency: currencySelect?.value || 'PHP',
       exchange_rate: parseFloat(exchangeRateInput?.value) || 1,
+      vat_type: document.getElementById('vatType')?.value || 'inclusive',
       items,
       extra_columns: extraColumns,
-      tax_summary: { 
+      tax_summary: {
   subtotal: parseFloat($('#subtotal')?.value) || 0,
+  discount: parseFloat($('#discount')?.value) || 0,
+
   vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
+  vat_exempt_sales: parseFloat($('#vatExemptSales')?.value) || 0,
+  zero_rated_sales: parseFloat($('#vatZeroRatedSales')?.value) || 0,
   vat_amount: parseFloat($('#vatAmount')?.value) || 0,
+  withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
   total_payable: parseFloat($('#totalPayable')?.value) || 0
 },
+
       footer: {
     atp_no: getFooterValue('footerAtpNo'),
     atp_date: getFooterValue('footerAtpDate'),
@@ -970,6 +979,32 @@ async function saveToDatabase() {
   }
 }
 
+// -------------------- APPLY TAX DEFAULTS FROM SETTINGS --------------------
+async function applyTaxDefaultsFromSettings() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const isEdit = params.get('edit') === 'true' || params.get('invoice_no');
+
+    // ✅ don't override VAT type when editing
+    if (isEdit) return;
+
+    const res = await fetch('/api/invoice-settings', { credentials: 'include' });
+    if (!res.ok) return;
+
+    const s = await res.json();
+    const defaultVatType = s.sales_tax_default || 'inclusive';
+
+    const vatTypeEl = document.getElementById('vatType');
+    if (vatTypeEl) vatTypeEl.value = defaultVatType;
+
+    calculateTotals?.();
+  } catch (err) {
+    console.error('applyTaxDefaultsFromSettings error:', err);
+  }
+}
+
+
+
 /* -------------------- 14. INIT -------------------- */
 // ======= 1️⃣ AUTO-FILL DATES FUNCTION =======
 function autofillDates() {
@@ -988,35 +1023,29 @@ function autofillDates() {
 
 window.addEventListener('DOMContentLoaded', async () => {
 
-  // ======= RBAC PROTECTION =======
   const allowed = await requireAnyRole(['super', 'approver', 'submitter']);
   if (!allowed) return;
 
-  // ======= AUTO-FILL DATES =======
   autofillDates();
 
-  // =======  LOAD EWT OPTIONS =======
   await loadEWTList();
-   ensureEWTOnExistingRows();
+  ensureEWTOnExistingRows();
   refreshAllEWTSelects();
-  
-  // ======= LOAD ACCOUNTS =======
+
   await loadAccounts();
 
-  // =======  LOAD COMPANY INFO =======
+  // ✅ APPLY SETTINGS DEFAULTS HERE (after settings exist, before totals)
+  await applyTaxDefaultsFromSettings();
+
   await loadCompanyInfo();
-
-  // ======= LOAD NEXT INVOICE NO =======
   await loadNextInvoiceNo();
-
-  // =======  SET INVOICE TITLE =======
   setInvoiceTitleFromURL();
-
-  // =======  LOAD INVOICE FOR EDIT (if editing) =======
   await loadInvoiceForEdit();
 
-    // =======  ADJUST COLUMN WIDTHS =======
   adjustColumnWidths();
+
+  // ✅ ensure totals reflect everything
+  calculateTotals?.();
 });
 
 // ===== 8️⃣ CONTACTS AUTOCOMPLETE + MODAL CREATION =====
