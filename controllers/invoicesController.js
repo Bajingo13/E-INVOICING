@@ -1,7 +1,13 @@
 'use strict';
 
-const { getConn } = require('../helpers/db');
-const fetch = require('node-fetch');
+const { getConn, pool } = require('../helpers/db');
+
+// Robust fetch (Node 18+ has global fetch, otherwise uses node-fetch v2)
+const fetchFn = global.fetch || require('node-fetch');
+const AbortCtrl = global.AbortController || require('abort-controller');
+
+const { logAudit } = require('../helpers/audit');
+
 const {
   generateInvoiceNo,
   previewNextInvoiceNo,
@@ -11,13 +17,71 @@ const {
 const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount', 'account_id'];
 
 /* =========================================================
+   AUDIT SNAPSHOTS (keep small + meaningful)
+========================================================= */
+
+function pickInvoiceSnapshot(inv) {
+  if (!inv) return null;
+  return {
+    invoice_no: inv.invoice_no,
+    status: inv.status,
+    bill_to: inv.bill_to,
+    date: inv.date,
+    due_date: inv.due_date,
+    currency: inv.currency,
+    exchange_rate: inv.exchange_rate,
+    vat_type: inv.vat_type,
+    total_amount_due: inv.total_amount_due,
+    foreign_total: inv.foreign_total,
+    terms: inv.terms
+  };
+}
+
+function diffKeys(before, after) {
+  const b = before || {};
+  const a = after || {};
+  const keys = new Set([...Object.keys(b), ...Object.keys(a)]);
+  const changed = [];
+  for (const k of keys) {
+    if (JSON.stringify(b[k]) !== JSON.stringify(a[k])) changed.push(k);
+  }
+  return changed;
+}
+
+async function getInvoiceAuditState(conn, invoiceNoOrId) {
+  // invoiceNoOrId can be invoice_no or id (we will detect)
+  const isId = typeof invoiceNoOrId === 'number' || /^\d+$/.test(String(invoiceNoOrId));
+  const where = isId ? 'id = ?' : 'invoice_no = ?';
+
+  const [[inv]] = await conn.execute(
+    `SELECT invoice_no, status, bill_to, date, due_date, currency, exchange_rate, vat_type,
+            total_amount_due, foreign_total, terms
+     FROM invoices
+     WHERE ${where}
+     LIMIT 1`,
+    [invoiceNoOrId]
+  );
+
+  if (!inv) return { inv: null, items_count: 0 };
+
+  const [[c]] = await conn.execute(
+    `SELECT COUNT(*) AS total
+     FROM invoice_items
+     INNER JOIN invoices ON invoices.id = invoice_items.invoice_id
+     WHERE invoices.invoice_no = ?`,
+    [inv.invoice_no]
+  );
+
+  return { inv, items_count: Number(c?.total || 0) };
+}
+
+/* =========================================================
    HELPERS
 ========================================================= */
 
 function normalizeTaxSummary(data) {
   if (!data) return null;
 
-  // accept multiple possible client payload shapes
   const raw = data.payment || data.tax_summary || data.taxSummary || {};
 
   const get = (keys) => {
@@ -35,13 +99,12 @@ function normalizeTaxSummary(data) {
     zero_rated_sales: +get(['zero_rated_sales', 'zeroRatedSales']) || 0,
     vat_amount: +get(['vat_amount', 'vatAmount']) || 0,
 
-    // ✅ FIX: support your frontend ids/keys
     withholding: +get([
-      'withholding',              // old
-      'withholdingTax',           // old
-      'withholding_tax_amount',   // ✅ new
-      'withholdingTaxAmount',     // ✅ new
-      'withholding_tax'           // just in case
+      'withholding',
+      'withholdingTax',
+      'withholding_tax_amount',
+      'withholdingTaxAmount',
+      'withholding_tax'
     ]) || 0,
 
     total_payable: +get(['total_payable', 'totalPayable', 'total']) || 0
@@ -61,11 +124,21 @@ async function getExchangeRate(currency = 'PHP') {
   const fallbackRates = { USD: 56, SGD: 42, AUD: 38, EUR: 60 };
 
   try {
-    const res = await fetch('https://www.bap.org.ph/downloads/daily-rates.json', { timeout: 5000 });
-    if (!res.ok) throw new Error();
+    const controller = new AbortCtrl();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const res = await fetchFn('https://www.bap.org.ph/downloads/daily-rates.json', {
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) throw new Error('BAP not ok');
     const rates = await res.json();
+
     const rate = parseFloat(rates[currency]);
-    if (!rate || rate <= 0) throw new Error();
+    if (!rate || rate <= 0) throw new Error('bad rate');
+
     return rate;
   } catch {
     return fallbackRates[currency] || 1;
@@ -99,44 +172,40 @@ async function createInvoice(req, res) {
 
   const conn = await getConn();
 
+  let invoiceNo = '';
+  let invoiceId = null;
+  let exchangeRate = 1;
+  let currency = 'PHP';
+
   try {
-    // Determine numbering mode (no lock needed here)
     const counter = await getInvoiceCounter(conn);
     const mode = String(counter.numbering_mode || 'auto').toLowerCase();
 
-    let invoiceNo = '';
-
-    // ---------- MANUAL MODE: validate invoice_no BEFORE transaction ----------
+    // MANUAL MODE: validate invoice_no before transaction
     if (mode === 'manual') {
       invoiceNo = String(data.invoice_no || '').trim();
-
       if (!invoiceNo) {
         return res.status(400).json({ error: 'Invoice number is required (manual mode)' });
       }
 
-      // Optional but recommended: prevent duplicates early
       const [exists] = await conn.execute(
         'SELECT COUNT(*) AS count FROM invoices WHERE invoice_no = ?',
         [invoiceNo]
       );
-
       if ((exists?.[0]?.count || 0) > 0) {
         return res.status(400).json({ error: 'Invoice number already exists' });
       }
     }
 
-    // ---------- Start transaction for both modes ----------
     await conn.beginTransaction();
 
-    const currency = (data.currency || 'PHP').toUpperCase();
-    const exchangeRate = await getExchangeRate(currency);
+    currency = (data.currency || 'PHP').toUpperCase();
+    exchangeRate = await getExchangeRate(currency);
 
-    // ---------- AUTO MODE: generate invoice no INSIDE transaction ----------
     if (mode === 'auto') {
       invoiceNo = await generateInvoiceNo(conn);
     }
 
-    // ✅ Save vat_type from client (or default)
     const vatType = normalizeVatType(data.vat_type);
 
     const [result] = await conn.execute(
@@ -176,7 +245,7 @@ async function createInvoice(req, res) {
       ]
     );
 
-    const invoiceId = result.insertId;
+    invoiceId = result.insertId;
 
     const totalAmount = await insertItems(conn, invoiceId, data.items);
     const foreignTotal = +(totalAmount / exchangeRate).toFixed(2);
@@ -190,6 +259,27 @@ async function createInvoice(req, res) {
 
     await conn.commit();
 
+    // ✅ AUDIT (transaction-only)
+    try {
+      const stateConn = await getConn();
+      try {
+        const { inv, items_count } = await getInvoiceAuditState(stateConn, invoiceNo);
+        await logAudit(pool, req, {
+          action: 'invoice.create',
+          entity_type: 'invoice',
+          entity_id: invoiceNo,
+          summary: `Created invoice ${invoiceNo}`,
+          success: 1,
+          after: pickInvoiceSnapshot(inv),
+          meta: { items_count }
+        });
+      } finally {
+        stateConn.release();
+      }
+    } catch (e) {
+      console.error('Audit log (invoice.create) failed:', e);
+    }
+
     res.status(201).json({
       success: true,
       invoiceNo,
@@ -199,13 +289,24 @@ async function createInvoice(req, res) {
     });
 
   } catch (err) {
-    await conn.rollback();
+    try { await conn.rollback(); } catch {}
     console.error('Create invoice error:', err);
 
-    // If you add a UNIQUE KEY on invoices.invoice_no, duplicate manual numbers will hit this:
     if (err && err.code === 'ER_DUP_ENTRY') {
       return res.status(400).json({ error: 'Invoice number already exists' });
     }
+
+    // Optional: audit failed create attempts (still "transactional", but failed)
+    try {
+      await logAudit(pool, req, {
+        action: 'invoice.create',
+        entity_type: 'invoice',
+        entity_id: invoiceNo || null,
+        summary: 'Create invoice failed',
+        success: 0,
+        meta: { error: String(err?.code || err?.message || 'unknown') }
+      });
+    } catch {}
 
     res.status(500).json({ error: 'Failed to create invoice' });
   } finally {
@@ -227,7 +328,18 @@ async function updateInvoice(req, res) {
 
   const conn = await getConn();
 
+  let beforeSnap = null;
+  let beforeItemsCount = 0;
+
   try {
+    // BEFORE snapshot (small + meaningful)
+    {
+      const { inv, items_count } = await getInvoiceAuditState(conn, invoiceNo);
+      if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+      beforeSnap = pickInvoiceSnapshot(inv);
+      beforeItemsCount = items_count;
+    }
+
     await conn.beginTransaction();
 
     const [[invoice]] = await conn.execute(
@@ -243,7 +355,6 @@ async function updateInvoice(req, res) {
     const currency = (data.currency || 'PHP').toUpperCase();
     const exchangeRate = await getExchangeRate(currency);
 
-    // ✅ FIX: save vat_type from client (or default)
     const vatType = normalizeVatType(data.vat_type);
 
     await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [invoice.id]);
@@ -258,7 +369,7 @@ async function updateInvoice(req, res) {
        SET invoice_mode=?, invoice_category=?, invoice_type=?,
            bill_to=?, address=?, tin=?, terms=?,
            currency=?, exchange_rate=?,
-           vat_type=?,               -- ✅
+           vat_type=?,
            date=?, due_date=?,
            total_amount_due=?, foreign_total=?,
            logo=?, extra_columns=?, status=?
@@ -273,7 +384,7 @@ async function updateInvoice(req, res) {
         data.terms || null,
         currency,
         exchangeRate,
-        vatType,                    // ✅
+        vatType,
         data.date,
         data.due_date || null,
         totalAmount,
@@ -288,11 +399,52 @@ async function updateInvoice(req, res) {
     await insertTaxAndFooter(conn, invoice.id, data);
 
     await conn.commit();
+
+    // AFTER snapshot + audit
+    try {
+      const stateConn = await getConn();
+      try {
+        const { inv: afterInv, items_count: afterItemsCount } = await getInvoiceAuditState(stateConn, invoiceNo);
+        const afterSnap = pickInvoiceSnapshot(afterInv);
+
+        await logAudit(pool, req, {
+          action: 'invoice.update',
+          entity_type: 'invoice',
+          entity_id: invoiceNo,
+          summary: `Updated invoice ${invoiceNo}`,
+          success: 1,
+          before: { ...beforeSnap, items_count: beforeItemsCount },
+          after: { ...afterSnap, items_count: afterItemsCount },
+          meta: {
+            changed_fields: diffKeys(beforeSnap, afterSnap),
+            items_count_before: beforeItemsCount,
+            items_count_after: afterItemsCount
+          }
+        });
+      } finally {
+        stateConn.release();
+      }
+    } catch (e) {
+      console.error('Audit log (invoice.update) failed:', e);
+    }
+
     res.json({ success: true });
 
   } catch (err) {
-    await conn.rollback();
+    try { await conn.rollback(); } catch {}
     console.error('Update invoice error:', err);
+
+    try {
+      await logAudit(pool, req, {
+        action: 'invoice.update',
+        entity_type: 'invoice',
+        entity_id: invoiceNo,
+        summary: `Update invoice ${invoiceNo} failed`,
+        success: 0,
+        meta: { error: String(err?.code || err?.message || 'unknown') }
+      });
+    } catch {}
+
     res.status(500).json({ error: 'Failed to update invoice' });
   } finally {
     conn.release();
@@ -324,8 +476,6 @@ async function getInvoice(req, res) {
     invoice.footer = footer || {};
     invoice.company = company || {};
     invoice.extra_columns = invoice.extra_columns ? JSON.parse(invoice.extra_columns) : [];
-
-    // invoice.vat_type is now persisted on invoices table ✅
 
     res.json(invoice);
   } finally {
@@ -363,25 +513,49 @@ async function deleteInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const conn = await getConn();
 
+  // Capture BEFORE snapshot (transactional)
+  let beforeSnap = null;
+  let beforeItemsCount = 0;
+
   try {
+    const { inv, items_count } = await getInvoiceAuditState(conn, invoiceNo);
+    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+    beforeSnap = pickInvoiceSnapshot(inv);
+    beforeItemsCount = items_count;
+
     await conn.beginTransaction();
 
-    const [[inv]] = await conn.execute(
+    const [[invRow]] = await conn.execute(
       'SELECT id FROM invoices WHERE invoice_no=? LIMIT 1',
       [invoiceNo]
     );
-    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+    if (!invRow) return res.status(404).json({ error: 'Invoice not found' });
 
-    await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [inv.id]);
-    await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id=?', [inv.id]);
-    await conn.execute('DELETE FROM invoice_footer WHERE invoice_id=?', [inv.id]);
-    await conn.execute('DELETE FROM invoices WHERE id=?', [inv.id]);
+    await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [invRow.id]);
+    await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id=?', [invRow.id]);
+    await conn.execute('DELETE FROM invoice_footer WHERE invoice_id=?', [invRow.id]);
+    await conn.execute('DELETE FROM invoices WHERE id=?', [invRow.id]);
 
     await conn.commit();
+
+    // ✅ AUDIT delete
+    try {
+      await logAudit(pool, req, {
+        action: 'invoice.delete',
+        entity_type: 'invoice',
+        entity_id: invoiceNo,
+        summary: `Deleted invoice ${invoiceNo}`,
+        success: 1,
+        before: { ...beforeSnap, items_count: beforeItemsCount }
+      });
+    } catch (e) {
+      console.error('Audit log (invoice.delete) failed:', e);
+    }
+
     res.json({ success: true });
 
   } catch (err) {
-    await conn.rollback();
+    try { await conn.rollback(); } catch {}
     res.status(500).json({ error: 'Failed to delete invoice' });
   } finally {
     conn.release();
@@ -391,7 +565,6 @@ async function deleteInvoice(req, res) {
 async function nextInvoiceNo(req, res) {
   const conn = await getConn();
   try {
-    // ✅ returns: { mode:'auto'|'manual', invoiceNo:'', prefix:'INV-' }
     const out = await previewNextInvoiceNo(conn);
     res.json(out);
   } catch (err) {
@@ -401,7 +574,6 @@ async function nextInvoiceNo(req, res) {
     conn.release();
   }
 }
-
 
 /* =========================================================
    SHARED INSERTS
@@ -415,27 +587,14 @@ async function insertItems(conn, invoiceId, items) {
     const price = +it.unit_price || 0;
     const amount = +it.amount || qty * price;
 
-    // ✅ Optional: if you added invoice_items.ewt_id, save it here
     const ewtId = it.ewt_id ? Number(it.ewt_id) : null;
 
-    // If you did NOT add ewt_id column, use the 6-column INSERT below.
-    // If you DID add ewt_id column, use the 7-column INSERT below.
-
-    // --- 7-column (WITH ewt_id) ---
     await conn.execute(
       `INSERT INTO invoice_items
        (invoice_id, description, quantity, unit_price, amount, account_id, ewt_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [invoiceId, it.description || '', qty, price, amount, it.account_id || null, ewtId]
     );
-
-    // --- 6-column (WITHOUT ewt_id) ---
-    // await conn.execute(
-    //   `INSERT INTO invoice_items
-    //    (invoice_id, description, quantity, unit_price, amount, account_id)
-    //    VALUES (?, ?, ?, ?, ?, ?)`,
-    //   [invoiceId, it.description || '', qty, price, amount, it.account_id || null]
-    // );
 
     total += amount;
   }
@@ -459,7 +618,7 @@ async function insertTaxAndFooter(conn, invoiceId, data) {
         tax.vat_exempt_sales,
         tax.zero_rated_sales,
         tax.vat_amount,
-        tax.withholding,      // ✅ now reads your key
+        tax.withholding,
         tax.total_payable
       ]
     );

@@ -41,6 +41,8 @@ const usersRoutes = require('./routes/users');
 const loginHistoryRoutes = require('./routes/loginHistory');
 const invoiceSettingsRoutes = require('./routes/invoiceSettings');
 const reportsRouter = require('./routes/reports');
+const auditLogsRoute = require('./routes/auditLogs');
+const { ensureRequestId } = require('./helpers/audit');
 
 /* =========================
    App setup
@@ -57,6 +59,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
+app.use(ensureRequestId);
 
 /* =========================
    Session
@@ -93,6 +96,7 @@ app.use('/api/login-history', loginHistoryRoutes);
 app.use('/api/invoice-settings', invoiceSettingsRoutes);
 app.use('/api/reports', reportsRouter);
 app.use('/api/invoices/import', require('./routes/invoiceImport'));
+app.use('/api/audit-logs', auditLogsRoute);
 
 /* =========================
    Static pages

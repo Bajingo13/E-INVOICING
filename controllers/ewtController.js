@@ -2,6 +2,8 @@
 
 const XLSX = require('xlsx');
 const EWT = require('../models/ewtModel');
+const { logAudit } = require('../helpers/audit');
+const { pool } = require('../helpers/db');
 
 /* ===============================
    TAX RATE PARSER (fixes 1/2%)
@@ -23,6 +25,22 @@ function parseTaxRate(value) {
 }
 
 /* ===============================
+   SMALL SNAPSHOT for audit
+   =============================== */
+function pickEwtSnapshot(row) {
+  if (!row) return null;
+
+  // support various model naming styles
+  return {
+    id: row.id ?? null,
+    code: row.code ?? null,
+    classification: row.classification ?? row.class ?? null,
+    nature: row.nature ?? row.description ?? null,
+    tax_rate: row.taxRate ?? row.tax_rate ?? null
+  };
+}
+
+/* ===============================
    CRUD
    =============================== */
 exports.getAllEWT = async (req, res) => {
@@ -36,27 +54,127 @@ exports.getAllEWT = async (req, res) => {
 
 exports.createEWT = async (req, res) => {
   try {
-    const id = await EWT.create(req.body);
+    const payload = { ...req.body };
+
+    const id = await EWT.create(payload);
+
+    // Try to read back the created row for audit "after"
+    let after = null;
+    try {
+      if (typeof EWT.getById === 'function') after = await EWT.getById(id);
+    } catch {}
+
+    await logAudit(pool, req, {
+      action: 'ewt.create',
+      entity_type: 'ewt',
+      entity_id: id,
+      summary: `Created EWT`,
+      success: 1,
+      after: pickEwtSnapshot(after) || {
+        id,
+        code: payload.code || null,
+        classification: payload.classification || null,
+        nature: payload.nature || null,
+        tax_rate: payload.taxRate ?? payload.tax_rate ?? null
+      }
+    });
+
     res.json({ id });
   } catch (err) {
+    try {
+      await logAudit(pool, req, {
+        action: 'ewt.create',
+        entity_type: 'ewt',
+        entity_id: null,
+        summary: 'Create EWT failed',
+        success: 0,
+        meta: { error: String(err?.message || err) }
+      });
+    } catch {}
+
     res.status(500).json({ message: err.message });
   }
 };
 
 exports.updateEWT = async (req, res) => {
+  const id = req.params.id;
+
   try {
-    await EWT.update(req.params.id, req.body);
+    // before snapshot (if model supports it)
+    let before = null;
+    try {
+      if (typeof EWT.getById === 'function') before = await EWT.getById(id);
+    } catch {}
+
+    await EWT.update(id, req.body);
+
+    // after snapshot
+    let after = null;
+    try {
+      if (typeof EWT.getById === 'function') after = await EWT.getById(id);
+    } catch {}
+
+    await logAudit(pool, req, {
+      action: 'ewt.update',
+      entity_type: 'ewt',
+      entity_id: id,
+      summary: `Updated EWT ID ${id}`,
+      success: 1,
+      before: pickEwtSnapshot(before),
+      after: pickEwtSnapshot(after)
+    });
+
     res.json({ success: true });
   } catch (err) {
+    try {
+      await logAudit(pool, req, {
+        action: 'ewt.update',
+        entity_type: 'ewt',
+        entity_id: id,
+        summary: `Update EWT ID ${id} failed`,
+        success: 0,
+        meta: { error: String(err?.message || err) }
+      });
+    } catch {}
+
     res.status(500).json({ message: err.message });
   }
 };
 
 exports.deleteEWT = async (req, res) => {
+  const id = req.params.id;
+
   try {
-    await EWT.delete(req.params.id);
+    // before snapshot (if model supports it)
+    let before = null;
+    try {
+      if (typeof EWT.getById === 'function') before = await EWT.getById(id);
+    } catch {}
+
+    await EWT.delete(id);
+
+    await logAudit(pool, req, {
+      action: 'ewt.delete',
+      entity_type: 'ewt',
+      entity_id: id,
+      summary: `Deleted EWT ID ${id}`,
+      success: 1,
+      before: pickEwtSnapshot(before)
+    });
+
     res.json({ success: true });
   } catch (err) {
+    try {
+      await logAudit(pool, req, {
+        action: 'ewt.delete',
+        entity_type: 'ewt',
+        entity_id: id,
+        summary: `Delete EWT ID ${id} failed`,
+        success: 0,
+        meta: { error: String(err?.message || err) }
+      });
+    } catch {}
+
     res.status(500).json({ message: err.message });
   }
 };
@@ -89,8 +207,7 @@ exports.importEWT = async (req, res) => {
 
       if (!currentNature || !taxRateRaw) continue;
 
-      // Determine which code to use
-      const code = indCode ? indCode.trim() : corpCode ? corpCode.trim() : null;
+      const code = indCode ? String(indCode).trim() : corpCode ? String(corpCode).trim() : null;
       if (!code) continue;
 
       const classification = code.startsWith('WI') ? 'WI' : 'WC';
@@ -104,20 +221,48 @@ exports.importEWT = async (req, res) => {
         taxRate
       });
 
-      preview.push({
-        code,
-        classification,
-        nature: currentNature,
-        tax_rate: taxRate.toFixed(2)
-      });
+      // keep preview small (avoid giant logs)
+      if (preview.length < 50) {
+        preview.push({
+          code,
+          classification,
+          nature: currentNature,
+          tax_rate: Number(taxRate.toFixed(2))
+        });
+      }
 
       inserted++;
     }
+
+    // ✅ AUDIT (transaction-only)
+    await logAudit(pool, req, {
+      action: 'ewt.import',
+      entity_type: 'ewt',
+      entity_id: null,
+      summary: `Imported EWT codes from Excel`,
+      success: 1,
+      meta: {
+        inserted,
+        preview_sample: preview // capped to 50
+      }
+    });
 
     res.json({ inserted, preview });
 
   } catch (err) {
     console.error(err);
+
+    try {
+      await logAudit(pool, req, {
+        action: 'ewt.import',
+        entity_type: 'ewt',
+        entity_id: null,
+        summary: 'EWT import failed',
+        success: 0,
+        meta: { error: String(err?.message || err) }
+      });
+    } catch {}
+
     res.status(500).json({ message: 'Import failed', error: err.message });
   }
 };

@@ -1,8 +1,3 @@
-// ==================================
-// routes/invoices.js (or your router file)
-// READY TO PASTE (supports RETURNED status)
-// ==================================
-
 'use strict';
 
 const express = require('express');
@@ -18,6 +13,8 @@ const { requirePermission } = require('../middleware/permissions');
 const { PERMISSIONS } = require('../config/permissions');
 const { exportInvoicesExcel } = require('../controllers/invoiceExportController');
 const { getApprovers } = require('../utils/getApprovers');
+
+const { logAudit } = require('../helpers/audit');
 
 // ---------------- HELPERS ----------------
 async function loadInvoice(invoiceNo) {
@@ -65,6 +62,7 @@ router.post(
 );
 
 // ---------------- CREATE INVOICE (DRAFT) ----------------
+// NOTE: your controller should do the log inside if you want invoice.create audit
 router.post(
   '/invoices',
   requireLogin,
@@ -72,29 +70,25 @@ router.post(
   asyncHandler(invoicesCtrl.createInvoice)
 );
 
-// ---------------- UPDATE INVOICE (DRAFT OR RETURNED) ✅ UPDATED ----------------
+// ---------------- UPDATE INVOICE (DRAFT OR RETURNED) ----------------
+// NOTE: your controller should do the log inside if you want invoice.update audit
 router.put(
   '/invoices/:invoiceNo',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_EDIT),
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
-    if (!invoice) {
-      return res.status(404).json({ error: 'Invoice not found' });
-    }
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    // ✅ allow editing returned too
     if (!['draft', 'returned'].includes(invoice.status)) {
-      return res.status(400).json({
-        error: 'Only draft or returned invoices can be edited'
-      });
+      return res.status(400).json({ error: 'Only draft or returned invoices can be edited' });
     }
 
     return invoicesCtrl.updateInvoice(req, res);
   })
 );
 
-// ---------------- SUBMIT INVOICE → PENDING (DRAFT OR RETURNED) ✅ UPDATED ----------------
+// ---------------- SUBMIT INVOICE → PENDING (DRAFT OR RETURNED) ----------------
 router.post(
   '/invoices/:invoiceNo/submit',
   requireLogin,
@@ -103,17 +97,30 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    // ✅ allow submit from returned too
     if (!['draft', 'returned'].includes(invoice.status)) {
       return res.status(400).json({ error: 'Only draft or returned invoices can be submitted' });
     }
 
-    // Only creator or admin can submit
     if (invoice.created_by !== req.session.user.id && !['super','admin'].includes(req.session.user.role)) {
       return res.status(403).json({ error: 'You cannot submit this invoice' });
     }
 
-    await pool.query('UPDATE invoices SET status = "pending" WHERE invoice_no = ?', [invoice.invoice_no]);
+    const oldStatus = invoice.status;
+
+    await pool.query(
+      'UPDATE invoices SET status = "pending" WHERE invoice_no = ?',
+      [invoice.invoice_no]
+    );
+
+    await logAudit(pool, req, {
+      action: 'invoice.submit',
+      entity_type: 'invoice',
+      entity_id: invoice.invoice_no,
+      summary: `Submitted invoice ${invoice.invoice_no} (${oldStatus} → pending)`,
+      success: 1,
+      before: { status: oldStatus },
+      after: { status: 'pending' }
+    });
 
     // Notify approvers + admins
     const approvers = await getApprovers();
@@ -146,7 +153,20 @@ router.post(
     if (invoice.created_by === req.session.user.id) return res.status(403).json({ error: 'You cannot approve your own invoice' });
     if (!['approver','admin','super'].includes(req.session.user.role)) return res.status(403).json({ error: 'You are not allowed to approve this invoice' });
 
-    await pool.query('UPDATE invoices SET status = "approved" WHERE invoice_no = ?', [invoice.invoice_no]);
+    await pool.query(
+      'UPDATE invoices SET status = "approved" WHERE invoice_no = ?',
+      [invoice.invoice_no]
+    );
+
+    await logAudit(pool, req, {
+      action: 'invoice.approve',
+      entity_type: 'invoice',
+      entity_id: invoice.invoice_no,
+      summary: `Approved invoice ${invoice.invoice_no} (pending → approved)`,
+      success: 1,
+      before: { status: 'pending' },
+      after: { status: 'approved' }
+    });
 
     await pool.query(
       `INSERT INTO notifications (user_id, type, reference_no, message)
@@ -158,11 +178,11 @@ router.post(
   })
 );
 
-// ✅ NEW ---------------- RETURN INVOICE (PENDING → RETURNED) ----------------
+// ---------------- RETURN INVOICE (PENDING → RETURNED) ----------------
 router.post(
   '/invoices/:invoiceNo/return',
   requireLogin,
-  requirePermission(PERMISSIONS.INVOICE_APPROVE), // or create PERMISSIONS.INVOICE_RETURN
+  requirePermission(PERMISSIONS.INVOICE_APPROVE),
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
@@ -171,22 +191,34 @@ router.post(
       return res.status(400).json({ error: 'Only pending invoices can be returned' });
     }
 
-    // No self-return
     if (invoice.created_by === req.session.user.id) {
       return res.status(403).json({ error: 'You cannot return your own invoice' });
     }
 
-    // Only approver/admin/super can return
     if (!['approver','admin','super'].includes(req.session.user.role)) {
       return res.status(403).json({ error: 'You are not allowed to return this invoice' });
     }
 
     const reason = (req.body?.reason || '').trim();
 
-    // ✅ set returned (not draft)
-    await pool.query('UPDATE invoices SET status = "returned" WHERE invoice_no = ?', [invoice.invoice_no]);
+    await pool.query(
+      'UPDATE invoices SET status = "returned" WHERE invoice_no = ?',
+      [invoice.invoice_no]
+    );
 
-    // Notify creator
+    await logAudit(pool, req, {
+      action: 'invoice.return',
+      entity_type: 'invoice',
+      entity_id: invoice.invoice_no,
+      summary: reason
+        ? `Returned invoice ${invoice.invoice_no} (reason: ${reason})`
+        : `Returned invoice ${invoice.invoice_no}`,
+      success: 1,
+      before: { status: 'pending' },
+      after: { status: 'returned' },
+      meta: reason ? { reason } : null
+    });
+
     await pool.query(
       `INSERT INTO notifications (user_id, type, reference_no, message)
        VALUES (?, 'INVOICE_RETURNED', ?, ?)`,
@@ -217,12 +249,26 @@ router.post(
       return res.status(403).json({ error: 'You are not allowed to mark this invoice as paid' });
     }
 
-    await pool.query('UPDATE invoices SET status = "paid" WHERE invoice_no = ?', [invoice.invoice_no]);
+    await pool.query(
+      'UPDATE invoices SET status = "paid" WHERE invoice_no = ?',
+      [invoice.invoice_no]
+    );
+
+    await logAudit(pool, req, {
+      action: 'invoice.mark_paid',
+      entity_type: 'invoice',
+      entity_id: invoice.invoice_no,
+      summary: `Marked invoice ${invoice.invoice_no} as paid (approved → paid)`,
+      success: 1,
+      before: { status: 'approved' },
+      after: { status: 'paid' }
+    });
+
     res.json({ message: 'Invoice marked as paid' });
   })
 );
 
-// ---------------- CANCEL INVOICE (DRAFT/RETURNED/PENDING) ✅ UPDATED ----------------
+// ---------------- CANCEL INVOICE (DRAFT/RETURNED/PENDING) ----------------
 router.post(
   '/invoices/:invoiceNo/cancel',
   requireLogin,
@@ -231,7 +277,6 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    // ✅ include returned
     if (!['draft','returned','pending'].includes(invoice.status)) {
       return res.status(400).json({ error: 'Only draft, returned, or pending invoices can be canceled' });
     }
@@ -240,7 +285,23 @@ router.post(
       return res.status(403).json({ error: 'You are not allowed to cancel this invoice' });
     }
 
-    await pool.query('UPDATE invoices SET status = "canceled" WHERE invoice_no = ?', [invoice.invoice_no]);
+    const oldStatus = invoice.status;
+
+    await pool.query(
+      'UPDATE invoices SET status = "canceled" WHERE invoice_no = ?',
+      [invoice.invoice_no]
+    );
+
+    await logAudit(pool, req, {
+      action: 'invoice.cancel',
+      entity_type: 'invoice',
+      entity_id: invoice.invoice_no,
+      summary: `Canceled invoice ${invoice.invoice_no} (${oldStatus} → canceled)`,
+      success: 1,
+      before: { status: oldStatus },
+      after: { status: 'canceled' }
+    });
+
     res.json({ message: 'Invoice canceled successfully' });
   })
 );
@@ -266,10 +327,21 @@ router.get(
   '/invoices/export/excel',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_EXPORT),
-  asyncHandler(exportInvoicesExcel)
+  asyncHandler(async (req, res) => {
+    await logAudit(pool, req, {
+      action: 'invoice.export.excel',
+      entity_type: 'invoice',
+      entity_id: null,
+      summary: 'Exported invoice list (Excel)',
+      success: 1
+    });
+
+    return exportInvoicesExcel(req, res);
+  })
 );
 
-// ---------------- DELETE INVOICE (DRAFT OR RETURNED) ✅ UPDATED ----------------
+// ---------------- DELETE INVOICE (DRAFT OR RETURNED) ----------------
+// NOTE: your controller does the actual delete; we log before calling it
 router.delete(
   '/invoices/:invoiceNo',
   requireLogin,
@@ -278,7 +350,6 @@ router.delete(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    // ✅ allow delete for returned too (optional but recommended)
     if (!['draft','returned'].includes(invoice.status)) {
       return res.status(400).json({ error: 'Only draft or returned invoices can be deleted' });
     }
@@ -286,6 +357,15 @@ router.delete(
     if (invoice.created_by !== req.session.user.id && !['super','admin'].includes(req.session.user.role)) {
       return res.status(403).json({ error: 'You cannot delete this invoice' });
     }
+
+    await logAudit(pool, req, {
+      action: 'invoice.delete',
+      entity_type: 'invoice',
+      entity_id: invoice.invoice_no,
+      summary: `Deleted invoice ${invoice.invoice_no}`,
+      success: 1,
+      before: { status: invoice.status }
+    });
 
     return invoicesCtrl.deleteInvoice(req, res);
   })
@@ -299,9 +379,7 @@ router.get(
 );
 
 // ---------------- GET EXCHANGE RATE (BAP) ----------------
-const fetch = require('node-fetch');
-const AbortController = require('abort-controller');
-
+// Use built-in AbortController + fetch (Node 18+). If your Node is older, tell me and I'll adapt.
 router.get('/exchange-rate', requireLogin, asyncHandler(async (req, res) => {
   const to = req.query.to?.toUpperCase();
   if (!to) return res.status(400).json({ error: 'Missing currency code' });
@@ -315,12 +393,12 @@ router.get('/exchange-rate', requireLogin, asyncHandler(async (req, res) => {
     const response = await fetch('https://www.bap.org.ph/downloads/daily-rates.json', {
       signal: controller.signal
     });
+
     clearTimeout(timeout);
 
     if (!response.ok) throw new Error('BAP source not available');
 
     const data = await response.json();
-
     if (to === 'PHP') return res.json({ rate: 1 });
 
     const rate = Number(data[to]) || fallbackRates[to];
@@ -328,7 +406,6 @@ router.get('/exchange-rate', requireLogin, asyncHandler(async (req, res) => {
 
     const note = data[to] ? undefined : 'Using fallback rate';
     res.json({ rate, note });
-
   } catch (err) {
     console.error('Exchange rate error:', err);
     const rate = fallbackRates[to];

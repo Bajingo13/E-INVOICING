@@ -71,5 +71,15 @@ const EWT = {
     }
   }
 };
+exports.getById = async (id) => {
+  const conn = await getConn();
+  try {
+    const [rows] = await conn.execute('SELECT * FROM ewt WHERE id=? LIMIT 1', [id]);
+    return rows[0] || null;
+  } finally {
+    conn.release();
+  }
+};
+
 
 module.exports = EWT;

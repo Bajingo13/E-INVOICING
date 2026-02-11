@@ -11,6 +11,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const usersSection = document.getElementById('users-section');
   const historyContainer = document.getElementById('login-history-container');
 
+  // audit logs UI
+  const auditContainer = document.getElementById('audit-logs-container');
+  const showAuditBtn = document.getElementById('show-audit-logs');
+
   const showLoginBtn = document.getElementById('show-login-history');
   const createModal = document.getElementById('create-user-modal');
   const createForm = document.getElementById('create-user-form');
@@ -36,6 +40,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     successToast.textContent = msg;
     successToast.style.display = 'block';
     setTimeout(() => { successToast.style.display = 'none'; }, 3000);
+  }
+
+  function showSection(name) {
+    if (usersSection) usersSection.style.display = (name === 'users') ? 'block' : 'none';
+    if (historyContainer) historyContainer.style.display = (name === 'history') ? 'block' : 'none';
+    if (auditContainer) auditContainer.style.display = (name === 'audit') ? 'block' : 'none';
+  }
+
+  function fmtDateTime(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    return d.toLocaleString();
   }
 
   async function loadUsers() {
@@ -70,16 +87,78 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // load audit logs
+  async function loadAuditLogs() {
+    const tbody = document.querySelector('#audit-logs-table tbody');
+    if (!tbody) return;
+
+    const q = document.getElementById('audit-search')?.value.trim() || '';
+    const action = document.getElementById('audit-action')?.value || '';
+    const entity = document.getElementById('audit-entity')?.value || '';
+
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:12px;color:#666;">Loading audit logs...</td></tr>`;
+
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (action) params.set('action', action);
+    if (entity) params.set('entity_type', entity);
+    params.set('limit', '200');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/audit-logs?${params.toString()}`, {
+        credentials: 'include'
+      });
+
+      if (!res.ok) throw new Error('Failed');
+
+      const logs = await res.json();
+
+      if (!Array.isArray(logs) || logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="padding:12px;color:#666;">No audit logs found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = logs.map(l => `
+        <tr>
+          <td>${fmtDateTime(l.created_at)}</td>
+          <td>${l.actor_username || ''}</td>
+          <td>${l.action || ''}</td>
+          <td>${l.entity_type || ''}</td>
+          <td>${l.entity_id || ''}</td>
+          <td>${l.summary || ''}</td>
+          <td>${l.ip_address || ''}</td>
+        </tr>
+      `).join('');
+    } catch {
+      tbody.innerHTML = `<tr><td colspan="7" style="padding:12px;color:red;">Failed to load audit logs.</td></tr>`;
+    }
+  }
+
+  // ✅ export audit logs (same filters)
+  function exportAuditLogsExcel() {
+    const q = document.getElementById('audit-search')?.value.trim() || '';
+    const action = document.getElementById('audit-action')?.value || '';
+    const entity = document.getElementById('audit-entity')?.value || '';
+
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (action) params.set('action', action);
+    if (entity) params.set('entity_type', entity);
+
+    window.location.href = `${API_BASE}/api/audit-logs/export/excel?${params.toString()}`;
+  }
+
   document.getElementById('show-create-user')?.addEventListener('click', () => {
     createModal?.classList.add('show');
     if (usersSection) usersSection.style.display = 'none';
     if (historyContainer) historyContainer.style.display = 'none';
+    if (auditContainer) auditContainer.style.display = 'none';
     document.getElementById('new-username')?.focus();
   });
 
   document.getElementById('cancel-create-user')?.addEventListener('click', () => {
     createModal?.classList.remove('show');
-    if (usersSection) usersSection.style.display = 'block';
+    showSection('users');
     clearErrors();
     createForm?.reset();
   });
@@ -93,18 +172,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const email = document.getElementById('new-email')?.value.trim() || '';
     let hasError = false;
 
-    if (!username) {
-      safeText('username-error', 'Username required');
-      hasError = true;
-    }
-    if (!password) {
-      safeText('password-error', 'Password required');
-      hasError = true;
-    }
-    if (!email) {
-      safeText('email-error', 'Email required');
-      hasError = true;
-    }
+    if (!username) { safeText('username-error', 'Username required'); hasError = true; }
+    if (!password) { safeText('password-error', 'Password required'); hasError = true; }
+    if (!email) { safeText('email-error', 'Email required'); hasError = true; }
     if (hasError) return;
 
     confirmModal?.classList.add('show');
@@ -143,7 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showSuccessToast(data.message || 'User created successfully!');
       createForm?.reset();
       createModal?.classList.remove('show');
-      if (usersSection) usersSection.style.display = 'block';
+      showSection('users');
       await loadUsers();
     } catch {
       alert('Failed to create user');
@@ -215,8 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   showLoginBtn?.addEventListener('click', async () => {
     createModal?.classList.remove('show');
-    if (usersSection) usersSection.style.display = 'none';
-    if (historyContainer) historyContainer.style.display = 'block';
+    showSection('history');
 
     const historyTable = document.querySelector('#login-history-table tbody');
     if (!historyTable) return;
@@ -250,9 +319,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // show audit logs
+  showAuditBtn?.addEventListener('click', async () => {
+    createModal?.classList.remove('show');
+    showSection('audit');
+    await loadAuditLogs();
+  });
+
+  document.getElementById('audit-refresh')?.addEventListener('click', loadAuditLogs);
+  document.getElementById('audit-export')?.addEventListener('click', exportAuditLogsExcel);
+
+  document.getElementById('audit-search')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') loadAuditLogs();
+  });
+  document.getElementById('audit-action')?.addEventListener('change', loadAuditLogs);
+  document.getElementById('audit-entity')?.addEventListener('change', loadAuditLogs);
+
   document.getElementById('back-dashboard')?.addEventListener('click', () => {
     window.location.href = '/Dashboard.html';
   });
 
+  // default view
+  showSection('users');
   loadUsers();
 });

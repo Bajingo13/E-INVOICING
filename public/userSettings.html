@@ -13,6 +13,8 @@
       <button id="back-dashboard" class="btn-show">Back to Dashboard</button>
       <button id="show-create-user" class="btn-show">Create User</button>
       <button id="show-login-history" class="btn-show">Login History</button>
+      <button id="show-audit-logs" class="btn-show">Audit Logs</button>
+
     </nav>
   </header>
 
@@ -36,8 +38,7 @@
         </thead>
         <tbody></tbody>
       </table>
-    </div>
-
+    </div> 
     <div id="create-user-modal" class="modal">
       <div class="modal-content">
         <h2>Create User</h2>
@@ -69,6 +70,48 @@
         </form>
       </div>
     </div>
+
+<div id="audit-logs-container" style="display:none;">
+  <h2>Audit Logs</h2>
+
+  <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+    <input id="audit-search" type="text" placeholder="Search (username, action, entity id)..." style="max-width:320px;">
+    <select id="audit-action">
+      <option value="">All Actions</option>
+      <option value="user.create">user.create</option>
+      <option value="user.update">user.update</option>
+      <option value="user.delete">user.delete</option>
+    </select>
+
+    <select id="audit-entity">
+      <option value="">All Entities</option>
+      <option value="user">user</option>
+      <option value="invoice">invoice</option>
+      <option value="settings">settings</option>
+      <option value="contact">contact</option>
+      <option value="coa">coa</option>
+    </select>
+
+    <button id="audit-refresh" class="btn-show">Refresh</button>
+    <button id="audit-export" class="btn-show">Export Excel</button>
+  </div>
+
+  <table id="audit-logs-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Actor</th>
+        <th>Action</th>
+        <th>Entity</th>
+        <th>Entity ID</th>
+        <th>Summary</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
 
     <div id="confirm-create-modal" class="modal">
       <div class="modal-content">
