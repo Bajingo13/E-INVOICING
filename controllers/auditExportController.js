@@ -111,7 +111,18 @@ async function exportAuditExcel(req, res) {
   for (const r of rows) {
     ws.addRow({
       id: r.id,
-      created_at: r.created_at ? new Date(r.created_at).toISOString().replace('T', ' ').slice(0, 19) : '',
+      created_at: r.created_at
+  ? new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(new Date(r.created_at)).replace(',', '')
+  : '',
       actor_user_id: r.actor_user_id ?? '',
       actor_username: r.actor_username ?? '',
       actor_role: r.actor_role ?? '',

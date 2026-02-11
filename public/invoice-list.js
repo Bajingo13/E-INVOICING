@@ -7,6 +7,49 @@ let currentSort = { key: 'invoice_no', order: 'desc' };
 
 let currentUser = null;
 
+/* ===================== NOTIF -> SEARCH + HIGHLIGHT HELPERS ===================== */
+function getQueryParam(name) {
+  return new URLSearchParams(window.location.search).get(name);
+}
+
+function applySearchFromQuery() {
+  const search = getQueryParam('search');
+  const input = document.getElementById("searchInput");
+  if (search && input) input.value = search;
+}
+
+function filterRowsBySearchValue() {
+  const input = document.getElementById("searchInput");
+  const v = (input?.value || '').toLowerCase();
+
+  document.querySelectorAll("#invoiceTable tbody tr").forEach(r => {
+    r.style.display = r.textContent.toLowerCase().includes(v) ? "" : "none";
+  });
+}
+
+function focusInvoiceRow(invoiceNo) {
+  if (!invoiceNo) return;
+
+  const rows = document.querySelectorAll("#invoiceTable tbody tr");
+  let targetRow = null;
+
+  rows.forEach(r => {
+    // 2nd column is invoice_no based on your table
+    const cellText = (r.children?.[1]?.textContent || '').trim();
+    if (cellText === invoiceNo) targetRow = r;
+    r.classList.remove('row-focus');
+  });
+
+  if (targetRow) {
+    targetRow.classList.add('row-focus');
+    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // remove highlight after a few seconds (optional)
+    setTimeout(() => targetRow.classList.remove('row-focus'), 6000);
+  }
+}
+/* ============================================================================ */
+
 // ---------------- RBAC ----------------
 async function initRBAC() {
   currentUser = await getCurrentUser();
@@ -30,6 +73,16 @@ async function fetchInvoices() {
 
     invoices = sortInvoices(invoices, currentSort.key, currentSort.order);
     populateTable(invoices);
+
+    // ✅ Apply search + focus after rows are rendered
+    const search = getQueryParam('search');
+    if (search) {
+      applySearchFromQuery();
+      filterRowsBySearchValue();
+    }
+    const focus = getQueryParam('focus');
+    if (focus) focusInvoiceRow(focus);
+
   } catch (err) {
     console.error("❌ Error fetching invoices:", err);
   }
@@ -60,11 +113,10 @@ function sortInvoices(invoices, key, order) {
 
       case 'due_date':
         return order === 'asc'
-          ? new Date(a.due_date || 0) - new Date(b.due_date || 0)
+          ? new Date(a.due_date || 0) - new Date(a.due_date || 0)
           : new Date(b.due_date || 0) - new Date(a.due_date || 0);
 
       case 'status': {
-        // ✅ UPDATED ORDER (includes returned)
         const orderMap = {
           draft: 1,
           returned: 2,
@@ -140,23 +192,18 @@ function populateTable(invoices) {
 
     // --- PENDING ---
     if (inv.status === 'pending') {
-      // ✅ Always allow view
       buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
 
-      // ✅ Approver approve/return (not own invoice)
       if (
-  ['approver', 'admin', 'super'].includes(role) &&
-  Number(inv.created_by) !== Number(currentUser.id)
-) {
-  if (role === 'approver' || role === 'admin' || role === 'super') {
-    buttons.push(`<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>`);
-  }
+        ['approver', 'admin', 'super'].includes(role) &&
+        Number(inv.created_by) !== Number(currentUser.id)
+      ) {
+        if (role === 'approver' || role === 'admin' || role === 'super') {
+          buttons.push(`<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>`);
+        }
+        buttons.push(`<button class="action-btn return" onclick="returnInvoice('${inv.invoice_no}')">Return</button>`);
+      }
 
-  // ✅ Admin + Approver + Super can RETURN
-  buttons.push(`<button class="action-btn return" onclick="returnInvoice('${inv.invoice_no}')">Return</button>`);
-}
-
-      // Admin/super can cancel
       if (['super', 'admin'].includes(role)) {
         buttons.push(`<button class="action-btn cancel" onclick="cancelInvoice('${inv.invoice_no}')">Cancel</button>`);
       }
@@ -308,11 +355,8 @@ function setupSelectAllCheckbox() {
 }
 
 // ---------------- SEARCH ----------------
-document.getElementById("searchInput")?.addEventListener("input", e => {
-  const v = e.target.value.toLowerCase();
-  document.querySelectorAll("#invoiceTable tbody tr").forEach(r => {
-    r.style.display = r.textContent.toLowerCase().includes(v) ? "" : "none";
-  });
+document.getElementById("searchInput")?.addEventListener("input", () => {
+  filterRowsBySearchValue();
 });
 
 // ---------------- TOGGLE DRAFT ----------------
@@ -334,7 +378,14 @@ document.querySelectorAll("#invoiceTable th.sortable").forEach(th => {
 
 // ---------------- INIT ----------------
 window.addEventListener("DOMContentLoaded", async () => {
-  if (await initRBAC()) fetchInvoices();
+  const ok = await initRBAC();
+  if (!ok) return;
+
+  // Prefill search if coming from notification
+  applySearchFromQuery();
+
+  // Fetch invoices (populateTable runs, then fetchInvoices applies focus/search)
+  fetchInvoices();
 });
 
 // Expose functions globally

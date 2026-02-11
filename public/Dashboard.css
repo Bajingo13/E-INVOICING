@@ -72,6 +72,90 @@ body {
   opacity: 0.6;
 }
 
+/* Notifications dropdown menu width */
+#notifDropdown {
+  width: 360px;
+  max-height: 420px;
+  overflow: hidden;
+}
+
+#notifList {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* Header row inside notifList */
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.25);
+}
+
+.notif-title {
+  font-weight: 700;
+  color: #fff;
+}
+
+.notif-clear {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.notif-clear:hover {
+  background: rgba(255,255,255,0.28);
+}
+
+/* Each notification item */
+.notif-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: #fff;
+  padding: 12px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+}
+
+.notif-item:hover {
+  background: rgba(0,0,0,0.12);
+}
+
+.notif-item.unread {
+  background: rgba(255,255,255,0.12);
+}
+
+.notif-item.read {
+  opacity: 0.75;
+}
+
+.notif-msg {
+  font-size: 14px;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+
+.notif-meta {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* Badge placement better for icon button */
+.notifications-dropdown #notifBtn {
+  position: relative;
+}
+
+.notifications-dropdown .notif-badge {
+  top: 2px;
+  right: 2px;
+}
 
 /* ---------------- Header / Navbar ---------------- */
 header {
@@ -433,4 +517,94 @@ main {
   transform: translateY(-2px);
   box-shadow: 0 4px 10px rgba(0,0,0,0.15);
   transition: 0.2s;
+}
+/* ===================== NOTIFICATIONS: HIGH CONTRAST THEME ===================== */
+
+/* Make notif dropdown a clean light panel (only notifications) */
+#notifDropdown {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 14px 35px rgba(0,0,0,0.18);
+  border-radius: 14px;
+  padding: 0;
+  overflow: hidden; /* keep rounded corners clean */
+}
+
+/* Optional: keep list scroll neat */
+#notifList {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* Header row */
+#notifDropdown .notif-header {
+  background: #f6f7ff;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+#notifDropdown .notif-title {
+  color: #111827; /* dark */
+}
+
+#notifDropdown .notif-clear {
+  background: #ffffff;
+  border: 1px solid rgba(17,24,39,0.15);
+  color: #111827;
+}
+
+#notifDropdown .notif-clear:hover {
+  background: #eef2ff;
+}
+
+/* Each notification item */
+#notifDropdown .notif-item {
+  color: #111827;           /* dark text */
+  background: #ffffff;      /* light background */
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  padding: 12px 14px;
+}
+
+/* Ensure your <p> and <span> inside notif-item look good */
+#notifDropdown .notif-item p {
+  margin: 0 0 6px;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+#notifDropdown .notif-item span {
+  display: block;
+  font-size: 12px;
+  color: #6b7280; /* gray */
+}
+
+/* Unread highlight */
+#notifDropdown .notif-item.unread {
+  background: #eef2ff;              /* light indigo */
+  border-left: 4px solid #4e54c8;   /* your theme color */
+  padding-left: 10px;              /* compensate for border */
+}
+
+/* Read items slightly muted */
+#notifDropdown .notif-item.read {
+  background: #ffffff;
+  opacity: 1; /* don't fade too much; keep readable */
+}
+
+#notifDropdown .notif-item.read p {
+  color: #374151;
+}
+
+#notifDropdown .notif-item:hover {
+  background: #f3f4f6; /* light hover */
+}
+
+/* Badge placement (better on icon) */
+.notifications-dropdown #notifBtn {
+  position: relative;
+}
+
+.notifications-dropdown .notif-badge {
+  top: 2px;
+  right: 2px;
 }

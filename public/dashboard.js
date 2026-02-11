@@ -12,15 +12,16 @@ async function loadNotifications() {
 
     const badge = document.getElementById('notifBadge');
     const list = document.getElementById('notifList');
+    if (!badge || !list) return;
 
     // Unread count + badge
     const unread = notifications.filter(n => !n.is_read).length;
     badge.textContent = unread;
-    badge.style.display = unread ? 'inline' : 'none';
+    badge.style.display = unread ? 'inline-block' : 'none';
 
     list.innerHTML = '';
 
-    // YOUR ORIGINAL EMPTY STATE (from snippet #1)
+    // Empty state
     if (!notifications.length) {
       list.innerHTML = `
         <div class="notif-empty">
@@ -36,18 +37,40 @@ async function loadNotifications() {
     notifications.forEach(n => {
       const item = document.createElement('div');
       item.className = `notif-item ${n.is_read ? 'read' : 'unread'}`;
+
+      // Safer date parsing for MySQL "YYYY-MM-DD HH:MM:SS"
+      let d = n.created_at;
+      if (typeof d === 'string' && d.includes(' ') && !d.includes('T')) {
+        d = d.replace(' ', 'T') + 'Z';
+      }
+
       item.innerHTML = `
         <p>${n.message}</p>
-        <span>${new Date(n.created_at).toLocaleString()}</span>
+        <span>${new Date(d).toLocaleString('en-PH')}</span>
       `;
 
       item.addEventListener('click', async () => {
-        await fetch(`/api/notifications/${n.id}/read`, {
-          method: 'POST',
-          credentials: 'include'
-        });
-        loadNotifications();
-      });
+  try {
+    // mark as read (don’t block redirect if this fails)
+    fetch(`/api/notifications/${n.id}/read`, {
+      method: 'POST',
+      credentials: 'include'
+    }).catch(() => {});
+
+    // ✅ Redirect logic based on your real fields
+    if (n.reference_no) {
+      // Option A: go to invoice list and auto-search/highlight the invoice number
+      window.location.href = `/invoice-list.html?search=${encodeURIComponent(n.reference_no)}`;
+      return;
+    }
+
+    // fallback
+    window.location.href = '/invoice-list.html';
+  } catch (err) {
+    console.error("Notification click error:", err);
+  }
+});
+
 
       list.appendChild(item);
     });
@@ -56,7 +79,6 @@ async function loadNotifications() {
     console.error("❌ Notifications error:", err);
   }
 }
-
 
 // ===================== Fetch Dashboard Data =====================
 async function fetchDashboardData() {
@@ -120,60 +142,79 @@ function animateNumber(elementId, targetValue, isCurrency = false) {
   }, intervalTime);
 }
 
+// ===================== Dropdown Helper =====================
+function setupDropdown(buttonId, menuId, opts = {}) {
+  const btn = document.getElementById(buttonId);
+  const menu = document.getElementById(menuId);
+  if (!btn || !menu) return;
+
+  const align = opts.align || 'left'; // 'left' or 'right'
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+
+    // close other dropdowns
+    document.querySelectorAll('.dropdown-menu.show').forEach(openMenu => {
+      if (openMenu !== menu) openMenu.classList.remove('show');
+    });
+
+    menu.classList.toggle('show');
+    if (!menu.classList.contains('show')) return;
+
+    // refresh notif list when opened
+    if (menuId === 'notifDropdown') loadNotifications();
+
+    // Reset
+    menu.style.left = '';
+    menu.style.right = '';
+    menu.style.maxWidth = '';
+
+    // Default alignment
+    if (align === 'right') {
+      menu.style.right = '0';
+      menu.style.left = 'auto';
+    } else {
+      menu.style.left = '0';
+      menu.style.right = 'auto';
+    }
+
+    // Flip if overflow
+    const menuRect = menu.getBoundingClientRect();
+    const overflowRight = menuRect.right > window.innerWidth;
+    const overflowLeft = menuRect.left < 0;
+
+    if (overflowRight && !overflowLeft) {
+      menu.style.right = '0';
+      menu.style.left = 'auto';
+    } else if (overflowLeft && !overflowRight) {
+      menu.style.left = '0';
+      menu.style.right = 'auto';
+    } else if (overflowLeft && overflowRight) {
+      menu.style.maxWidth = '92vw';
+    }
+  });
+
+  menu.addEventListener('click', e => e.stopPropagation());
+
+  document.addEventListener('click', () => {
+    menu.classList.remove('show');
+  });
+}
+
 // ===================== DOM Ready =====================
 window.addEventListener('DOMContentLoaded', () => {
   fetchDashboardData();
   loadNotifications();
   applyRBAC();
 
-  // ---------------- Dropdown Function ----------------
-  function setupDropdown(buttonId, menuId) {
-    const btn = document.getElementById(buttonId);
-    const menu = document.getElementById(menuId);
+  setupDropdown('accountingBtn', 'accountingDropdown', { align: 'left' });
+  setupDropdown('createInvoiceBtn', 'invoiceDropdown', { align: 'left' });
+  setupDropdown('SystemconfigBtn', 'systemConfigDropdown', { align: 'left' });
+  setupDropdown('reportsBtn', 'reportsDropdown', { align: 'left' });
 
-    if (!btn || !menu) return;
-
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-
-      // CLOSE OTHER DROPDOWNS
-      document.querySelectorAll('.dropdown-menu.show').forEach(openMenu => {
-        if (openMenu !== menu) openMenu.classList.remove('show');
-      });
-
-      menu.classList.toggle('show');
-
-      menu.style.left = '';
-      menu.style.right = '';
-
-      const rect = btn.getBoundingClientRect();
-      const dropdownWidth = menu.offsetWidth;
-      const spaceRight = window.innerWidth - rect.right;
-      const spaceLeft = rect.left;
-
-      menu.style.right = '36px';
-      menu.style.left = 'auto';
-
-      if (dropdownWidth > spaceRight && dropdownWidth <= spaceLeft) {
-        menu.style.left = '-48px';
-        menu.style.right = 'auto';
-      }
-    });
-
-    menu.addEventListener('click', e => e.stopPropagation());
-
-    document.addEventListener('click', () => {
-      menu.classList.remove('show');
-    });
-  }
-
-  setupDropdown('accountingBtn', 'accountingDropdown');
-  setupDropdown('createInvoiceBtn', 'invoiceDropdown');
-  setupDropdown('SystemconfigBtn', 'systemConfigDropdown');
-  setupDropdown('profileBtn', 'profileDropdown');
-  setupDropdown('reportsBtn', 'reportsDropdown');
-  setupDropdown('notifBtn', 'notifDropdown');
-
+  // profile + notifications align right
+  setupDropdown('profileBtn', 'profileDropdown', { align: 'right' });
+  setupDropdown('notifBtn', 'notifDropdown', { align: 'right' });
 
   // ---------------- Modal for Create Invoice ----------------
   const modal = document.getElementById('recurringModal');
@@ -185,7 +226,6 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#invoiceDropdown .dropdown-item').forEach(link => {
       link.addEventListener('click', function(e) {
         const type = new URL(link.href, location.origin).searchParams.get('type');
-
         if (!['service', 'sales', 'commercial'].includes(type)) return;
 
         e.preventDefault();
@@ -208,13 +248,13 @@ window.addEventListener('DOMContentLoaded', () => {
       if (e.target === modal) modal.classList.remove('show');
     });
   }
-});
 
-// ===================== Submenu toggle =====================
-document.querySelectorAll('.submenu-toggle').forEach(toggle => {
-  toggle.addEventListener('click', e => {
-    e.preventDefault();
-    e.stopPropagation();
-    toggle.nextElementSibling.classList.toggle('show');
+  // ===================== Submenu toggle =====================
+  document.querySelectorAll('.submenu-toggle').forEach(toggle => {
+    toggle.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggle.nextElementSibling.classList.toggle('show');
+    });
   });
 });

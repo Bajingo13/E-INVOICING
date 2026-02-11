@@ -1,7 +1,8 @@
+'use strict';
+
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../helpers/db');
-
 
 // ================= DASHBOARD SUMMARY =================
 router.get('/', async (req, res) => {
@@ -12,26 +13,26 @@ router.get('/', async (req, res) => {
       FROM invoices
     `);
 
-    // Total billed (exclude cancelled)
+    // ✅ Total billed: unpaid pipeline (pending + approved)
+    // (submit => pending; approve => approved; paid is excluded automatically)
     const [[totalPayments]] = await pool.query(`
       SELECT IFNULL(SUM(total_amount_due), 0) AS totalPayments
       FROM invoices
-      WHERE status != 'cancelled'
+      WHERE status IN ('pending', 'approved')
     `);
 
-    // Pending invoices (not paid & not cancelled)
+    // ✅ Pending invoices count: not paid & not canceled
     const [[pendingInvoices]] = await pool.query(`
       SELECT COUNT(*) AS pendingInvoices
       FROM invoices
-      WHERE status NOT IN ('paid', 'cancelled')
+      WHERE status NOT IN ('paid', 'canceled')
     `);
 
     res.json({
-      totalInvoices: totalInvoices.totalInvoices,
-      totalPayments: totalPayments.totalPayments,
-      pendingInvoices: pendingInvoices.pendingInvoices
+      totalInvoices: Number(totalInvoices.totalInvoices) || 0,
+      totalPayments: Number(totalPayments.totalPayments) || 0,
+      pendingInvoices: Number(pendingInvoices.pendingInvoices) || 0
     });
-
   } catch (err) {
     console.error('❌ Dashboard error:', err);
     res.status(500).json({ error: 'Dashboard query failed' });
