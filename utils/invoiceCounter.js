@@ -6,66 +6,111 @@ function toBigIntSafe(v) {
   try { return BigInt(v || 0); } catch { return 0n; }
 }
 
-// Reads counter row (no lock)
+function cleanPrefix(p) {
+  const x = String(p || '').trim();
+  return x || 'INV-';
+}
+
+function buildInvoiceNo(prefix, n) {
+  const p = cleanPrefix(prefix);
+  return `${p}${String(n).padStart(PAD_LEN, '0')}`;
+}
+
+// ✅ Always read the same counter row (avoid id=1 bugs)
 async function getInvoiceCounter(conn) {
-  const [rows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1');
-  if (!rows.length) throw new Error('Invoice counter not initialized');
-  return rows[0];
-}
-
-// Reads counter row with lock (FOR UPDATE) for safe increment
-async function getInvoiceCounterForUpdate(conn) {
-  const [rows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1 FOR UPDATE');
-  if (!rows.length) throw new Error('Invoice counter not initialized');
-  return rows[0];
-}
-
-// Compute current max numeric part from invoices table
-async function getMaxInvoiceNumber(conn) {
-  const [maxRows] = await conn.execute(
-    `SELECT MAX(CAST(REGEXP_REPLACE(invoice_no, '^[^0-9]+', '') AS UNSIGNED)) AS max_no
-     FROM invoices`
+  const [rows] = await conn.execute(
+    'SELECT * FROM invoice_counter ORDER BY id ASC LIMIT 1'
   );
-  return toBigIntSafe(maxRows?.[0]?.max_no);
+  if (!rows.length) throw new Error('Invoice counter not initialized');
+  return rows[0];
 }
 
-// ✅ Preview next invoice no WITHOUT updating last_number (used by /api/next-invoice-no)
+// ✅ Lock row for update
+async function getInvoiceCounterForUpdate(conn) {
+  const [rows] = await conn.execute(
+    'SELECT * FROM invoice_counter ORDER BY id ASC LIMIT 1 FOR UPDATE'
+  );
+  if (!rows.length) throw new Error('Invoice counter not initialized');
+  return rows[0];
+}
+
+// ✅ Collision-only: check exact invoice_no existence
+async function invoiceNoExists(conn, invoiceNo) {
+  const [rows] = await conn.execute(
+    'SELECT 1 FROM invoices WHERE invoice_no = ? LIMIT 1',
+    [invoiceNo]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * ✅ Preview next invoice no WITHOUT updating last_number (used by /api/next-invoice-no)
+ * RULE:
+ * - manual mode => return blank
+ * - auto mode => next = last_number + 1
+ * - if that exact invoice_no exists, keep incrementing until free (collision-only)
+ */
 async function previewNextInvoiceNo(conn) {
   const counter = await getInvoiceCounter(conn);
 
-  // manual mode -> don’t generate
-  if (String(counter.numbering_mode) === 'manual') {
-    return { mode: 'manual', invoiceNo: '', prefix: counter.prefix || 'INV-' };
+  const mode = String(counter.numbering_mode || 'auto').trim().toLowerCase();
+  const prefix = cleanPrefix(counter.prefix);
+  const lastNumber = toBigIntSafe(counter.last_number);
+
+  if (mode === 'manual') {
+    return { mode: 'manual', invoiceNo: '', prefix };
   }
 
-  const maxInvoice = await getMaxInvoiceNumber(conn);
-  const lastNumber = toBigIntSafe(counter.last_number);
-  const nextNumber = (maxInvoice > lastNumber ? maxInvoice : lastNumber) + 1n;
+  let nextNumber = lastNumber + 1n;
 
-  const invoiceNo = `${counter.prefix || 'INV-'}${String(nextNumber).padStart(PAD_LEN, '0')}`;
-  return { mode: 'auto', invoiceNo, prefix: counter.prefix || 'INV-' };
+  // collision-only skip
+  for (let i = 0; i < 500; i++) {
+    const candidate = buildInvoiceNo(prefix, nextNumber);
+    if (!(await invoiceNoExists(conn, candidate))) {
+      return { mode: 'auto', invoiceNo: candidate, prefix };
+    }
+    nextNumber += 1n;
+  }
+
+  // fallback (should never happen)
+  return { mode: 'auto', invoiceNo: buildInvoiceNo(prefix, lastNumber + 1n), prefix };
 }
 
-// ✅ Generate + increment last_number (used on CREATE only, auto mode only)
+/**
+ * ✅ Generate + increment last_number (used on CREATE only, auto mode only)
+ * RULE:
+ * - manual mode => throw
+ * - auto mode => next = last_number + 1 (skip collisions only)
+ * - update invoice_counter.last_number to the number actually used
+ */
 async function generateInvoiceNo(conn) {
   const counter = await getInvoiceCounterForUpdate(conn);
 
-  if (String(counter.numbering_mode) === 'manual') {
+  const mode = String(counter.numbering_mode || 'auto').trim().toLowerCase();
+  if (mode === 'manual') {
     throw new Error('Numbering mode is manual; invoice_no must be provided by client.');
   }
 
-  const maxInvoice = await getMaxInvoiceNumber(conn);
+  const prefix = cleanPrefix(counter.prefix);
   const lastNumber = toBigIntSafe(counter.last_number);
 
-  const nextNumber = (maxInvoice > lastNumber ? maxInvoice : lastNumber) + 1n;
-  const invoiceNo = `${counter.prefix || 'INV-'}${String(nextNumber).padStart(PAD_LEN, '0')}`;
+  let nextNumber = lastNumber + 1n;
 
-  await conn.execute(
-    'UPDATE invoice_counter SET last_number = ? WHERE id = ?',
-    [nextNumber.toString(), counter.id]
-  );
+  // collision-only skip
+  for (let i = 0; i < 500; i++) {
+    const candidate = buildInvoiceNo(prefix, nextNumber);
+    if (!(await invoiceNoExists(conn, candidate))) {
+      // IMPORTANT: store last_number as the number we used
+      await conn.execute(
+        'UPDATE invoice_counter SET last_number = ? WHERE id = ?',
+        [nextNumber.toString(), counter.id]
+      );
+      return candidate;
+    }
+    nextNumber += 1n;
+  }
 
-  return invoiceNo;
+  throw new Error('Unable to generate unique invoice number (too many collisions).');
 }
 
 module.exports = {
