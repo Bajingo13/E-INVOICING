@@ -92,7 +92,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     const canApprove =
       user.permissions?.includes('invoice_approve') &&
-      invoice.status === 'submitted' &&
+      invoice.status === 'pending' &&
       invoice.created_by !== user.id;
 
     if (!canApprove) approveDropdown.remove();
@@ -105,6 +105,32 @@ window.addEventListener('DOMContentLoaded', async () => {
 /* -------------------- EXCHANGE RATE FETCHING -------------------- */
 const currencySelect = document.getElementById('currency');
 const exchangeRateInput = document.getElementById('exchangeRate');
+
+/* -------------------- EWT LIST (for COA labels + per-line override) -------------------- */
+window._ewtList = [];
+
+async function loadEWTList() {
+  try {
+    const res = await fetch('/api/ewt');
+    if (!res.ok) throw new Error('Failed to fetch EWT list');
+    const data = await res.json();
+
+    window._ewtList = (data || []).map(e => ({
+      id: Number(e.id),
+      code: e.code,
+      tax_rate: Number(e.tax_rate)
+    }));
+  } catch (err) {
+    DBG.warn('Failed to load EWT list:', err);
+    window._ewtList = [];
+  }
+}
+
+function getEWTLabelById(id) {
+  const e = window._ewtList?.find(x => Number(x.id) === Number(id));
+  return e ? `${e.code} (${e.tax_rate}%)` : '';
+}
+
 
 if (currencySelect && exchangeRateInput) {
 
@@ -274,15 +300,44 @@ async function loadInvoiceForEdit() {
       (data.items || []).forEach(item => {
         const row = document.createElement('tr');
         row.innerHTML = `
-          <td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;">${item.description || ""}</textarea></td>
-          <td class="Acc-col" style="position:relative;">
-            <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
-            <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
-          </td>
-          <td><input type="number" class="input-short" name="qty[]" value="${item.quantity || 0}" oninput="updateAmount(this)"></td>
-          <td><input type="number" class="input-short" name="rate[]" value="${item.unit_price || 0}" oninput="updateAmount(this)"></td>
-          <td><input type="number" class="input-short" name="amt[]" value="${item.amount || 0}" readonly></td>
-        `;
+  <td>
+    <textarea class="input-full item-desc" name="desc[]" rows="1"
+      style="overflow:hidden; resize:none;">${item.description || ""}</textarea>
+  </td>
+
+  <td class="Acc-col" style="position:relative;">
+    <input type="text"
+           name="account[]"
+           class="input-full account-input"
+           placeholder="+ Create New Account"
+           autocomplete="off">
+
+    <div class="account-dropdown"
+         style="display:none; position:absolute; background:white; border:1px solid #ccc;
+                max-height:150px; overflow:auto; z-index:999;"></div>
+
+    <!-- ✅ EWT selector (edit mode now supported) -->
+    <div style="margin-top:6px;">
+      ${buildEWTSelectHTML()}
+    </div>
+  </td>
+
+  <td>
+    <input type="number" class="input-short" name="qty[]"
+           value="${item.quantity || 0}" oninput="updateAmount(this)">
+  </td>
+
+  <td>
+    <input type="number" class="input-short" name="rate[]"
+           value="${item.unit_price || 0}" oninput="updateAmount(this)">
+  </td>
+
+  <td>
+    <input type="number" class="input-short" name="amt[]"
+           value="${item.amount || 0}" readonly>
+  </td>
+`;
+
         (data.extra_columns || []).forEach(col => {
           const td = document.createElement("td");
           td.innerHTML = `<input type="text" name="${col}[]" value="${item[col] || ""}">`;
@@ -291,22 +346,35 @@ async function loadInvoiceForEdit() {
         tbody.appendChild(row);
       });
 
-      // Setup account combo boxes for each row
-      $$('input.account-input').forEach(input => {
-        if (!input.dataset.initialized && window._coaAccounts) {
-          setupAccountCombo(input, window._coaAccounts);
-          input.dataset.initialized = true;
+// ✅ Setup account combo + preselect account + preselect EWT
+const inputs = $$('input.account-input', tbody);
 
-          // Pre-select current account
-          const rowIndex = Array.from(tbody.rows).indexOf(input.closest('tr'));
-          const item = data.items[rowIndex];
-          const acc = window._coaAccounts.find(a => a.id == item.account_id);
-          if (acc) {
-            input.value = `${acc.code || ''} - ${acc.title}`;
-            input.dataset.accountId = acc.id;
-          }
-        }
-      });
+inputs.forEach((input, idx) => {
+  if (!input.dataset.initialized && window._coaAccounts) {
+    setupAccountCombo(input, window._coaAccounts);
+    input.dataset.initialized = 'true';
+  }
+
+  const item = (data.items || [])[idx];
+  if (!item || !window._coaAccounts) return;
+
+  const acc = window._coaAccounts.find(a => String(a.id) === String(item.account_id));
+  if (!acc) return;
+
+  // show just code-title in the input (clean)
+  input.value = `${acc.code || ''} - ${acc.title || ''}`.trim();
+  input.dataset.accountId = String(acc.id);
+
+  // ✅ EWT: item override first, else account default
+  const row = input.closest('tr');
+  const ewtSel = row?.querySelector('.ewt-select');
+  if (ewtSel) {
+    const override = item.ewt_id ? String(item.ewt_id) : '';
+    const def = acc.ewt_id ? String(acc.ewt_id) : '';
+    ewtSel.value = override || def || '';
+  }
+});
+
     }
 
     if (data.tax_summary) {
@@ -314,13 +382,44 @@ async function loadInvoiceForEdit() {
       safeSetValue('#subtotal', ts.subtotal || 0);
       safeSetValue('#vatableSales', ts.vatable_sales || 0);
       safeSetValue('#vatAmount', ts.vat_amount || 0);
-      safeSetValue('#withholdingTax', ts.withholding || ts.withholdingTax || 0);
       safeSetValue('#totalPayable', ts.total_payable || 0);
     }
 
     adjustColumnWidths();
   } catch (err) { DBG.error('Error loading invoice for edit:', err); }
 }
+
+// ✅ Ensure the FIRST (existing HTML) rows also get an EWT select + options
+function ensureEWTOnExistingRows() {
+  const rows = document.querySelectorAll('#items-body tr');
+
+  rows.forEach(row => {
+    // account cell
+    const accCell = row.querySelector('td.Acc-col');
+    if (!accCell) return;
+
+    // if already exists, skip
+    if (row.querySelector('.ewt-select')) return;
+
+    // add EWT dropdown under account input
+    const holder = document.createElement('div');
+    holder.style.marginTop = '6px';
+    holder.innerHTML = buildEWTSelectHTML(); // includes options from window._ewtList
+    accCell.appendChild(holder);
+  });
+}
+
+// ✅ Rebuild options inside all .ewt-select (useful if HTML has a placeholder select)
+function refreshAllEWTSelects() {
+  document.querySelectorAll('.ewt-select').forEach(sel => {
+    const current = sel.value;
+    sel.innerHTML = `<option value="">Default</option>` + (window._ewtList || [])
+      .map(e => `<option value="${e.id}">${e.code} (${e.tax_rate}%)</option>`)
+      .join('');
+    sel.value = current; // keep current selection if any
+  });
+}
+
 
 /* -------------------- 6. CHART OF ACCOUNTS (COMBO BOX VERSION) -------------------- */
 async function loadAccounts() {
@@ -342,41 +441,101 @@ async function loadAccounts() {
   }
 }
 
+function buildEWTSelectHTML(selectedId = '') {
+  const sel = selectedId ? String(selectedId) : '';
+  const opts = (window._ewtList || [])
+    .map(e => {
+      const id = String(e.id);
+      return `<option value="${id}" ${id === sel ? 'selected' : ''}>${e.code} (${e.tax_rate}%)</option>`;
+    })
+    .join('');
+
+  return `
+    <select class="input-short ewt-select" name="ewt_id[]">
+      <option value="">Default</option>
+      ${opts}
+    </select>
+  `;
+}
+
+
+
 function setupAccountCombo(input, accounts) {
-  const dropdown = input.nextElementSibling;
+  const dropdown = input.nextElementSibling; // .account-dropdown
+  if (!dropdown) return;
+
   dropdown.innerHTML = '';
 
-  accounts.forEach(acc => {
-    if (!acc.title) return;
+  // Build dropdown items
+  (accounts || []).forEach(acc => {
+    if (!acc || !acc.title) return;
+
     const div = document.createElement('div');
-    div.textContent = `${acc.code || ''} - ${acc.title}`;
-    div.dataset.value = acc.id;
-    div.style.padding = '4px 8px';
+    const ewtLabel = acc.ewt_id ? getEWTLabelById(acc.ewt_id) : '';
+
+    div.textContent = `${acc.code || ''} - ${acc.title}${ewtLabel ? ` | EWT: ${ewtLabel}` : ''}`;
+    div.dataset.value = String(acc.id);
+    div.style.padding = '6px 10px';
     div.style.cursor = 'pointer';
-    div.addEventListener('click', () => {
-      input.value = div.textContent;
-      input.dataset.accountId = div.dataset.value;
+
+    div.addEventListener('mousedown', (e) => {
+      // mousedown prevents blur issues when clicking the dropdown
+      e.preventDefault();
+
+      // ✅ set displayed text + store account id
+      input.value = `${acc.code || ''} - ${acc.title}`;
+      input.dataset.accountId = String(acc.id);
+
+      // ✅ apply default EWT only if user hasn't chosen one yet
+      const row = input.closest('tr');
+      const ewtSel = row?.querySelector('.ewt-select');
+      if (ewtSel && !ewtSel.value) {
+        ewtSel.value = acc.ewt_id ? String(acc.ewt_id) : '';
+      }
+
       dropdown.style.display = 'none';
+
+      // optional: recalc totals when account changes
+      calculateTotals?.();
     });
+
     dropdown.appendChild(div);
   });
 
+  // Filter as user types
   input.addEventListener('input', () => {
-    const val = input.value.toLowerCase();
-    Array.from(dropdown.children).forEach(div => {
+    const val = (input.value || '').toLowerCase().trim();
+    const items = Array.from(dropdown.children);
+
+    items.forEach(div => {
       div.style.display = div.textContent.toLowerCase().includes(val) ? 'block' : 'none';
     });
+
+    dropdown.style.display = items.some(d => d.style.display !== 'none') ? 'block' : 'none';
+  });
+
+  // Show all on focus/click
+  input.addEventListener('focus', () => {
+    Array.from(dropdown.children).forEach(div => div.style.display = 'block');
     dropdown.style.display = dropdown.children.length ? 'block' : 'none';
   });
 
-  input.addEventListener('focus', () => {
-    dropdown.style.display = 'block';
+  input.addEventListener('click', () => {
+    Array.from(dropdown.children).forEach(div => div.style.display = 'block');
+    dropdown.style.display = dropdown.children.length ? 'block' : 'none';
   });
 
-  document.addEventListener('click', (e) => {
-    if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.style.display = 'none';
-  });
+  // Hide when clicking outside (avoid attaching multiple times)
+  if (!input.dataset.outsideBound) {
+    document.addEventListener('click', (e) => {
+      if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+    input.dataset.outsideBound = '1';
+  }
 }
+
 /* -------------------- 7. ADD / REMOVE ROW (COMBO BOX ACCOUNT) -------------------- */
 function addRow() {
   const tbody = $("#items-body");
@@ -389,11 +548,17 @@ function addRow() {
     switch(i) {
       case 0: // DESCRIPTION
         return `<td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea></td>`;
-      case 1: // ACCOUNT
-        return `<td class="Acc-col" style="position:relative;">
-                  <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
-                  <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
-                </td>`;
+      case 1: // ACCOUNT + EWT
+  return `<td class="Acc-col" style="position:relative;">
+  <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
+  <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+
+  <div style="margin-top:6px;">
+    ${buildEWTSelectHTML()}
+  </div>
+</td>
+`;
+
       case 2: // QTY
         return `<td><input type="number" class="input-short" name="qty[]" value="0" oninput="updateAmount(this)"></td>`;
       case 3: // RATE
@@ -409,7 +574,10 @@ function addRow() {
 
   // Populate account combo box
   const selInput = row.querySelector('.account-input');
-  if (selInput && window._coaAccounts) setupAccountCombo(selInput, window._coaAccounts);
+  if (selInput && window._coaAccounts && !selInput.dataset.initialized) {
+  setupAccountCombo(selInput, window._coaAccounts);
+  selInput.dataset.initialized = 'true';
+}
 
   // Auto-resize description textarea
   const descTextarea = row.querySelector('.item-desc');
@@ -428,32 +596,6 @@ function removeRow() {
   adjustColumnWidths();
 }
 
-/* -------------------- 8. EWT OPTIONS -------------------- */
-async function loadEWTOptions() {
-  const ewtSelect = document.getElementById('withholdingTax');
-  if (!ewtSelect) return;
-
-  try {
-    const res = await fetch('/api/ewt');
-    if (!res.ok) throw new Error('Failed to fetch EWT');
-    const data = await res.json();
-
-    window._ewtRates = data;
-    ewtSelect.innerHTML = `<option value="0">-- Select EWT --</option>`;
-
-    data.forEach(ewt => {
-      const opt = document.createElement('option');
-      opt.value = ewt.tax_rate;
-      opt.textContent = `${ewt.code} (${ewt.tax_rate}%)`;
-      ewtSelect.appendChild(opt);
-    });
-
-    ewtSelect.addEventListener('change', () => calculateTotals());
-  } catch (err) {
-    console.error('Failed to load EWT options:', err);
-  }
-}
-
 /* -------------------- 9. AMOUNT & TOTALS (PER-ACCOUNT TAX) -------------------- */
 function updateAmount(input) {
   const row = input.closest("tr");
@@ -466,12 +608,13 @@ function updateAmount(input) {
 }
 
 
-// -------------------- CALCULATE TOTALS (with exchange rate) --------------------
+// -------------------- CALCULATE TOTALS (with exchange rate, NO EWT) --------------------
 function calculateTotals() {
   const rows = document.querySelectorAll('#items-body tr');
-  const exchangeRate = parseFloat(exchangeRateInput.value) || 1;
+  const exchangeRate = parseFloat(exchangeRateInput?.value) || 1;
 
   let subtotal = 0;
+
   let vatAmount = 0;
   let vatExemptAmount = 0;
   let zeroRatedAmount = 0;
@@ -479,48 +622,68 @@ function calculateTotals() {
   let vatExemptSales = 0;
   let zeroRatedSales = 0;
 
+  // ✅ NEW: total withholding tax amount (sum of each row)
+  let withholdingTotal = 0;
+
   rows.forEach(row => {
-  const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
-  const rate = parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0;
-  const exchangeRate = parseFloat(exchangeRateInput.value) || 1;
+    const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
+    const rate = parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0;
 
-  const amt = qty * rate * exchangeRate; // apply exchange rate here
-  row.querySelector('[name="amt[]"]').value = amt.toFixed(2);
+    const lineAmt = qty * rate * exchangeRate;
 
-  subtotal += amt;
+    const amtEl = row.querySelector('[name="amt[]"]');
+    if (amtEl) amtEl.value = lineAmt.toFixed(2);
+
+    subtotal += lineAmt;
+
+    // ---- account lookup (for VAT/tax type + default ewt) ----
     const accountId = row.querySelector('[name="account[]"]')?.dataset.accountId || '';
     const account = window._coaAccounts?.find(acc => String(acc.id) === String(accountId));
     const taxType = account?.tax_type || 'vatable';
     const taxRate = parseFloat(account?.tax_rate || 0) / 100;
 
+    // VAT breakdown (your existing behavior)
     switch (taxType) {
       case 'exempt':
-        vatExemptSales += amt;
-        vatExemptAmount += amt * taxRate; // usually 0
+        vatExemptSales += lineAmt;
+        vatExemptAmount += lineAmt * taxRate;
         break;
       case 'zero':
-        zeroRatedSales += amt;
-        zeroRatedAmount += amt * taxRate; // usually 0
+        zeroRatedSales += lineAmt;
+        zeroRatedAmount += lineAmt * taxRate;
         break;
       case 'vatable':
       default:
-        vatAmount += amt * taxRate;
+        vatAmount += lineAmt * taxRate;
         break;
+    }
+
+    // ✅ NEW: per-row EWT (uses row override first, else account default)
+    const rowEwtId =
+      row.querySelector('.ewt-select')?.value ||
+      (account?.ewt_id ? String(account.ewt_id) : '');
+
+    if (rowEwtId) {
+      const e = window._ewtList?.find(x => String(x.id) === String(rowEwtId));
+      const ewtRate = e ? (Number(e.tax_rate) / 100) : 0;
+
+      if (ewtRate > 0) {
+        // Base = line amount (same amount you show per row)
+        withholdingTotal += lineAmt * ewtRate;
+      }
     }
   });
 
   // -------------------- DISCOUNT --------------------
   let discountRate = parseFloat(document.querySelector('#discount')?.value) || 0;
   if (discountRate > 1) discountRate /= 100;
+
   const discountAmount = subtotal * discountRate;
   const subtotalAfterDiscount = subtotal - discountAmount;
 
-  // -------------------- EWT --------------------
-  const ewtRate = parseFloat(document.querySelector('#withholdingTax')?.value) || 0;
-  const ewtAmount = subtotalAfterDiscount * (ewtRate / 100);
-
   // -------------------- VAT TYPE HANDLING --------------------
   const vatType = document.querySelector('#vatType')?.value || 'inclusive';
+
   let vatable = 0;
   let finalTotal = 0;
   let displaySubtotal = 0;
@@ -529,21 +692,26 @@ function calculateTotals() {
     case 'inclusive':
       vatable = subtotal - vatExemptSales - zeroRatedSales - vatAmount;
       displaySubtotal = subtotalAfterDiscount;
-      finalTotal = subtotalAfterDiscount - ewtAmount;
+      finalTotal = subtotalAfterDiscount;
       break;
+
     case 'exclusive':
       vatable = subtotal - vatExemptSales - zeroRatedSales;
       displaySubtotal = subtotalAfterDiscount + vatAmount;
-      finalTotal = subtotalAfterDiscount + vatAmount - ewtAmount;
+      finalTotal = subtotalAfterDiscount + vatAmount;
       break;
+
     case 'exempt':
     case 'zero':
     default:
       vatable = subtotal - vatExemptSales - zeroRatedSales;
       displaySubtotal = subtotalAfterDiscount;
-      finalTotal = subtotalAfterDiscount - ewtAmount;
+      finalTotal = subtotalAfterDiscount;
       break;
   }
+
+  // ✅ NEW: subtract withholding from total due
+  const totalDueAfterWithholding = finalTotal - withholdingTotal;
 
   // -------------------- UPDATE DOM --------------------
   safeSetValue('#subtotal', displaySubtotal.toFixed(2));
@@ -553,13 +721,16 @@ function calculateTotals() {
   safeSetValue('#vatExemptAmount', vatExemptAmount.toFixed(2));
   safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2));
   safeSetValue('#vatZeroRatedAmount', zeroRatedAmount.toFixed(2));
-  safeSetValue('#withholdingTaxAmount', ewtAmount.toFixed(2));
-  safeSetValue('#totalPayable', finalTotal.toFixed(2));
+
+  // ✅ NEW fields
+  safeSetValue('#withholdingTaxAmount', withholdingTotal.toFixed(2));
+  safeSetValue('#totalPayable', totalDueAfterWithholding.toFixed(2));
 }
 
 // -------------------- EVENT LISTENERS --------------------
 document.getElementById('vatType')?.addEventListener('change', calculateTotals);
 document.getElementById('discount')?.addEventListener('input', calculateTotals);
+
 
 /* -------------------- 10. ADJUST COLUMN WIDTHS -------------------- */
 function adjustColumnWidths() {
@@ -705,7 +876,7 @@ async function saveToDatabase() {
 
     const params = new URLSearchParams(window.location.search);
 
-    // 🧠 ENTERPRISE EDIT DETECTION
+    //  ENTERPRISE EDIT DETECTION
     const isEdit =
       params.get('edit') === 'true' ||
       params.get('invoice_no') !== null;
@@ -720,13 +891,16 @@ async function saveToDatabase() {
     const items = rows.map(row => {
 
       const item = {
-        description: row.querySelector('[name="desc[]"]')?.value || "",
-        quantity: parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0,
-        unit_price: parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0,
-        amount: parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0,
-        account_id:
-          row.querySelector('[name="account[]"]')?.dataset.accountId || ""
-      };
+  description: row.querySelector('[name="desc[]"]')?.value || "",
+  quantity: parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0,
+  unit_price: parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0,
+  amount: parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0,
+  account_id: row.querySelector('[name="account[]"]')?.dataset.accountId || "",
+  ewt_id: row.querySelector('.ewt-select')?.value
+    ? Number(row.querySelector('.ewt-select').value)
+    : null,
+};
+
 
       extraColumns.forEach(col => {
         item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '';
@@ -751,12 +925,11 @@ async function saveToDatabase() {
       items,
       extra_columns: extraColumns,
       tax_summary: { 
-        subtotal: parseFloat($('#subtotal')?.value) || 0,
-        vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
-        vat_amount: parseFloat($('#vatAmount')?.value) || 0,
-        withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
-        total_payable: parseFloat($('#totalPayable')?.value) || 0
-      },
+  subtotal: parseFloat($('#subtotal')?.value) || 0,
+  vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
+  vat_amount: parseFloat($('#vatAmount')?.value) || 0,
+  total_payable: parseFloat($('#totalPayable')?.value) || 0
+},
       footer: {
     atp_no: getFooterValue('footerAtpNo'),
     atp_date: getFooterValue('footerAtpDate'),
@@ -819,28 +992,30 @@ window.addEventListener('DOMContentLoaded', async () => {
   const allowed = await requireAnyRole(['super', 'approver', 'submitter']);
   if (!allowed) return;
 
-  // ======= 1️⃣ AUTO-FILL DATES =======
+  // ======= AUTO-FILL DATES =======
   autofillDates();
 
-  // ======= 2️⃣ LOAD ACCOUNTS =======
+  // =======  LOAD EWT OPTIONS =======
+  await loadEWTList();
+   ensureEWTOnExistingRows();
+  refreshAllEWTSelects();
+  
+  // ======= LOAD ACCOUNTS =======
   await loadAccounts();
 
-  // ======= 3️⃣ LOAD COMPANY INFO =======
+  // =======  LOAD COMPANY INFO =======
   await loadCompanyInfo();
 
-  // ======= 4️⃣ LOAD NEXT INVOICE NO =======
+  // ======= LOAD NEXT INVOICE NO =======
   await loadNextInvoiceNo();
 
-  // ======= 5️⃣ SET INVOICE TITLE =======
+  // =======  SET INVOICE TITLE =======
   setInvoiceTitleFromURL();
 
-  // ======= 6️⃣ LOAD INVOICE FOR EDIT (if editing) =======
+  // =======  LOAD INVOICE FOR EDIT (if editing) =======
   await loadInvoiceForEdit();
 
-  // ======= 7️⃣ LOAD EWT OPTIONS =======
-  await loadEWTOptions();
-  
-    // ======= 9️⃣ ADJUST COLUMN WIDTHS =======
+    // =======  ADJUST COLUMN WIDTHS =======
   adjustColumnWidths();
 });
 
@@ -1206,8 +1381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   } else {
     DBG.warn('saveCloseBtn not found in DOM');
-  }
-
+  } 
   document.addEventListener('click', (e) => {
     if (!dropdownContainer.contains(e.target) && e.target !== saveCloseBtn) {
       dropdownContainer.style.display = 'none';
@@ -1318,7 +1492,6 @@ function getInvoiceData() {
     zeroRatedSales: form.querySelector('#zeroRatedSales')?.value || '0.00',
     subtotal: form.querySelector('#subtotal')?.value || '0.00',
     discount: form.querySelector('#discount')?.value || '0.00',
-    withholdingTax: form.querySelector('#withholdingTaxAmount')?.value || '0.00',
     totalPayable: form.querySelector('#totalPayable')?.value || '0.00',
     footer_bir_permit: form.querySelector('[name="footerBirPermit"]')?.value || '',
     footer_bir_date: form.querySelector('[name="footerBirDate"]')?.value || '',
@@ -1399,8 +1572,6 @@ function updatePreview() {
     { id: 'zeroRatedSales', value: data.zeroRatedSales },
     { id: 'subtotal', value: data.subtotal },
     { id: 'discount', value: data.discount },
-    { id: 'withholdingTax', value: parseFloat(data.withholdingTax) || 0 },
-    { id: 'withholdingTaxAmount', value: data.withholdingTax },
     { id: 'totalPayable', value: data.totalPayable }
   ];
 
@@ -1417,7 +1588,7 @@ function updatePreview() {
     } else {
       el.textContent = formatCurrency(f.value ?? 0);
     }
-  });
+  }); 
 
   // ---------- FOOTER ----------
   const footerFields = [

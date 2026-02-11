@@ -277,6 +277,7 @@ tr:hover {
 .action-btn.approve { background:#198754; color:#fff; }
 .action-btn.pay     { background:#0d6efd; color:#fff; }
 .action-btn.cancel  { background:#ffc107; color:#000; }
+.action-btn.return  { background:#ff9900; color:#fff; }
 
 .export-dropdown {
   position: absolute;
@@ -312,4 +313,8 @@ tr:hover {
 
 .export-wrapper {
   position: relative; /* anchor for dropdown */
+}
+.status-badge.status-returned {
+  background: #ff9900;
+  color: #5a3b00;
 }

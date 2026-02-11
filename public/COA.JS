@@ -78,39 +78,67 @@ taxRateSelect?.addEventListener("change", () => {
   }
 });
 
-// --- Load EWT ---
 async function loadEWT() {
   try {
     const res = await fetch("/api/ewt");
-    ewtList = await res.json();
-    ewtSelect.innerHTML = `<option value="">-- Select EWT --</option>`;
-    ewtList.forEach(e => {
-      const opt = document.createElement("option");
-      opt.value = e.id;
-      opt.textContent = `${e.code} (${e.tax_rate}%)`;
-      ewtSelect.appendChild(opt);
-    });
-  } catch (err) { console.error("Failed to load EWT:", err); }
+    if (!res.ok) throw new Error("Failed to fetch EWT");
+
+    const data = await res.json();
+
+    // normalize keys + types
+    ewtList = (data || []).map(e => ({
+      id: Number(e.id),
+      code: e.code || e.ewt_code || e.name || '',
+      tax_rate: Number(e.tax_rate ?? e.taxRate ?? e.rate ?? 0)
+    }));
+
+    if (ewtSelect) {
+      ewtSelect.innerHTML = `<option value="">-- Select EWT --</option>`;
+      ewtList.forEach(e => {
+        const opt = document.createElement("option");
+        opt.value = String(e.id);
+        opt.textContent = `${e.code} (${e.tax_rate}%)`;
+        ewtSelect.appendChild(opt);
+      });
+    }
+  } catch (err) {
+    console.error("Failed to load EWT:", err);
+    ewtList = [];
+    if (ewtSelect) ewtSelect.innerHTML = `<option value="">-- Select EWT --</option>`;
+  }
 }
+
 
 // --- Load COA ---
 async function loadCOA() {
   try {
     const res = await fetch("/api/coa");
+    if (!res.ok) throw new Error("Failed to fetch COA");
+
     const data = await res.json();
-    accounts = data.map(a => ({
-      id: a.id,
-      code: a.code,
+
+    accounts = (data || []).map(a => ({
+      id: Number(a.id),
+      code: a.code || "",
       date: a.date || "",
-      title: a.title,
-      classType: a.class_type,
-      taxRate: a.tax_rate ?? 0, // FIX: prevent undefined tax rates
-      ewtId: a.ewt_id || null,
-      archived: a.archived || 0
+      title: a.title || "",
+      classType: a.class_type || "A",
+      taxRate: Number(a.tax_rate ?? 0),
+
+      // ✅ IMPORTANT: normalize ewt_id to number or null
+      ewtId: (a.ewt_id === null || a.ewt_id === undefined || a.ewt_id === "" || Number.isNaN(Number(a.ewt_id)))
+        ? null
+        : Number(a.ewt_id),
+
+      archived: Number(a.archived || 0)
     }));
-    refreshTable(document.querySelector(".tab.active").textContent.trim());
-  } catch (err) { console.error("Failed to load COA:", err); }
+
+    refreshTable(document.querySelector(".tab.active")?.textContent.trim() || "All Accounts");
+  } catch (err) {
+    console.error("Failed to load COA:", err);
+  }
 }
+
 
 // --- Save Account ---
 saveBtn?.addEventListener("click", async (e) => {
@@ -131,7 +159,7 @@ saveBtn?.addEventListener("click", async (e) => {
   }
 
   // --- Get EWT selection ---
-  const selectedEWT = ewtSelect.value || null;
+  const selectedEWT = ewtSelect?.value ? Number(ewtSelect.value) : null;
 
   const acc = {
     code: codeInput.value,
@@ -367,12 +395,13 @@ function refreshTable(filter="All Accounts") {
     const taxLabel = acc.taxRate == 0 ? "Tax Exempt (0%)" : parseFloat(acc.taxRate) + "%";
 
     // Map ewtId to ewt code and tax
-    const ewtLabel = acc.ewtId
-      ? (() => {
-          const e = ewtList.find(x => Number(x.id) === Number(acc.ewtId));
-          return e ? `${e.code} (${e.tax_rate}%)` : "-";
-        })()
-      : "-";
+    const ewtLabel = (() => {
+  if (!acc.ewtId) return "-";
+  const e = ewtList.find(x => Number(x.id) === Number(acc.ewtId));
+  if (!e) return `EWT#${acc.ewtId}`; // ✅ shows it's saved but not found in list
+  return `${e.code} (${e.tax_rate}%)`;
+})();
+
 
     const tr = document.createElement("tr");
     tr.dataset.index = accounts.indexOf(acc);

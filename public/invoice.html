@@ -217,10 +217,22 @@
 <textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea>
 </td>
 
-      <td class="Acc-col">
-<input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
-<div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+      <td class="Acc-col" style="position:relative;">
+  <input type="text" name="account[]" class="input-full account-input"
+         placeholder="+ Create New Account" autocomplete="off">
+
+  <div class="account-dropdown"
+       style="display:none; position:absolute; background:white; border:1px solid #ccc;
+              max-height:150px; overflow:auto; z-index:999;"></div>
+
+  <!-- ✅ EWT selector (first row) -->
+  <div style="margin-top:6px;">
+    <select class="input-short ewt-select" name="ewt_id[]">
+      <option value="">Default</option>
+    </select>
+  </div>
 </td>
+
       <td><input type="number" class="input-short" name="qty[]" oninput="updateAmount(this)" /></td>
       <td><input type="number" class="input-short" name="rate[]" oninput="updateAmount(this)" /></td>
       <td><input type="number" class="input-short" name="amt[]" readonly /></td>
@@ -283,14 +295,17 @@
       </td>
     </tr>
     <tr>
-      <td>Less: Withholding Tax</td>
-      <td style="display: flex; align-items: center; gap: 8px;">
-        <input type="number" step="0.01" id="withholdingTaxAmount" name="withholdingTaxAmount" value="0.00" class="input-full" readonly>
-        <select id="withholdingTax" name="withholdingTax" class="input-short">
-          <option value="0">-- Select EWT --</option>
-        </select>
-      </td>
-    </tr>
+      <tr>
+  <td>Less: Withholding Tax</td>
+  <td>
+    <input type="number" step="0.01"
+           id="withholdingTaxAmount"
+           name="withholdingTaxAmount"
+           value="0.00"
+           class="input-full"
+           readonly>
+  </td>
+</tr>
     <tr>
       <td>Total Amount Due</td>
       <td><input type="number" step="0.01" id="totalPayable" name="totalPayable" value="0.00" class="input-full" readonly></td>
@@ -428,7 +443,8 @@
 
 
 
-<script src="/js/shortcuts.js"></script>
+
 <script type="module" src="EINVOICING.js"></script>
 </body>
 </html>
+ 
