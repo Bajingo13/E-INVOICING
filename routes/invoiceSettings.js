@@ -11,7 +11,24 @@ const { PERMISSIONS } = require('../config/permissions');
 // Allowed values for Xero-like Tax Defaults
 const TAX_DEFAULTS_ALLOWED = new Set(['inclusive', 'exclusive', 'exempt', 'zero']);
 
-// ---------------------- GET INVOICE SETTINGS ----------------------
+// ✅ Only 2 modes (as you requested)
+const NUMBERING_MODES_ALLOWED = new Set(['auto', 'manual']);
+
+function normalizeMode(v) {
+  const val = String(v || '').trim().toLowerCase();
+  return NUMBERING_MODES_ALLOWED.has(val) ? val : 'auto';
+}
+
+// start_number must be >= 1 (we'll store last_number = start-1)
+function normalizeStartNumber(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.floor(n);
+}
+
+/* =========================================================
+   GET INVOICE SETTINGS
+========================================================= */
 router.get(
   '/',
   requireLogin,
@@ -26,6 +43,7 @@ router.get(
         return res.json({
           prefix: 'INV-',
           last_number: '0',
+          numbering_mode: 'auto',
           layout: 'standard',
           sales_tax_default: 'inclusive',
           purchase_tax_default: 'inclusive'
@@ -37,6 +55,7 @@ router.get(
       res.json({
         prefix: r.prefix || 'INV-',
         last_number: (r.last_number ?? 0).toString(),
+        numbering_mode: r.numbering_mode || 'auto',
         layout: r.layout || 'standard',
         sales_tax_default: r.sales_tax_default || 'inclusive',
         purchase_tax_default: r.purchase_tax_default || 'inclusive'
@@ -50,7 +69,89 @@ router.get(
   }
 );
 
-// ---------------------- UPDATE INVOICE PREFIX ----------------------
+/* =========================================================
+   UPDATE NUMBERING MODE (AUTO / MANUAL) + OPTIONAL START NUMBER
+   Body:
+   {
+     "numbering_mode": "auto" | "manual",
+     "start_number": 1001 (optional, only meaningful when auto)
+   }
+========================================================= */
+router.post(
+  '/numbering',
+  requireLogin,
+  requirePermission(PERMISSIONS.INVOICE_SETTINGS),
+  async (req, res) => {
+    const mode = normalizeMode(req.body.numbering_mode);
+    const startNumber = normalizeStartNumber(req.body.start_number);
+
+    let conn;
+    try {
+      conn = await getConn();
+      await conn.beginTransaction();
+
+      // Lock counter row
+      const [rows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1 FOR UPDATE');
+      if (!rows.length) {
+        await conn.rollback();
+        return res.status(404).json({ message: 'Invoice counter not initialized' });
+      }
+
+      const counter = rows[0];
+      let newLastNumber = BigInt(counter.last_number || 0);
+
+      // ✅ If switching to AUTO and start_number provided:
+      // set last_number = start_number - 1 so next generated = start_number
+      if (mode === 'auto' && startNumber !== null) {
+        const desiredNext = BigInt(startNumber);
+
+        if (desiredNext < 1n) {
+          await conn.rollback();
+          return res.status(400).json({ message: 'Start number must be >= 1' });
+        }
+
+        // Validate against existing invoices:
+        const [maxRows] = await conn.execute(
+          `SELECT MAX(CAST(REGEXP_REPLACE(invoice_no, '^[^0-9]+', '') AS UNSIGNED)) AS max_no
+           FROM invoices`
+        );
+        const maxInvoice = BigInt(maxRows?.[0]?.max_no || 0);
+
+        if (desiredNext <= maxInvoice) {
+          await conn.rollback();
+          return res.status(400).json({
+            message: `Start number must be greater than existing max invoice number (${maxInvoice.toString()})`
+          });
+        }
+
+        newLastNumber = desiredNext - 1n;
+      }
+
+      await conn.execute(
+        'UPDATE invoice_counter SET numbering_mode=?, last_number=? WHERE id=?',
+        [mode, newLastNumber.toString(), counter.id]
+      );
+
+      await conn.commit();
+
+      res.json({
+        success: true,
+        numbering_mode: mode,
+        last_number: newLastNumber.toString()
+      });
+    } catch (err) {
+      try { await conn?.rollback(); } catch {}
+      console.error(err);
+      res.status(500).json({ message: 'Failed to update numbering settings' });
+    } finally {
+      if (conn) conn.release();
+    }
+  }
+);
+
+/* =========================================================
+   UPDATE INVOICE PREFIX
+========================================================= */
 router.post(
   '/prefix',
   requireLogin,
@@ -76,55 +177,74 @@ router.post(
   }
 );
 
-// ---------------------- UPDATE NEXT INVOICE NUMBER ----------------------
+/* =========================================================
+   UPDATE NEXT INVOICE NUMBER (SET NEXT)
+   Body: { next_number: 100001 }
+   ✅ FIXED: stores last_number = next_number - 1
+========================================================= */
 router.post(
   '/next-number',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_SETTINGS),
   async (req, res) => {
-    const { next_number } = req.body;
+    const nextRaw = req.body?.next_number;
 
-    if (!next_number || Number(next_number) < 100000) {
-      return res.status(400).json({ message: 'Next invoice number must be at least 6 digits' });
+    const next = BigInt(Number(nextRaw));
+    if (!nextRaw || next < 1n) {
+      return res.status(400).json({ message: 'Next invoice number must be at least 1' });
     }
 
     let conn;
     try {
       conn = await getConn();
+      await conn.beginTransaction();
 
-      // 1. Get current last_number and prefix
-      const [counterRows] = await conn.execute('SELECT last_number, prefix FROM invoice_counter LIMIT 1');
-      const currentLast = BigInt(counterRows?.[0]?.last_number || 0);
-      const prefix = counterRows?.[0]?.prefix || 'INV-';
+      // Lock counter row
+      const [counterRows] = await conn.execute(
+        'SELECT id, last_number, prefix FROM invoice_counter LIMIT 1 FOR UPDATE'
+      );
+      if (!counterRows.length) {
+        await conn.rollback();
+        return res.status(404).json({ message: 'Invoice counter not initialized' });
+      }
 
-      const next = BigInt(next_number);
+      const counter = counterRows[0];
+      const currentLast = BigInt(counter.last_number || 0);
+      const prefix = counter.prefix || 'INV-';
 
-      // 2. Must be greater than current last_number
-      if (next <= currentLast) {
+      // next must be > current last+1? (we only enforce it doesn’t go backwards)
+      // If you want strictly increasing, compare against (currentLast + 1n)
+      const currentNext = currentLast + 1n;
+      if (next < currentNext) {
+        await conn.rollback();
         return res.status(400).json({
-          message: `Next invoice number must be greater than current last number (${currentLast})`
+          message: `Next invoice number cannot be lower than the current next number (${currentNext.toString()})`
         });
       }
 
-      // 3. Check if invoice_no already exists
+      // Check if that exact invoice_no already exists
       const nextInvoiceNo = `${prefix}${String(next).padStart(6, '0')}`;
       const [exists] = await conn.execute(
         'SELECT COUNT(*) AS count FROM invoices WHERE invoice_no = ?',
         [nextInvoiceNo]
       );
-
       if (exists?.[0]?.count > 0) {
+        await conn.rollback();
         return res.status(400).json({ message: 'This invoice number already exists' });
       }
 
-      // 4. Save new number
+      // ✅ store last_number = next - 1 so next generated equals next
+      const newLast = next - 1n;
+
       await conn.execute(
-        'UPDATE invoice_counter SET last_number = ? WHERE id = 1',
-        [next.toString()]
+        'UPDATE invoice_counter SET last_number = ? WHERE id = ?',
+        [newLast.toString(), counter.id]
       );
 
-      res.json({ success: true, last_number: next.toString() });
+      await conn.commit();
+      res.json({ success: true, last_number: newLast.toString() });
     } catch (err) {
+      try { await conn?.rollback(); } catch {}
       console.error(err);
       res.status(500).json({ message: 'Failed to update next invoice number' });
     } finally {
@@ -133,7 +253,9 @@ router.post(
   }
 );
 
-// ---------------------- UPDATE LAYOUT ----------------------
+/* =========================================================
+   UPDATE LAYOUT
+========================================================= */
 router.post(
   '/layout',
   requireLogin,
@@ -156,7 +278,9 @@ router.post(
   }
 );
 
-// ---------------------- UPDATE TAX DEFAULTS (XERO-LIKE) ----------------------
+/* =========================================================
+   UPDATE TAX DEFAULTS (XERO-LIKE)
+========================================================= */
 router.post(
   '/tax-defaults',
   requireLogin,
@@ -175,17 +299,12 @@ router.post(
     let conn;
     try {
       conn = await getConn();
-
       await conn.execute(
         'UPDATE invoice_counter SET sales_tax_default = ?, purchase_tax_default = ? WHERE id = 1',
         [sales_tax_default, purchase_tax_default]
       );
 
-      res.json({
-        success: true,
-        sales_tax_default,
-        purchase_tax_default
-      });
+      res.json({ success: true, sales_tax_default, purchase_tax_default });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: 'Failed to update tax defaults' });

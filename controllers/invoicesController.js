@@ -1,8 +1,12 @@
 'use strict';
 
 const { getConn } = require('../helpers/db');
-const { generateInvoiceNo } = require('../utils/invoiceCounter');
 const fetch = require('node-fetch');
+const {
+  generateInvoiceNo,
+  previewNextInvoiceNo,
+  getInvoiceCounter
+} = require('../utils/invoiceCounter');
 
 const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount', 'account_id'];
 
@@ -86,12 +90,8 @@ async function getCompanyInfo(req, res) {
 /* =========================================================
    CREATE INVOICE (POST)
 ========================================================= */
-
 async function createInvoice(req, res) {
   const data = { ...req.body };
-
-  // Ignore invoice_no if client sends it
-  if (data.invoice_no) delete data.invoice_no;
 
   if (!data.bill_to || !data.date || !Array.isArray(data.items) || !data.items.length) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -100,15 +100,43 @@ async function createInvoice(req, res) {
   const conn = await getConn();
 
   try {
+    // Determine numbering mode (no lock needed here)
+    const counter = await getInvoiceCounter(conn);
+    const mode = String(counter.numbering_mode || 'auto').toLowerCase();
+
+    let invoiceNo = '';
+
+    // ---------- MANUAL MODE: validate invoice_no BEFORE transaction ----------
+    if (mode === 'manual') {
+      invoiceNo = String(data.invoice_no || '').trim();
+
+      if (!invoiceNo) {
+        return res.status(400).json({ error: 'Invoice number is required (manual mode)' });
+      }
+
+      // Optional but recommended: prevent duplicates early
+      const [exists] = await conn.execute(
+        'SELECT COUNT(*) AS count FROM invoices WHERE invoice_no = ?',
+        [invoiceNo]
+      );
+
+      if ((exists?.[0]?.count || 0) > 0) {
+        return res.status(400).json({ error: 'Invoice number already exists' });
+      }
+    }
+
+    // ---------- Start transaction for both modes ----------
     await conn.beginTransaction();
 
     const currency = (data.currency || 'PHP').toUpperCase();
     const exchangeRate = await getExchangeRate(currency);
 
-    // Server is the ONLY source of truth for invoice number
-    const invoiceNo = await generateInvoiceNo(conn);
+    // ---------- AUTO MODE: generate invoice no INSIDE transaction ----------
+    if (mode === 'auto') {
+      invoiceNo = await generateInvoiceNo(conn);
+    }
 
-    // ✅ FIX: save vat_type from client (or default)
+    // ✅ Save vat_type from client (or default)
     const vatType = normalizeVatType(data.vat_type);
 
     const [result] = await conn.execute(
@@ -116,7 +144,7 @@ async function createInvoice(req, res) {
        (invoice_no, invoice_mode, invoice_category, invoice_type,
         bill_to, address, tin, terms,
         currency, exchange_rate,
-        vat_type,                 -- ✅
+        vat_type,
         date, due_date,
         total_amount_due, foreign_total,
         logo, extra_columns,
@@ -134,7 +162,7 @@ async function createInvoice(req, res) {
         data.terms || null,
         currency,
         exchangeRate,
-        vatType,                  // ✅
+        vatType,
         data.date,
         data.due_date || null,
         data.logo || null,
@@ -173,6 +201,12 @@ async function createInvoice(req, res) {
   } catch (err) {
     await conn.rollback();
     console.error('Create invoice error:', err);
+
+    // If you add a UNIQUE KEY on invoices.invoice_no, duplicate manual numbers will hit this:
+    if (err && err.code === 'ER_DUP_ENTRY') {
+      return res.status(400).json({ error: 'Invoice number already exists' });
+    }
+
     res.status(500).json({ error: 'Failed to create invoice' });
   } finally {
     conn.release();
@@ -357,20 +391,17 @@ async function deleteInvoice(req, res) {
 async function nextInvoiceNo(req, res) {
   const conn = await getConn();
   try {
-    const [rows] = await conn.execute('SELECT * FROM invoice_counter LIMIT 1');
-    const counter = rows[0];
-
-    const [[max]] = await conn.execute(
-      `SELECT MAX(CAST(SUBSTRING(invoice_no, ?) AS UNSIGNED)) AS max_no FROM invoices`,
-      [counter.prefix.length + 1]
-    );
-
-    const next = Math.max(counter.last_number || 0, max.max_no || 0) + 1;
-    res.json({ invoiceNo: `${counter.prefix}${String(next).padStart(6, '0')}` });
+    // ✅ returns: { mode:'auto'|'manual', invoiceNo:'', prefix:'INV-' }
+    const out = await previewNextInvoiceNo(conn);
+    res.json(out);
+  } catch (err) {
+    console.error('nextInvoiceNo error:', err);
+    res.status(500).json({ error: 'Failed to get next invoice number' });
   } finally {
     conn.release();
   }
 }
+
 
 /* =========================================================
    SHARED INSERTS

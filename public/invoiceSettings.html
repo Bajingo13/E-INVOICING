@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Invoice Settings</title>
-  <link rel="stylesheet" href="invoiceSettings.css">
+  <link rel="stylesheet" href="invoiceSettings.css" />
 </head>
 <body>
   <main class="settings-container">
@@ -27,30 +27,56 @@
       <span id="layoutMsg" class="save-msg"></span>
     </section>
 
-    <!-- ================== INVOICE PREFIX & NUMBER ================== -->
+    <!-- ================== INVOICE NUMBERING ================== -->
     <section class="setting-box" id="prefixBox">
-      <h2>Invoice Prefix & Current Number</h2>
-      <p>View the current invoice prefix and last used number. You may override the next number to use more digits if needed.</p>
+      <h2>Invoice Prefix & Numbering</h2>
+      <p>Control how invoice numbers are generated and what prefix is used.</p>
 
+      <!-- Mode toggle -->
+      <div class="field">
+        <label>Numbering Mode:</label>
+
+        <div class="mode-toggle" role="group" aria-label="Numbering Mode">
+          <button type="button" id="modeAutoBtn" class="seg-btn" data-mode="auto">Auto</button>
+          <button type="button" id="modeManualBtn" class="seg-btn" data-mode="manual">Manual</button>
+        </div>
+
+        <button id="saveNumberingMode" class="btn">Save Mode</button>
+      </div>
+
+      <div class="helper" id="modeHelp">
+        In <b>AUTO</b> mode, the system generates invoice numbers. In <b>MANUAL</b> mode, users must type invoice numbers.
+      </div>
+      <span id="modeMsg" class="save-msg"></span>
+
+      <hr class="divider" />
+
+      <!-- Prefix -->
       <div class="field">
         <label for="invoicePrefix">Prefix:</label>
-        <input type="text" id="invoicePrefix" name="invoicePrefix">
+        <input type="text" id="invoicePrefix" name="invoicePrefix" placeholder="e.g. INV-">
         <button id="savePrefix" class="btn">Save Prefix</button>
       </div>
-
-      <div class="field">
-        <label for="currentInvoiceNo">Last Invoice Number Used:</label>
-        <input type="number" id="currentInvoiceNo" name="currentInvoiceNo" readonly>
-      </div>
-
-      <div class="field">
-        <label for="nextInvoiceNo">Set Next Invoice Number (optional, ≥ 6 digits):</label>
-        <input type="number" id="nextInvoiceNo" name="nextInvoiceNo" placeholder="Enter only if overriding" min="100000">
-      </div>
-
-      <button id="saveNextInvoice" class="btn">Save Next Invoice Number</button>
-
       <span id="prefixMsg" class="save-msg"></span>
+
+      <!-- Last number -->
+      <div class="field">
+        <label for="currentInvoiceNo">Last Number Used:</label>
+        <input type="text" id="currentInvoiceNo" name="currentInvoiceNo" readonly>
+        <span class="ghost-btn" aria-hidden="true"></span>
+      </div>
+
+      <!-- Next number (AUTO only) -->
+      <div class="field" id="nextNumberRow">
+        <label for="startNumber">Set Next Number (AUTO):</label>
+        <input type="number" id="startNumber" name="startNumber" placeholder="e.g. 100001" min="1">
+        <button id="saveStartNumber" class="btn">Save Next</button>
+      </div>
+
+      <div class="helper" id="startNumberHelp">
+        Sets the next generated invoice number in AUTO mode. Example: entering <b>100001</b> makes the next invoice become <b>INV-100001</b>.
+      </div>
+
       <span id="nextNumberMsg" class="save-msg"></span>
     </section>
 

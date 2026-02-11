@@ -233,16 +233,47 @@ async function loadCompanyInfo() {
 }
 
 /* -------------------- 3. NEXT INVOICE NO -------------------- */
+window.__NUMBERING_MODE__ = 'auto';
+
 async function loadNextInvoiceNo() {
   try {
-    const res = await fetch('/api/next-invoice-no');
-    const data = await res.json();
-    const invoiceInput = document.querySelector('input[name="invoiceNo"]');
-    if (invoiceInput) invoiceInput.value = data.invoiceNo || '';
+    const params = new URLSearchParams(window.location.search);
+    const isEdit = params.get('edit') === 'true' || params.get('invoice_no');
+
+    // ✅ do not override invoice no when editing
+    if (isEdit) return;
+
+    const res = await fetch('/api/next-invoice-no', { credentials: 'include' });
+    if (!res.ok) throw new Error('Failed to fetch next invoice number');
+
+    const data = await res.json(); // expected: { mode:'auto'|'manual', invoiceNo:'', prefix:'' }
+
+    const invoiceInput =
+      document.querySelector('input[name="invoiceNo"]') ||
+      document.getElementById('invoice_no');
+
+    if (!invoiceInput) return;
+
+    const mode = String(data.mode || 'auto').toLowerCase();
+    window.__NUMBERING_MODE__ = mode;
+
+    if (mode === 'manual') {
+      // ✅ manual: user must type invoice number
+      invoiceInput.value = '';
+      invoiceInput.readOnly = false;
+      invoiceInput.classList.remove('locked');
+      invoiceInput.placeholder = 'Enter invoice number';
+    } else {
+      // ✅ auto: server generated, lock field
+      invoiceInput.value = data.invoiceNo || '';
+      invoiceInput.readOnly = true;
+      invoiceInput.classList.add('locked');
+    }
   } catch (err) {
     console.error('Failed to fetch next invoice number', err);
   }
 }
+
 
 /* -------------------- 4. INVOICE TITLE -------------------- */
 function setInvoiceTitleFromURL() {
@@ -267,6 +298,8 @@ async function loadInvoiceForEdit() {
   const isEdit = params.get('edit') === 'true';
   if (!invoiceNo || !isEdit) return;
 
+  window.__NUMBERING_MODE__ = 'manual';
+  
   try {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
     if (!res.ok) throw new Error('Failed to fetch invoice');
@@ -277,6 +310,11 @@ async function loadInvoiceForEdit() {
     setInputValue('tin', data.tin || '');
     setInputValue('terms', data.terms || '');
     setInputValue('invoiceNo', data.invoice_no || '');
+    const invEl = document.querySelector('input[name="invoiceNo"]');
+if (invEl) {
+  invEl.readOnly = true;
+  invEl.classList.add('locked');
+}
     setInputValue('date', dateToYYYYMMDD(data.date));
     setInputValue('invoiceMode', data.invoice_mode || 'standard');
     setInputValue('invoiceCategory', data.invoice_category || 'service');
@@ -866,13 +904,19 @@ async function saveToDatabase() {
   try {
 
     const billTo = getInputValue('billTo');
-    const invoiceNo = getInputValue('invoiceNo');
-    const date = getInputValue('date');
+const invoiceNo = getInputValue('invoiceNo');
+const date = getInputValue('date');
 
-    if (!billTo || !invoiceNo || !date) {
-      alert("Fill Bill To, Invoice No, Date.");
-      return false;
-    }
+if (!billTo || !date) {
+  alert("Fill Bill To and Date.");
+  return false;
+}
+
+if (window.__NUMBERING_MODE__ === 'manual' && !invoiceNo) {
+  alert("Invoice No is required in manual mode.");
+  return false;
+}
+
 
     calculateTotals();
 
@@ -912,7 +956,6 @@ async function saveToDatabase() {
     });
 
     const payload = {
-      invoice_no: invoiceNo,
       bill_to: billTo,
       address: getInputValue('address'),
       tin: getInputValue('tin'),
@@ -947,7 +990,9 @@ async function saveToDatabase() {
     serial_nos: getFooterValue('footerSerialNos')
   }
     };
-
+if (window.__NUMBERING_MODE__ === 'manual') {
+  payload.invoice_no = invoiceNo;
+}
     const endpoint = isEdit
       ? `/api/invoices/${encodeURIComponent(invoiceNo)}`
       : '/api/invoices';
