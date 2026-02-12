@@ -44,6 +44,7 @@ const reportsRouter = require('./routes/reports');
 const auditLogsRoute = require('./routes/auditLogs');
 const { ensureRequestId } = require('./helpers/audit');
 
+
 /* =========================
    App setup
 ========================= */
@@ -60,6 +61,7 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
 app.use(ensureRequestId);
+app.use('/partials', express.static(path.join(__dirname, 'partials')));
 
 /* =========================
    Session

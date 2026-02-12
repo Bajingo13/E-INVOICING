@@ -1,8 +1,15 @@
-import { requireAnyRole } from './authClient.js'; // <-- ADD THIS
+import { requireAnyRole } from './authClient.js';
 
 'use strict';
 
-/* -------------------- 0. DEBUG & DOM HELPERS (MOVED TO TOP) -------------------- */
+/* ===================== NAVBAR WAIT HELPER ===================== */
+async function waitNavbar() {
+  if (window.navbarReady) {
+    try { await window.navbarReady; } catch {}
+  }
+}
+
+/* -------------------- 0. DEBUG & DOM HELPERS -------------------- */
 const DBG = {
   log: (...args) => console.log('[E-INVOICING]', ...args),
   warn: (...args) => console.warn('[E-INVOICING]', ...args),
@@ -20,7 +27,7 @@ function dateToYYYYMMDD(dateValue) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
   const d = new Date(dateValue);
   if (isNaN(d.getTime())) return "";
-  const year = d.getFullYear(); 
+  const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
@@ -38,38 +45,10 @@ function setInputValue(name, value) {
   el.type === 'checkbox' ? el.checked = !!value : ('value' in el ? el.value = value : el.textContent = value);
 }
 
-/* -------------------- NOTIFICATIONS -------------------- */
-let notifications = [];
-
-async function loadNotifications() {
-  try {
-    const res = await fetch('/api/notifications', { credentials: 'include' });
-    if (!res.ok) return [];
-
-    const data = await res.json();
-    notifications = data || [];
-
-    const badge = document.getElementById('notifBadge');
-    if (!badge) return;
-
-    const unreadCount = notifications.filter(n => !n.is_read).length;
-
-    if (unreadCount > 0) {
-      badge.textContent = unreadCount;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
-
-    return notifications;
-  } catch (err) {
-    console.error('Failed to load notifications:', err);
-    return [];
-  }
-}
-
-/* ===================== RBAC APPROVAL UI ===================== */
+/* ===================== RBAC APPROVAL UI (Injected actions) ===================== */
 window.addEventListener('DOMContentLoaded', async () => {
+  await waitNavbar(); // ✅ approve dropdown is inside injected pageActions
+
   const approveDropdown = document.querySelector('.dropdown[data-dropdown]');
   if (!approveDropdown) return;
 
@@ -82,7 +61,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     const params = new URLSearchParams(window.location.search);
     const invoiceNo = params.get('invoice_no');
-
     if (!invoiceNo) return approveDropdown.remove();
 
     const invRes = await fetch(`/api/invoices/${invoiceNo}`);
@@ -131,13 +109,10 @@ function getEWTLabelById(id) {
   return e ? `${e.code} (${e.tax_rate}%)` : '';
 }
 
-
 if (currencySelect && exchangeRateInput) {
-
   async function updateExchangeRate() {
-    const currency = currencySelect.value.toUpperCase();
+    const currency = String(currencySelect.value || '').toUpperCase();
 
-    // PHP is base currency
     if (currency === 'PHP') {
       exchangeRateInput.value = 1;
       calculateTotals();
@@ -158,21 +133,15 @@ if (currencySelect && exchangeRateInput) {
 
       exchangeRateInput.value = rate.toFixed(4);
       calculateTotals();
-
     } catch (err) {
       console.error('Exchange rate error:', err);
       alert(`Failed to fetch exchange rate for ${currency}. Using fallback rate if available.`);
-
-      // Optional: fallback to 1 to allow user to continue
       exchangeRateInput.value = 1;
       calculateTotals();
     }
   }
 
-  // Update rate whenever currency changes
   currencySelect.addEventListener('change', updateExchangeRate);
-
-  // Initial fetch on page load
   updateExchangeRate();
 }
 
@@ -188,19 +157,16 @@ if (textarea) {
   window.addEventListener('load', () => autoResizeTextarea(textarea));
 }
 
-// Auto-resize all item description textareas
 function autoResize(el) {
-  el.style.height = 'auto'; // reset height
-  el.style.height = el.scrollHeight + 'px'; // expand to fit content
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
 }
 
-// Handle existing item descriptions on page load
-document.querySelectorAll('.item-desc').forEach(textarea => {
-  autoResize(textarea);
-
-  // On input
-  textarea.addEventListener('input', () => autoResize(textarea));
+document.querySelectorAll('.item-desc').forEach(t => {
+  autoResize(t);
+  t.addEventListener('input', () => autoResize(t));
 });
+
 /* -------------------- 2. COMPANY INFO -------------------- */
 async function loadCompanyInfo() {
   try {
@@ -229,7 +195,9 @@ async function loadCompanyInfo() {
       if (previewLogoEl) previewLogoEl.style.display = 'none';
       if (removeBtn) removeBtn.style.display = 'none';
     }
-  } catch (err) { DBG.warn('Failed to load company info:', err); }
+  } catch (err) {
+    DBG.warn('Failed to load company info:', err);
+  }
 }
 
 /* -------------------- 3. NEXT INVOICE NO -------------------- */
@@ -240,13 +208,12 @@ async function loadNextInvoiceNo() {
     const params = new URLSearchParams(window.location.search);
     const isEdit = params.get('edit') === 'true' || params.get('invoice_no');
 
-    // ✅ do not override invoice no when editing
     if (isEdit) return;
 
     const res = await fetch('/api/next-invoice-no', { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch next invoice number');
 
-    const data = await res.json(); // expected: { mode:'auto'|'manual', invoiceNo:'', prefix:'' }
+    const data = await res.json();
 
     const invoiceInput =
       document.querySelector('input[name="invoiceNo"]') ||
@@ -258,13 +225,11 @@ async function loadNextInvoiceNo() {
     window.__NUMBERING_MODE__ = mode;
 
     if (mode === 'manual') {
-      // ✅ manual: user must type invoice number
       invoiceInput.value = '';
       invoiceInput.readOnly = false;
       invoiceInput.classList.remove('locked');
       invoiceInput.placeholder = 'Enter invoice number';
     } else {
-      // ✅ auto: server generated, lock field
       invoiceInput.value = data.invoiceNo || '';
       invoiceInput.readOnly = true;
       invoiceInput.classList.add('locked');
@@ -274,12 +239,16 @@ async function loadNextInvoiceNo() {
   }
 }
 
-
 /* -------------------- 4. INVOICE TITLE -------------------- */
 function setInvoiceTitleFromURL() {
   const params = new URLSearchParams(window.location.search);
   const type = params.get('type');
-  const typeMap = { sales: 'SALES INVOICE', commercial: 'COMMERCIAL INVOICE', credit: 'CREDIT MEMO', debit: 'DEBIT MEMO' };
+  const typeMap = {
+    sales: 'SALES INVOICE',
+    commercial: 'COMMERCIAL INVOICE',
+    credit: 'CREDIT MEMO',
+    debit: 'DEBIT MEMO'
+  };
   const invoiceTitle = typeMap[type] || 'SERVICE INVOICE';
 
   safeSetText('.invoice-title', invoiceTitle);
@@ -290,8 +259,7 @@ function setInvoiceTitleFromURL() {
   localStorage.setItem('selectedInvoiceType', invoiceTitle);
 }
 
-
-/* -------------------- 5. LOAD INVOICE FOR EDIT (WITH ACCOUNT COMBO) -------------------- */
+/* -------------------- 5. LOAD INVOICE FOR EDIT -------------------- */
 async function loadInvoiceForEdit() {
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get('invoice_no');
@@ -299,7 +267,7 @@ async function loadInvoiceForEdit() {
   if (!invoiceNo || !isEdit) return;
 
   window.__NUMBERING_MODE__ = 'manual';
-  
+
   try {
     const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
     if (!res.ok) throw new Error('Failed to fetch invoice');
@@ -310,17 +278,18 @@ async function loadInvoiceForEdit() {
     setInputValue('tin', data.tin || '');
     setInputValue('terms', data.terms || '');
     setInputValue('invoiceNo', data.invoice_no || '');
+
     const invEl = document.querySelector('input[name="invoiceNo"]');
-if (invEl) {
-  invEl.readOnly = true;
-  invEl.classList.add('locked');
-}
+    if (invEl) {
+      invEl.readOnly = true;
+      invEl.classList.add('locked');
+    }
+
     setInputValue('date', dateToYYYYMMDD(data.date));
     setInputValue('invoiceMode', data.invoice_mode || 'standard');
     setInputValue('invoiceCategory', data.invoice_category || 'service');
     safeSetText('.invoice-title', data.invoice_title || 'SERVICE INVOICE');
     setInputValue('vatType', data.vat_type || 'inclusive');
-
 
     // Header
     const theadRow = $("#items-table thead tr");
@@ -340,81 +309,79 @@ if (invEl) {
       (data.items || []).forEach(item => {
         const row = document.createElement('tr');
         row.innerHTML = `
-  <td>
-    <textarea class="input-full item-desc" name="desc[]" rows="1"
-      style="overflow:hidden; resize:none;">${item.description || ""}</textarea>
-  </td>
+          <td>
+            <textarea class="input-full item-desc" name="desc[]" rows="1"
+              style="overflow:hidden; resize:none;">${item.description || ""}</textarea>
+          </td>
 
-  <td class="Acc-col" style="position:relative;">
-    <input type="text"
-           name="account[]"
-           class="input-full account-input"
-           placeholder="+ Create New Account"
-           autocomplete="off">
+          <td class="Acc-col" style="position:relative;">
+            <input type="text"
+                   name="account[]"
+                   class="input-full account-input"
+                   placeholder="+ Create New Account"
+                   autocomplete="off">
 
-    <div class="account-dropdown"
-         style="display:none; position:absolute; background:white; border:1px solid #ccc;
-                max-height:150px; overflow:auto; z-index:999;"></div>
+            <div class="account-dropdown"
+                 style="display:none; position:absolute; background:white; border:1px solid #ccc;
+                        max-height:150px; overflow:auto; z-index:999;"></div>
 
-    <!-- ✅ EWT selector (edit mode now supported) -->
-    <div style="margin-top:6px;">
-      ${buildEWTSelectHTML()}
-    </div>
-  </td>
+            <div style="margin-top:6px;">
+              ${buildEWTSelectHTML(item.ewt_id ? String(item.ewt_id) : '')}
+            </div>
+          </td>
 
-  <td>
-    <input type="number" class="input-short" name="qty[]"
-           value="${item.quantity || 0}" oninput="updateAmount(this)">
-  </td>
+          <td>
+            <input type="number" class="input-short" name="qty[]"
+                   value="${item.quantity || 0}" oninput="updateAmount(this)">
+          </td>
 
-  <td>
-    <input type="number" class="input-short" name="rate[]"
-           value="${item.unit_price || 0}" oninput="updateAmount(this)">
-  </td>
+          <td>
+            <input type="number" class="input-short" name="rate[]"
+                   value="${item.unit_price || 0}" oninput="updateAmount(this)">
+          </td>
 
-  <td>
-    <input type="number" class="input-short" name="amt[]"
-           value="${item.amount || 0}" readonly>
-  </td>
-`;
+          <td>
+            <input type="number" class="input-short" name="amt[]"
+                   value="${item.amount || 0}" readonly>
+          </td>
+        `;
 
         (data.extra_columns || []).forEach(col => {
           const td = document.createElement("td");
           td.innerHTML = `<input type="text" name="${col}[]" value="${item[col] || ""}">`;
           row.appendChild(td);
         });
+
         tbody.appendChild(row);
       });
 
-// ✅ Setup account combo + preselect account + preselect EWT
-const inputs = $$('input.account-input', tbody);
+      // ✅ Setup account combo + preselect account + preselect EWT
+      const inputs = $$('input.account-input', tbody);
 
-inputs.forEach((input, idx) => {
-  if (!input.dataset.initialized && window._coaAccounts) {
-    setupAccountCombo(input, window._coaAccounts);
-    input.dataset.initialized = 'true';
-  }
+      inputs.forEach((input, idx) => {
+        if (!input.dataset.initialized && window._coaAccounts) {
+          setupAccountCombo(input, window._coaAccounts);
+          input.dataset.initialized = 'true';
+        }
 
-  const item = (data.items || [])[idx];
-  if (!item || !window._coaAccounts) return;
+        const item = (data.items || [])[idx];
+        if (!item || !window._coaAccounts) return;
 
-  const acc = window._coaAccounts.find(a => String(a.id) === String(item.account_id));
-  if (!acc) return;
+        const acc = window._coaAccounts.find(a => String(a.id) === String(item.account_id));
+        if (!acc) return;
 
-  // show just code-title in the input (clean)
-  input.value = `${acc.code || ''} - ${acc.title || ''}`.trim();
-  input.dataset.accountId = String(acc.id);
+        input.value = `${acc.code || ''} - ${acc.title || ''}`.trim();
+        input.dataset.accountId = String(acc.id);
 
-  // ✅ EWT: item override first, else account default
-  const row = input.closest('tr');
-  const ewtSel = row?.querySelector('.ewt-select');
-  if (ewtSel) {
-    const override = item.ewt_id ? String(item.ewt_id) : '';
-    const def = acc.ewt_id ? String(acc.ewt_id) : '';
-    ewtSel.value = override || def || '';
-  }
-});
-
+        // ✅ EWT: item override first, else account default
+        const row = input.closest('tr');
+        const ewtSel = row?.querySelector('.ewt-select');
+        if (ewtSel) {
+          const override = item.ewt_id ? String(item.ewt_id) : '';
+          const def = acc.ewt_id ? String(acc.ewt_id) : '';
+          ewtSel.value = override || def || '';
+        }
+      });
     }
 
     if (data.tax_summary) {
@@ -426,61 +393,12 @@ inputs.forEach((input, idx) => {
     }
 
     adjustColumnWidths();
-  } catch (err) { DBG.error('Error loading invoice for edit:', err); }
-}
-
-// ✅ Ensure the FIRST (existing HTML) rows also get an EWT select + options
-function ensureEWTOnExistingRows() {
-  const rows = document.querySelectorAll('#items-body tr');
-
-  rows.forEach(row => {
-    // account cell
-    const accCell = row.querySelector('td.Acc-col');
-    if (!accCell) return;
-
-    // if already exists, skip
-    if (row.querySelector('.ewt-select')) return;
-
-    // add EWT dropdown under account input
-    const holder = document.createElement('div');
-    holder.style.marginTop = '6px';
-    holder.innerHTML = buildEWTSelectHTML(); // includes options from window._ewtList
-    accCell.appendChild(holder);
-  });
-}
-
-// ✅ Rebuild options inside all .ewt-select (useful if HTML has a placeholder select)
-function refreshAllEWTSelects() {
-  document.querySelectorAll('.ewt-select').forEach(sel => {
-    const current = sel.value;
-    sel.innerHTML = `<option value="">Default</option>` + (window._ewtList || [])
-      .map(e => `<option value="${e.id}">${e.code} (${e.tax_rate}%)</option>`)
-      .join('');
-    sel.value = current; // keep current selection if any
-  });
-}
-
-
-/* -------------------- 6. CHART OF ACCOUNTS (COMBO BOX VERSION) -------------------- */
-async function loadAccounts() {
-  try {
-    const res = await fetch('/api/coa');
-    if (!res.ok) throw new Error('Failed to fetch accounts');
-    const accounts = await res.json();
-    window._coaAccounts = accounts;
-
-    // Initialize existing account inputs
-    $$('input.account-input').forEach(input => {
-      if (!input.dataset.initialized) {
-        setupAccountCombo(input, accounts);
-        input.dataset.initialized = true;
-      }
-    });
   } catch (err) {
-    DBG.error('loadAccounts error:', err);
+    DBG.error('Error loading invoice for edit:', err);
   }
 }
 
+/* -------------------- EWT HELPERS -------------------- */
 function buildEWTSelectHTML(selectedId = '') {
   const sel = selectedId ? String(selectedId) : '';
   const opts = (window._ewtList || [])
@@ -498,15 +416,56 @@ function buildEWTSelectHTML(selectedId = '') {
   `;
 }
 
+function ensureEWTOnExistingRows() {
+  const rows = document.querySelectorAll('#items-body tr');
 
+  rows.forEach(row => {
+    const accCell = row.querySelector('td.Acc-col');
+    if (!accCell) return;
+    if (row.querySelector('.ewt-select')) return;
+
+    const holder = document.createElement('div');
+    holder.style.marginTop = '6px';
+    holder.innerHTML = buildEWTSelectHTML();
+    accCell.appendChild(holder);
+  });
+}
+
+function refreshAllEWTSelects() {
+  document.querySelectorAll('.ewt-select').forEach(sel => {
+    const current = sel.value;
+    sel.innerHTML = `<option value="">Default</option>` + (window._ewtList || [])
+      .map(e => `<option value="${e.id}">${e.code} (${e.tax_rate}%)</option>`)
+      .join('');
+    sel.value = current;
+  });
+}
+
+/* -------------------- 6. CHART OF ACCOUNTS -------------------- */
+async function loadAccounts() {
+  try {
+    const res = await fetch('/api/coa');
+    if (!res.ok) throw new Error('Failed to fetch accounts');
+    const accounts = await res.json();
+    window._coaAccounts = accounts;
+
+    $$('input.account-input').forEach(input => {
+      if (!input.dataset.initialized) {
+        setupAccountCombo(input, accounts);
+        input.dataset.initialized = true;
+      }
+    });
+  } catch (err) {
+    DBG.error('loadAccounts error:', err);
+  }
+}
 
 function setupAccountCombo(input, accounts) {
-  const dropdown = input.nextElementSibling; // .account-dropdown
+  const dropdown = input.nextElementSibling;
   if (!dropdown) return;
 
   dropdown.innerHTML = '';
 
-  // Build dropdown items
   (accounts || []).forEach(acc => {
     if (!acc || !acc.title) return;
 
@@ -519,14 +478,11 @@ function setupAccountCombo(input, accounts) {
     div.style.cursor = 'pointer';
 
     div.addEventListener('mousedown', (e) => {
-      // mousedown prevents blur issues when clicking the dropdown
       e.preventDefault();
 
-      // ✅ set displayed text + store account id
-      input.value = `${acc.code || ''} - ${acc.title}`;
+      input.value = `${acc.code || ''} - ${acc.title}`.trim();
       input.dataset.accountId = String(acc.id);
 
-      // ✅ apply default EWT only if user hasn't chosen one yet
       const row = input.closest('tr');
       const ewtSel = row?.querySelector('.ewt-select');
       if (ewtSel && !ewtSel.value) {
@@ -534,15 +490,12 @@ function setupAccountCombo(input, accounts) {
       }
 
       dropdown.style.display = 'none';
-
-      // optional: recalc totals when account changes
       calculateTotals?.();
     });
 
     dropdown.appendChild(div);
   });
 
-  // Filter as user types
   input.addEventListener('input', () => {
     const val = (input.value || '').toLowerCase().trim();
     const items = Array.from(dropdown.children);
@@ -554,7 +507,6 @@ function setupAccountCombo(input, accounts) {
     dropdown.style.display = items.some(d => d.style.display !== 'none') ? 'block' : 'none';
   });
 
-  // Show all on focus/click
   input.addEventListener('focus', () => {
     Array.from(dropdown.children).forEach(div => div.style.display = 'block');
     dropdown.style.display = dropdown.children.length ? 'block' : 'none';
@@ -565,7 +517,6 @@ function setupAccountCombo(input, accounts) {
     dropdown.style.display = dropdown.children.length ? 'block' : 'none';
   });
 
-  // Hide when clicking outside (avoid attaching multiple times)
   if (!input.dataset.outsideBound) {
     document.addEventListener('click', (e) => {
       if (!input.contains(e.target) && !dropdown.contains(e.target)) {
@@ -576,7 +527,7 @@ function setupAccountCombo(input, accounts) {
   }
 }
 
-/* -------------------- 7. ADD / REMOVE ROW (COMBO BOX ACCOUNT) -------------------- */
+/* -------------------- 7. ADD / REMOVE ROW -------------------- */
 function addRow() {
   const tbody = $("#items-body");
   if (!tbody) return;
@@ -586,40 +537,35 @@ function addRow() {
   row.innerHTML = Array.from(ths).map((th, i) => {
     const colName = th.textContent.trim().toLowerCase().replace(/\s+/g, "_");
     switch(i) {
-      case 0: // DESCRIPTION
+      case 0:
         return `<td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea></td>`;
-      case 1: // ACCOUNT + EWT
-  return `<td class="Acc-col" style="position:relative;">
-  <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
-  <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
-
-  <div style="margin-top:6px;">
-    ${buildEWTSelectHTML()}
-  </div>
-</td>
-`;
-
-      case 2: // QTY
+      case 1:
+        return `<td class="Acc-col" style="position:relative;">
+          <input type="text" name="account[]" class="input-full account-input" placeholder="+ Create New Account" autocomplete="off">
+          <div class="account-dropdown" style="display:none; position:absolute; background:white; border:1px solid #ccc; max-height:150px; overflow:auto; z-index:999;"></div>
+          <div style="margin-top:6px;">
+            ${buildEWTSelectHTML()}
+          </div>
+        </td>`;
+      case 2:
         return `<td><input type="number" class="input-short" name="qty[]" value="0" oninput="updateAmount(this)"></td>`;
-      case 3: // RATE
+      case 3:
         return `<td><input type="number" class="input-short" name="rate[]" value="0" oninput="updateAmount(this)"></td>`;
-      case 4: // AMOUNT
+      case 4:
         return `<td><input type="number" class="input-short" name="amt[]" value="0" readonly></td>`;
-      default: // EXTRA COLUMNS
+      default:
         return `<td><input type="text" name="${colName}[]"></td>`;
     }
   }).join('');
 
   tbody.appendChild(row);
 
-  // Populate account combo box
   const selInput = row.querySelector('.account-input');
   if (selInput && window._coaAccounts && !selInput.dataset.initialized) {
-  setupAccountCombo(selInput, window._coaAccounts);
-  selInput.dataset.initialized = 'true';
-}
+    setupAccountCombo(selInput, window._coaAccounts);
+    selInput.dataset.initialized = 'true';
+  }
 
-  // Auto-resize description textarea
   const descTextarea = row.querySelector('.item-desc');
   if (descTextarea) {
     autoResize(descTextarea);
@@ -628,6 +574,7 @@ function addRow() {
 
   adjustColumnWidths();
 }
+
 function removeRow() {
   const tbody = $("#items-body");
   if (!tbody || tbody.rows.length <= 1) return alert("At least one row must remain.");
@@ -636,33 +583,27 @@ function removeRow() {
   adjustColumnWidths();
 }
 
-/* -------------------- 9. AMOUNT & TOTALS (PER-ACCOUNT TAX) -------------------- */
+/* -------------------- 9. AMOUNT & TOTALS -------------------- */
 function updateAmount(input) {
   const row = input.closest("tr");
   if (!row) return;
   const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
   const rate = parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0;
   const amtEl = row.querySelector('[name="amt[]"]');
-  if (amtEl) amtEl.value = (qty * rate).toFixed(2); // remove exchange rate here
-  calculateTotals(); // totals now handle exchange rate
+  if (amtEl) amtEl.value = (qty * rate).toFixed(2);
+  calculateTotals();
 }
 
-
-// -------------------- CALCULATE TOTALS (with exchange rate, NO EWT) --------------------
 function calculateTotals() {
   const rows = document.querySelectorAll('#items-body tr');
   const exchangeRate = parseFloat(exchangeRateInput?.value) || 1;
 
   let subtotal = 0;
-
   let vatAmount = 0;
   let vatExemptAmount = 0;
   let zeroRatedAmount = 0;
-
   let vatExemptSales = 0;
   let zeroRatedSales = 0;
-
-  // ✅ NEW: total withholding tax amount (sum of each row)
   let withholdingTotal = 0;
 
   rows.forEach(row => {
@@ -676,13 +617,11 @@ function calculateTotals() {
 
     subtotal += lineAmt;
 
-    // ---- account lookup (for VAT/tax type + default ewt) ----
     const accountId = row.querySelector('[name="account[]"]')?.dataset.accountId || '';
     const account = window._coaAccounts?.find(acc => String(acc.id) === String(accountId));
     const taxType = account?.tax_type || 'vatable';
     const taxRate = parseFloat(account?.tax_rate || 0) / 100;
 
-    // VAT breakdown (your existing behavior)
     switch (taxType) {
       case 'exempt':
         vatExemptSales += lineAmt;
@@ -698,7 +637,6 @@ function calculateTotals() {
         break;
     }
 
-    // ✅ NEW: per-row EWT (uses row override first, else account default)
     const rowEwtId =
       row.querySelector('.ewt-select')?.value ||
       (account?.ewt_id ? String(account.ewt_id) : '');
@@ -706,22 +644,16 @@ function calculateTotals() {
     if (rowEwtId) {
       const e = window._ewtList?.find(x => String(x.id) === String(rowEwtId));
       const ewtRate = e ? (Number(e.tax_rate) / 100) : 0;
-
-      if (ewtRate > 0) {
-        // Base = line amount (same amount you show per row)
-        withholdingTotal += lineAmt * ewtRate;
-      }
+      if (ewtRate > 0) withholdingTotal += lineAmt * ewtRate;
     }
   });
 
-  // -------------------- DISCOUNT --------------------
   let discountRate = parseFloat(document.querySelector('#discount')?.value) || 0;
   if (discountRate > 1) discountRate /= 100;
 
   const discountAmount = subtotal * discountRate;
   const subtotalAfterDiscount = subtotal - discountAmount;
 
-  // -------------------- VAT TYPE HANDLING --------------------
   const vatType = document.querySelector('#vatType')?.value || 'inclusive';
 
   let vatable = 0;
@@ -750,27 +682,24 @@ function calculateTotals() {
       break;
   }
 
-  // ✅ NEW: subtract withholding from total due
   const totalDueAfterWithholding = finalTotal - withholdingTotal;
 
-  // -------------------- UPDATE DOM --------------------
   safeSetValue('#subtotal', displaySubtotal.toFixed(2));
   safeSetValue('#vatableSales', vatable.toFixed(2));
   safeSetValue('#vatAmount', vatAmount.toFixed(2));
   safeSetValue('#vatExemptSales', vatExemptSales.toFixed(2));
+
+  // these IDs must exist in your HTML if you want them populated
   safeSetValue('#vatExemptAmount', vatExemptAmount.toFixed(2));
   safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2));
   safeSetValue('#vatZeroRatedAmount', zeroRatedAmount.toFixed(2));
 
-  // ✅ NEW fields
   safeSetValue('#withholdingTaxAmount', withholdingTotal.toFixed(2));
   safeSetValue('#totalPayable', totalDueAfterWithholding.toFixed(2));
 }
 
-// -------------------- EVENT LISTENERS --------------------
 document.getElementById('vatType')?.addEventListener('change', calculateTotals);
 document.getElementById('discount')?.addEventListener('input', calculateTotals);
-
 
 /* -------------------- 10. ADJUST COLUMN WIDTHS -------------------- */
 function adjustColumnWidths() {
@@ -888,12 +817,10 @@ function getFooterValue(name) {
   return el ? el.value : null;
 }
 
-/* -------------------- 13. SAVE INVOICE (ENTERPRISE FLOW) -------------------- */
-
-let __SAVE_LOCK__ = false; // 🚫 prevent double save
+/* -------------------- 13. SAVE INVOICE -------------------- */
+let __SAVE_LOCK__ = false;
 
 async function saveToDatabase() {
-
   if (__SAVE_LOCK__) {
     DBG.warn('Save blocked: already saving');
     return false;
@@ -902,30 +829,24 @@ async function saveToDatabase() {
   __SAVE_LOCK__ = true;
 
   try {
-
     const billTo = getInputValue('billTo');
-const invoiceNo = getInputValue('invoiceNo');
-const date = getInputValue('date');
+    const invoiceNo = getInputValue('invoiceNo');
+    const date = getInputValue('date');
 
-if (!billTo || !date) {
-  alert("Fill Bill To and Date.");
-  return false;
-}
+    if (!billTo || !date) {
+      alert("Fill Bill To and Date.");
+      return false;
+    }
 
-if (window.__NUMBERING_MODE__ === 'manual' && !invoiceNo) {
-  alert("Invoice No is required in manual mode.");
-  return false;
-}
-
+    if (window.__NUMBERING_MODE__ === 'manual' && !invoiceNo) {
+      alert("Invoice No is required in manual mode.");
+      return false;
+    }
 
     calculateTotals();
 
     const params = new URLSearchParams(window.location.search);
-
-    //  ENTERPRISE EDIT DETECTION
-    const isEdit =
-      params.get('edit') === 'true' ||
-      params.get('invoice_no') !== null;
+    const isEdit = params.get('edit') === 'true' || params.get('invoice_no') !== null;
 
     const ths = $("#items-table thead tr").children;
     const extraColumns = Array.from(ths)
@@ -935,18 +856,16 @@ if (window.__NUMBERING_MODE__ === 'manual' && !invoiceNo) {
     const rows = $$('#items-body tr');
 
     const items = rows.map(row => {
-
       const item = {
-  description: row.querySelector('[name="desc[]"]')?.value || "",
-  quantity: parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0,
-  unit_price: parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0,
-  amount: parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0,
-  account_id: row.querySelector('[name="account[]"]')?.dataset.accountId || "",
-  ewt_id: row.querySelector('.ewt-select')?.value
-    ? Number(row.querySelector('.ewt-select').value)
-    : null,
-};
-
+        description: row.querySelector('[name="desc[]"]')?.value || "",
+        quantity: parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0,
+        unit_price: parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0,
+        amount: parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0,
+        account_id: row.querySelector('[name="account[]"]')?.dataset.accountId || "",
+        ewt_id: row.querySelector('.ewt-select')?.value
+          ? Number(row.querySelector('.ewt-select').value)
+          : null,
+      };
 
       extraColumns.forEach(col => {
         item[col] = row.querySelector(`[name="${col}[]"]`)?.value || '';
@@ -971,28 +890,28 @@ if (window.__NUMBERING_MODE__ === 'manual' && !invoiceNo) {
       items,
       extra_columns: extraColumns,
       tax_summary: {
-  subtotal: parseFloat($('#subtotal')?.value) || 0,
-  discount: parseFloat($('#discount')?.value) || 0,
-
-  vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
-  vat_exempt_sales: parseFloat($('#vatExemptSales')?.value) || 0,
-  zero_rated_sales: parseFloat($('#vatZeroRatedSales')?.value) || 0,
-  vat_amount: parseFloat($('#vatAmount')?.value) || 0,
-  withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
-  total_payable: parseFloat($('#totalPayable')?.value) || 0
-},
-
+        subtotal: parseFloat($('#subtotal')?.value) || 0,
+        discount: parseFloat($('#discount')?.value) || 0,
+        vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
+        vat_exempt_sales: parseFloat($('#vatExemptSales')?.value) || 0,
+        zero_rated_sales: parseFloat($('#vatZeroRatedSales')?.value) || 0,
+        vat_amount: parseFloat($('#vatAmount')?.value) || 0,
+        withholding: parseFloat($('#withholdingTaxAmount')?.value) || 0,
+        total_payable: parseFloat($('#totalPayable')?.value) || 0
+      },
       footer: {
-    atp_no: getFooterValue('footerAtpNo'),
-    atp_date: getFooterValue('footerAtpDate'),
-    bir_permit_no: getFooterValue('footerBirPermitNo'),
-    bir_date: getFooterValue('footerBirDate'),
-    serial_nos: getFooterValue('footerSerialNos')
-  }
+        atp_no: getFooterValue('footerAtpNo'),
+        atp_date: getFooterValue('footerAtpDate'),
+        bir_permit_no: getFooterValue('footerBirPermitNo'),
+        bir_date: getFooterValue('footerBirDate'),
+        serial_nos: getFooterValue('footerSerialNos')
+      }
     };
-if (window.__NUMBERING_MODE__ === 'manual') {
-  payload.invoice_no = invoiceNo;
-}
+
+    if (window.__NUMBERING_MODE__ === 'manual') {
+      payload.invoice_no = invoiceNo;
+    }
+
     const endpoint = isEdit
       ? `/api/invoices/${encodeURIComponent(invoiceNo)}`
       : '/api/invoices';
@@ -1014,7 +933,6 @@ if (window.__NUMBERING_MODE__ === 'manual') {
 
     DBG.log('Invoice saved successfully');
     return true;
-
   } catch (err) {
     DBG.error('saveToDatabase error:', err);
     alert('Failed to save invoice: ' + err.message);
@@ -1024,13 +942,12 @@ if (window.__NUMBERING_MODE__ === 'manual') {
   }
 }
 
-// -------------------- APPLY TAX DEFAULTS FROM SETTINGS --------------------
+/* -------------------- APPLY TAX DEFAULTS FROM SETTINGS -------------------- */
 async function applyTaxDefaultsFromSettings() {
   try {
     const params = new URLSearchParams(window.location.search);
     const isEdit = params.get('edit') === 'true' || params.get('invoice_no');
 
-    // ✅ don't override VAT type when editing
     if (isEdit) return;
 
     const res = await fetch('/api/invoice-settings', { credentials: 'include' });
@@ -1048,12 +965,9 @@ async function applyTaxDefaultsFromSettings() {
   }
 }
 
-
-
 /* -------------------- 14. INIT -------------------- */
-// ======= 1️⃣ AUTO-FILL DATES FUNCTION =======
 function autofillDates() {
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = new Date().toISOString().split('T')[0];
 
   const issueDate = document.getElementById('issueDate');
   if (issueDate && !issueDate.value) issueDate.value = today;
@@ -1063,10 +977,11 @@ function autofillDates() {
 
   const footerAtpDate = document.getElementsByName('footerAtpDate')[0];
   if (footerAtpDate && !footerAtpDate.value) footerAtpDate.value = today;
-
 }
 
+/* ✅ MAIN PAGE INIT (wait navbar first) */
 window.addEventListener('DOMContentLoaded', async () => {
+  await waitNavbar(); // ✅ injected navbar + actions exist now
 
   const allowed = await requireAnyRole(['super', 'approver', 'submitter']);
   if (!allowed) return;
@@ -1078,8 +993,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   refreshAllEWTSelects();
 
   await loadAccounts();
-
-  // ✅ APPLY SETTINGS DEFAULTS HERE (after settings exist, before totals)
   await applyTaxDefaultsFromSettings();
 
   await loadCompanyInfo();
@@ -1088,13 +1001,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadInvoiceForEdit();
 
   adjustColumnWidths();
-
-  // ✅ ensure totals reflect everything
   calculateTotals?.();
 });
 
-// ===== 8️⃣ CONTACTS AUTOCOMPLETE + MODAL CREATION =====
-// ===== ELEMENTS =====
+/* ===================== CONTACTS AUTOCOMPLETE + MODAL ===================== */
 const billToInput = document.getElementById("billTo");
 const billToIdInput = document.getElementById("billToId");
 const billToDropdown = document.getElementById("billToDropdown");
@@ -1109,7 +1019,6 @@ let contacts = [];
 let selectedContact = null;
 let isEditing = false;
 
-// ===== LOAD CONTACTS =====
 async function loadContacts() {
   try {
     const res = await fetch('/api/contacts');
@@ -1122,16 +1031,8 @@ async function loadContacts() {
 }
 loadContacts();
 
-// ===== HELPERS =====
-function getSelectedContact() {
-  const id = billToIdInput.value;
-  if (!id) return null;
-  return contacts.find(c => String(c.id) === String(id)) || null;
-}
-
-// ===== DROPDOWN =====
 function renderDropdown(list, searchValue = '') {
-  if (selectedContact) return; // locked, don't show dropdown
+  if (selectedContact) return;
 
   billToDropdown.innerHTML = '';
   list.forEach(c => {
@@ -1143,6 +1044,7 @@ function renderDropdown(list, searchValue = '') {
     name.textContent = c.business;
     name.style.fontWeight = 'bold';
     left.appendChild(name);
+
     if (c.tin) {
       const tin = document.createElement('div');
       tin.textContent = c.tin;
@@ -1177,7 +1079,6 @@ function renderDropdown(list, searchValue = '') {
   billToDropdown.style.display = billToDropdown.children.length ? 'block' : 'none';
 }
 
-// ===== CONTACT CARD =====
 function showContactCard(c) {
   if (!contactCard) return;
 
@@ -1186,24 +1087,29 @@ function showContactCard(c) {
   document.getElementById('cardAddress').textContent = c.address || '—';
   document.getElementById('cardBalance').textContent = (c.balance || 0).toFixed(2);
 
-  const initials = c.business
+  const initials = String(c.business || '')
     .split(' ')
+    .filter(Boolean)
     .map(w => w[0])
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  document.getElementById('contactAvatar').textContent = initials;
 
-  document.getElementById('editContactBtn').addEventListener('click', e => {
-  e.preventDefault();
-  openContactModal(null, selectedContact);
-});
+  document.getElementById('contactAvatar').textContent = initials || '--';
 
+  // prevent multiple listener stacking
+  const editBtn = document.getElementById('editContactBtn');
+  if (editBtn && !editBtn.dataset.bound) {
+    editBtn.addEventListener('click', e => {
+      e.preventDefault();
+      openContactModal(null, selectedContact);
+    });
+    editBtn.dataset.bound = '1';
+  }
 
   contactCard.style.display = 'block';
 }
 
-// ===== SELECT CONTACT =====
 function selectContact(c) {
   selectedContact = c;
   billToInput.value = c.business;
@@ -1218,7 +1124,6 @@ function selectContact(c) {
   showContactCard(c);
 }
 
-// ===== CLEAR CONTACT =====
 function clearSelectedContact() {
   selectedContact = null;
   billToInput.value = '';
@@ -1233,8 +1138,7 @@ function clearSelectedContact() {
   billToInput.focus();
 }
 
-// ===== INPUT EVENTS =====
-billToInput.addEventListener('input', () => {
+billToInput?.addEventListener('input', () => {
   if (selectedContact) return;
   const value = billToInput.value.trim().toLowerCase();
   if (!value) {
@@ -1246,7 +1150,7 @@ billToInput.addEventListener('input', () => {
   renderDropdown(filtered, billToInput.value);
 });
 
-billToInput.addEventListener('click', () => {
+billToInput?.addEventListener('click', () => {
   if (selectedContact) {
     contactCard.style.display = contactCard.style.display === 'block' ? 'none' : 'block';
   } else {
@@ -1254,9 +1158,8 @@ billToInput.addEventListener('click', () => {
   }
 });
 
-billToClearBtn.addEventListener('click', clearSelectedContact);
+billToClearBtn?.addEventListener('click', clearSelectedContact);
 
-// ===== CLICK OUTSIDE =====
 document.addEventListener('click', e => {
   if (!e.target.closest('#billTo') &&
       !e.target.closest('#billToDropdown') &&
@@ -1267,24 +1170,26 @@ document.addEventListener('click', e => {
     contactCard.style.display = 'none';
   }
 });
-// ===== MODAL =====
+
 async function openContactModal(name = '', contact = null) {
   isEditing = !!contact;
   modal.style.display = 'flex';
   document.getElementById('modalTitle').textContent = isEditing ? 'Edit Contact' : 'Create New Contact';
 
-  // stop clicks inside modal-content from closing modal
   const modalContent = modal.querySelector('.modal-content');
-  modalContent.addEventListener('click', e => e.stopPropagation());
+  if (modalContent && !modalContent.dataset.bound) {
+    modalContent.addEventListener('click', e => e.stopPropagation());
+    modalContent.dataset.bound = '1';
+  }
 
   const fields = [
     'modalType','modalCode','modalBusiness','modalName',
     'modalAddress','modalVatReg','modalTIN','modalPhone','modalEmail'
   ];
-  fields.forEach(id => document.getElementById(id).value = '');
+  fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 
   if (isEditing && contact) {
-    selectedContact = contact; // remember for editing
+    selectedContact = contact;
     document.getElementById('modalType').value = contact.type || 'Customer';
     document.getElementById('modalCode').value = contact.code || '';
     document.getElementById('modalBusiness').value = contact.business || '';
@@ -1297,11 +1202,10 @@ async function openContactModal(name = '', contact = null) {
   } else {
     selectedContact = null;
     if (name) document.getElementById('modalBusiness').value = name;
-    await updateNextCode(); // fetch code for new contact
+    await updateNextCode();
   }
 }
 
-// ===== Fetch next code based on type =====
 const modalType = document.getElementById('modalType');
 const modalCode = document.getElementById('modalCode');
 
@@ -1314,17 +1218,15 @@ async function updateNextCode() {
     modalCode.value = data.nextCode;
   } catch (err) {
     console.error(err);
-    modalCode.value = ''; // fallback empty
+    modalCode.value = '';
   }
 }
 
-// --- Update code automatically when type changes ---
-modalType.addEventListener('change', () => {
+modalType?.addEventListener('change', () => {
   if (!isEditing) updateNextCode();
 });
 
-// ===== SAVE MODAL =====
-document.getElementById('modalSave').addEventListener('click', async e => {
+document.getElementById('modalSave')?.addEventListener('click', async e => {
   e.preventDefault();
 
   const type = modalType.value;
@@ -1345,13 +1247,11 @@ document.getElementById('modalSave').addEventListener('click', async e => {
   }
 
   try {
-    // --- Check for duplicate code ---
     const resAll = await fetch('/api/contacts');
     const allContacts = await resAll.json();
     const duplicate = allContacts.find(c => c.code === payload.code && c.type === type && (!isEditing || c.id !== selectedContact?.id));
 
     if (duplicate) {
-      // Auto-generate next code for this type
       const resCode = await fetch(`/api/contacts/next-code?type=${type}`);
       if (!resCode.ok) throw new Error('Failed to get next contact code');
       const data = await resCode.json();
@@ -1359,124 +1259,163 @@ document.getElementById('modalSave').addEventListener('click', async e => {
       alert(`Duplicate ${type} code detected. Code changed to ${payload.code}`);
     }
 
-    let res, savedContact;
-
     if (isEditing && selectedContact) {
-      res = await fetch(`/api/contacts/${selectedContact.id}`, {
+      const res = await fetch(`/api/contacts/${selectedContact.id}`, {
         method: 'PUT',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('Failed to update contact');
-      savedContact = await res.json();
 
       const index = contacts.findIndex(c => c.id === selectedContact.id);
       if (index !== -1) contacts[index] = { ...contacts[index], ...payload };
       selectContact(contacts[index]);
-
     } else {
-      res = await fetch('/api/contacts', {
+      const res = await fetch('/api/contacts', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('Failed to create contact');
-      savedContact = await res.json();
 
+      const savedContact = await res.json();
       contacts.push({ id: savedContact.id, ...payload });
       selectContact({ id: savedContact.id, ...payload });
     }
 
     closeContactModal();
-
   } catch (err) {
     console.error(err);
     alert(err.message);
   }
 });
 
-// ===== Cancel modal =====
-document.getElementById('modalCancel').addEventListener('click', e => {
+document.getElementById('modalCancel')?.addEventListener('click', e => {
   e.preventDefault();
   closeContactModal();
 });
 
-// ===== Close modal on outside click =====
-modal.addEventListener('click', closeContactModal);
+modal?.addEventListener('click', closeContactModal);
+
 function closeContactModal() {
   modal.style.display = 'none';
 }
 
-/* -------------------- 15. SAVE & CLOSE / APPROVE DROPDOWN -------------------- */
-document.addEventListener('DOMContentLoaded', () => {
+/* -------------------- 15. SAVE & CLOSE (Injected button) - FIXED -------------------- */
+document.addEventListener('DOMContentLoaded', async () => {
+  await waitNavbar(); // ✅ saveCloseBtn exists after injection
+
   const saveCloseBtn = document.getElementById('saveCloseBtn');
+  if (!saveCloseBtn) {
+    DBG.warn('saveCloseBtn not found in DOM');
+    return;
+  }
 
-  const dropdownContainer = document.createElement('div');
-  dropdownContainer.classList.add('dropdown-container');
-  dropdownContainer.style.position = 'absolute';
-  dropdownContainer.style.display = 'none';
-  dropdownContainer.style.background = '#fff';
-  dropdownContainer.style.border = '1px solid #ccc';
-  dropdownContainer.style.borderRadius = '5px';
-  dropdownContainer.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-  dropdownContainer.style.padding = '5px 0';
-  dropdownContainer.style.zIndex = 1000;
+  // ✅ Wrap the button so dropdown is anchored correctly (prevents "behind" / weird layering)
+  if (!saveCloseBtn.parentElement.classList.contains('saveclose-wrap')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'saveclose-wrap';
+    wrap.style.position = 'relative';
+    wrap.style.display = 'inline-block';
+    saveCloseBtn.parentElement.insertBefore(wrap, saveCloseBtn);
+    wrap.appendChild(saveCloseBtn);
+  }
 
-  const options = [
-    { text: 'Save & Preview', action: 'preview' },
-    { text: 'Save & Add Another', action: 'addAnother' },
-    { text: 'Submit for Approval', action: 'submitApproval' }
-  ];
+  const wrap = saveCloseBtn.parentElement;
 
-  options.forEach(opt => {
-    const btn = document.createElement('button');
-    btn.textContent = opt.text;
-    btn.style.display = 'block';
-    btn.style.width = '100%';
-    btn.style.padding = '8px 15px';
-    btn.style.border = 'none';
-    btn.style.background = 'white';
-    btn.style.textAlign = 'left';
-    btn.style.cursor = 'pointer';
-    btn.addEventListener('mouseenter', () => btn.style.background = '#f0f0f0');
-    btn.addEventListener('mouseleave', () => btn.style.background = 'white');
-    btn.addEventListener('click', () => handleSaveCloseAction(opt.action));
-    dropdownContainer.appendChild(btn);
+  // ✅ Build dropdown inside wrapper (NOT document.body)
+  let dropdown = wrap.querySelector('.saveclose-menu');
+  if (!dropdown) {
+    dropdown = document.createElement('div');
+    dropdown.className = 'saveclose-menu';
+    dropdown.style.position = 'absolute';
+    dropdown.style.top = 'calc(100% + 8px)';
+    dropdown.style.left = '0';
+    dropdown.style.minWidth = '220px';
+    dropdown.style.background = '#fff';
+    dropdown.style.border = '1px solid rgba(0,0,0,0.12)';
+    dropdown.style.borderRadius = '12px';
+    dropdown.style.boxShadow = '0 14px 35px rgba(0,0,0,0.18)';
+    dropdown.style.padding = '6px 0';
+    dropdown.style.display = 'none';
+    dropdown.style.zIndex = '99999'; // ✅ always above sticky header
+
+    const options = [
+      { text: 'Save & Preview', action: 'preview' },
+      { text: 'Save & Add Another', action: 'addAnother' },
+      { text: 'Submit for Approval', action: 'submitApproval' }
+    ];
+
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = opt.text;
+      btn.dataset.action = opt.action;
+      btn.style.display = 'block';
+      btn.style.width = '100%';
+      btn.style.padding = '10px 14px';
+      btn.style.border = 'none';
+      btn.style.background = 'transparent';
+      btn.style.textAlign = 'left';
+      btn.style.cursor = 'pointer';
+      btn.style.fontSize = '14px';
+
+      btn.addEventListener('mouseenter', () => btn.style.background = '#f3f4f6');
+      btn.addEventListener('mouseleave', () => btn.style.background = 'transparent');
+
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropdown.style.display = 'none';
+        await handleSaveCloseAction(opt.action);
+      });
+
+      dropdown.appendChild(btn);
+    });
+
+    wrap.appendChild(dropdown);
+  }
+
+  function isOpen() { return dropdown.style.display !== 'none'; }
+  function open() {
+    // ✅ optional: if near right edge, flip to right align
+    dropdown.style.left = '0';
+    dropdown.style.right = 'auto';
+
+    const r = dropdown.getBoundingClientRect();
+    if (r.right > window.innerWidth) {
+      dropdown.style.left = 'auto';
+      dropdown.style.right = '0';
+    }
+    dropdown.style.display = 'block';
+  }
+  function close() { dropdown.style.display = 'none'; }
+
+  // Toggle dropdown
+  saveCloseBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isOpen()) close();
+    else open();
   });
 
-  document.body.appendChild(dropdownContainer);
-
-  if (saveCloseBtn) {
-    saveCloseBtn.addEventListener('click', (e) => {
-      const rect = saveCloseBtn.getBoundingClientRect();
-      dropdownContainer.style.top = `${rect.bottom + window.scrollY}px`;
-      dropdownContainer.style.left = `${rect.left + window.scrollX}px`;
-      dropdownContainer.style.display = dropdownContainer.style.display === 'none' ? 'block' : 'none';
-    });
-  } else {
-    DBG.warn('saveCloseBtn not found in DOM');
-  } 
+  // Close on outside click / ESC
   document.addEventListener('click', (e) => {
-    if (!dropdownContainer.contains(e.target) && e.target !== saveCloseBtn) {
-      dropdownContainer.style.display = 'none';
-    }
+    if (!wrap.contains(e.target)) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
   });
 });
 
-/* -------------------- ENTERPRISE SAVE ACTION HANDLER -------------------- */
-
 async function handleSaveCloseAction(action) {
-
   const invoiceNo = getInputValue('invoiceNo');
 
-  // ✅ SAVE ONLY ONCE
   const saved = await saveToDatabase();
   if (!saved) return;
 
   if (action === 'preview') {
-
-    window.location.href =
-      `InvoicePreviewViewer.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
+    window.location.href = `InvoicePreviewViewer.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
     return;
   }
 
@@ -1486,9 +1425,7 @@ async function handleSaveCloseAction(action) {
   }
 
   if (action === 'submitApproval') {
-
-    const user = await fetch('/auth/me', { credentials: 'include' })
-      .then(r => r.json());
+    const user = await fetch('/auth/me', { credentials: 'include' }).then(r => r.json());
 
     if (user?.user?.role !== 'submitter') {
       alert('Only Submitter can submit for approval');
@@ -1496,17 +1433,11 @@ async function handleSaveCloseAction(action) {
     }
 
     try {
-
-      const res = await fetch(
-        `/api/invoices/${encodeURIComponent(invoiceNo)}/submit`,
-        { method: 'POST' }
-      );
-
+      const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/submit`, { method: 'POST' });
       if (!res.ok) throw new Error('Submit failed');
 
       alert('Invoice submitted for approval!');
       window.location.href = '/Dashboard.html';
-
     } catch (err) {
       console.error('Submit error:', err);
       alert('Failed to submit for approval');
@@ -1514,13 +1445,10 @@ async function handleSaveCloseAction(action) {
   }
 }
 
-/* -------------------- LIVE PREVIEW -------------------- */
-
+/* -------------------- LIVE PREVIEW (Injected preview button) -------------------- */
 const form = document.getElementById('invoiceForm');
-const previewBtn = document.getElementById('previewBtn');
 const iframe = document.getElementById('invoicePreviewFrame');
 
-// Load Replica.html into iframe (once)
 async function loadPreviewHTML() {
   if (!iframe) throw new Error('Preview iframe not found');
   if (iframe.dataset.loaded === 'true') return;
@@ -1534,20 +1462,18 @@ async function loadPreviewHTML() {
   doc.write(html);
   doc.close();
 
-  iframe.dataset.loaded = 'true'; // ✅ assignment is correct
+  iframe.dataset.loaded = 'true';
 }
 
-// Get all data from the form
 function getInvoiceData() {
   if (!form) return {};
-  
+
   const rows = Array.from(form.querySelectorAll('#items-body tr'));
   const items = rows.map(row => {
     const desc = row.querySelector('[name="desc[]"]')?.value || '';
     const qty = parseFloat(row.querySelector('[name="qty[]"]')?.value) || 0;
     const price = parseFloat(row.querySelector('[name="rate[]"]')?.value) || 0;
     const amount = parseFloat(row.querySelector('[name="amt[]"]')?.value) || 0;
-
     return { description: desc, qty, price, amount };
   });
 
@@ -1567,27 +1493,24 @@ function getInvoiceData() {
     subtotal: form.querySelector('#subtotal')?.value || '0.00',
     discount: form.querySelector('#discount')?.value || '0.00',
     totalPayable: form.querySelector('#totalPayable')?.value || '0.00',
-    footer_bir_permit: form.querySelector('[name="footerBirPermit"]')?.value || '',
+    footer_bir_permit: form.querySelector('[name="footerBirPermitNo"]')?.value || '',
     footer_bir_date: form.querySelector('[name="footerBirDate"]')?.value || '',
     footer_serial_nos: form.querySelector('[name="footerSerialNos"]')?.value || ''
   };
 }
 
-// Format number as PHP currency
 function formatCurrency(value) {
   const num = parseFloat(value);
   if (isNaN(num)) return '';
   return num.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' });
 }
 
-// Update the iframe content
 function updatePreview() {
   if (!iframe || !iframe.contentDocument) return;
 
   const data = getInvoiceData();
   const doc = iframe.contentDocument;
 
-  // ---------- HEADER ----------
   const headerFields = [
     'invoice_no',
     'invoice_date',
@@ -1600,21 +1523,15 @@ function updatePreview() {
 
   headerFields.forEach(id => {
     const el = doc.getElementById(id);
-    if (el) {
-      // exchange_rate may be a number
-      if (id === 'exchange_rate') {
-        el.textContent = data.exchange_rate ?? '';
-      } else {
-        el.textContent = data[id] ?? '';
-      }
-    }
+    if (!el) return;
+
+    if (id === 'exchange_rate') el.textContent = data.exchange_rate ?? '';
+    else el.textContent = data[id] ?? '';
   });
 
-  // ---------- ITEMS TABLE ----------
   const tbody = doc.getElementById('itemRows');
   if (tbody) {
     tbody.innerHTML = '';
-
     data.items.forEach(item => {
       const tr = doc.createElement('tr');
 
@@ -1638,7 +1555,6 @@ function updatePreview() {
     });
   }
 
-  // ---------- TAX SUMMARY ----------
   const taxFields = [
     { id: 'vatableSales', value: data.vatableSales },
     { id: 'vatAmount', value: data.vatAmount },
@@ -1653,18 +1569,10 @@ function updatePreview() {
     const el = doc.getElementById(f.id);
     if (!el) return;
 
-    if (f.id === 'discount') {
-      el.value = f.value ?? 0;
-    } else if (f.id === 'withholdingTax') {
-      el.value = f.value ?? 0;
-    } else if (f.id === 'withholdingTaxAmount') {
-      el.textContent = formatCurrency(f.value ?? 0);
-    } else {
-      el.textContent = formatCurrency(f.value ?? 0);
-    }
-  }); 
+    if (f.id === 'discount') el.value = f.value ?? 0;
+    else el.textContent = formatCurrency(f.value ?? 0);
+  });
 
-  // ---------- FOOTER ----------
   const footerFields = [
     { id: 'footer-bir-permit', value: data.footer_bir_permit },
     { id: 'footer-bir-date', value: data.footer_bir_date },
@@ -1677,15 +1585,15 @@ function updatePreview() {
   });
 }
 
-
-// Toggle iframe preview
 async function showPreviewToggle() {
   if (!iframe) return;
 
   const visible = iframe.style.display && iframe.style.display !== 'none';
+  const previewBtn = document.getElementById('previewBtn'); // injected
+
   if (visible) {
     iframe.style.display = 'none';
-    previewBtn.setAttribute('aria-pressed', 'false');
+    previewBtn?.setAttribute('aria-pressed', 'false');
     return;
   }
 
@@ -1693,35 +1601,44 @@ async function showPreviewToggle() {
     await loadPreviewHTML();
     updatePreview();
     iframe.style.display = 'block';
-    previewBtn.setAttribute('aria-pressed', 'true');
+    previewBtn?.setAttribute('aria-pressed', 'true');
   } catch (err) {
     console.error('Failed to load preview', err);
     alert('Failed to load preview: ' + err.message);
   }
 }
 
-// Event listeners
-if (previewBtn) previewBtn.addEventListener('click', showPreviewToggle);
+// ✅ bind preview button after navbar injection
+document.addEventListener('DOMContentLoaded', async () => {
+  await waitNavbar();
+  const previewBtn = document.getElementById('previewBtn');
+  if (previewBtn) previewBtn.addEventListener('click', showPreviewToggle);
+});
+
 if (form) form.addEventListener('input', updatePreview);
 
+/* -------------------- INVOICE DROPDOWN (Injected) -------------------- */
+document.addEventListener('DOMContentLoaded', async () => {
+  await waitNavbar();
 
-// ====== FIXED DROPDOWN (SAFE) ======
-const invoiceDropdown = document.getElementById('invoiceDropdown');
-const invoiceTypeInput = document.getElementById('invoice_type');
-const createInvoiceBtn = document.getElementById('createInvoiceBtn');
+  const invoiceDropdown = document.getElementById('invoiceDropdown');
+  const invoiceTypeInput = document.getElementById('invoice_type');
+  const createInvoiceBtn = document.getElementById('createInvoiceBtn');
 
-if (invoiceDropdown && invoiceTypeInput && createInvoiceBtn) {
-  invoiceDropdown.querySelectorAll('a').forEach(a => {
-    a.addEventListener('click', function(e) {
-      e.preventDefault();
-      const type = this.getAttribute('href')?.split('type=')[1] || '';
-      invoiceTypeInput.value = type.toUpperCase().replace(/_/g, ' ');
-      createInvoiceBtn.textContent = this.textContent;
-      invoiceDropdown.classList.remove('show');
+  if (invoiceDropdown && invoiceTypeInput && createInvoiceBtn) {
+    invoiceDropdown.querySelectorAll('a').forEach(a => {
+      a.addEventListener('click', function(e) {
+        e.preventDefault();
+        const type = this.getAttribute('href')?.split('type=')[1] || '';
+        invoiceTypeInput.value = type.toUpperCase().replace(/_/g, ' ');
+        createInvoiceBtn.textContent = this.textContent;
+        invoiceDropdown.classList.remove('show');
+      });
     });
-  });
-}
+  }
+});
 
+/* -------------------- EXPOSE GLOBALS -------------------- */
 window.addRow = addRow;
 window.removeRow = removeRow;
 window.showAddColumnModal = showAddColumnModal;
@@ -1731,3 +1648,4 @@ window.previewLogo = previewLogo;
 window.removeLogo = removeLogo;
 window.saveToDatabase = saveToDatabase;
 window.updateAmount = updateAmount;
+window.calculateTotals = calculateTotals;

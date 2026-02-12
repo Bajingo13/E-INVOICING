@@ -21,7 +21,7 @@ async function getCompanyInfo(req, res) {
  */
 async function saveCompanyInfo(req, res) {
   // If using multer file upload middleware (files route), file will be in req.file
-  const { company_name, company_address, tel_no, vat_tin } = req.body;
+  const { company_name, company_address, tel_no, vat_tin } = (req.body || {});
   let logo_path = null;
 
   // If an uploaded file was used (handled by files route which sets req.file)

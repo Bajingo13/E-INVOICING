@@ -1,0 +1,124 @@
+<header class="app-header">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="brand" href="/dashboard" aria-label="Go to Dashboard">
+        <span class="brand-title">AstreaBlue</span>
+        <span class="brand-subtitle">E-Invoicing</span>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <div class="dropdown">
+          <button class="btn dropdown-toggle" id="accountingBtn">Accounting</button>
+          <div class="dropdown-menu" id="accountingDropdown">
+            <a href="/COA.HTML" class="dropdown-item">Chart of Accounts</a>
+            <a href="/contacts.html" class="dropdown-item">Contacts</a>
+          </div>
+        </div>
+
+        <div class="dropdown">
+          <button class="btn dropdown-toggle" id="createInvoiceBtn">Create Invoice</button>
+          <div class="dropdown-menu" id="invoiceDropdown">
+            <a href="/invoice?type=service" class="dropdown-item">Service Invoice</a>
+            <a href="/invoice?type=sales" class="dropdown-item">Sales Invoice</a>
+            <a href="/invoice?type=commercial" class="dropdown-item">Commercial Invoice</a>
+            <a href="/invoice?type=credit" class="dropdown-item">Credit Memo</a>
+            <a href="/invoice?type=debit" class="dropdown-item">Debit Memo</a>
+          </div>
+        </div>
+        
+<div class="dropdown">
+  <a href="/invoice-list.html" class="btn">
+    Invoice List
+  </a>
+</div>
+
+        <div class="dropdown">
+          <button class="btn dropdown-toggle" id="reportsBtn">Reports</button>
+          <div class="dropdown-menu" id="reportsDropdown">
+            <a href="/reports.html" class="dropdown-item">Sales Tax Summary Report</a>
+            <a href="/Sales_report.html" class="dropdown-item">Sales Report</a>
+            <a href="/reports/ewt.html" class="dropdown-item">EWT Report</a>
+
+            <div class="dropdown-submenu">
+              <a href="#" class="dropdown-item submenu-toggle">VAT Report ▸</a>
+              <div class="dropdown-menu submenu">
+                <a href="/Output.html" class="dropdown-item">Output VAT</a>
+                <a href="/Input.html" class="dropdown-item">Input VAT</a>
+                <a href="/VATsummary.html" class="dropdown-item">VAT Summary</a>
+              </div>
+            </div>
+
+            <a href="/reports/summary.html" class="dropdown-item">Summary Report</a>
+          </div>
+        </div>
+
+        <div class="dropdown">
+          <button class="btn dropdown-toggle" id="SystemconfigBtn">System Configuration</button>
+          <div class="dropdown-menu" id="systemConfigDropdown">
+            <a href="/Company_info.html" class="dropdown-item">Company Info</a>
+            <a href="/TransLock.html" class="dropdown-item">Transaction Locking</a>
+            <a href="/invoiceSettings.html" class="dropdown-item">Invoice Settings</a>
+            <a href="/EWTLib.html" class="dropdown-item">EWT Library</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="topbar-right">
+      <!-- Notifications -->
+      <div class="dropdown notifications-dropdown">
+        <button class="icon-btn dropdown-toggle" id="notifBtn" aria-label="Notifications">
+          <i class="ri-notification-3-line"></i>
+          <span id="notifBadge" class="notif-badge">0</span>
+        </button>
+        <div class="dropdown-menu" id="notifDropdown">
+          <div id="notifList"></div>
+        </div>
+      </div>
+
+      <!-- Profile -->
+      <div class="dropdown profile-dropdown">
+        <button class="profile-btn dropdown-toggle" id="profileBtn" aria-label="Profile">
+          <span class="profile-ring"></span>
+          <span class="profile-status" title="Online"></span>
+
+          <span class="profile-initials" id="profileInitials">JJ</span>
+
+          <img
+            src="/images/profile.png"
+            alt="Profile"
+            class="profile-pic"
+            onload="this.style.display='block'; document.getElementById('profileInitials').style.display='none';"
+            onerror="this.style.display='none';"
+          />
+
+          <span class="profile-caret" aria-hidden="true">▾</span>
+        </button>
+
+        <div class="dropdown-menu" id="profileDropdown">
+          <a href="/profile.html" class="dropdown-item">Profile</a>
+          <a href="/userSettings.html" class="dropdown-item">User Settings</a>
+          <a href="/" class="dropdown-item logout">Logout</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE HEADER (white bar) -->
+  <div class="page-header">
+    <div class="page-header-left">
+      <h1 id="pageTitle" class="page-title">Page</h1>
+      <div id="pageSubtitle" class="page-subtitle" style="display:none;"></div>
+
+      <nav id="breadcrumbWrap" class="breadcrumb" aria-label="Breadcrumb" style="display:none;">
+        <span id="breadcrumb"></span>
+      </nav>
+    </div>
+
+    <div id="pageActions" class="page-header-right"></div>
+
+    <div class="dev-signature" title="Built with passion by JJ & DJ">JJ & DJ</div>
+  </div>
+</header>

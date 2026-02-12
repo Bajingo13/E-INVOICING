@@ -162,6 +162,7 @@ async function getCompanyInfo(req, res) {
 
 /* =========================================================
    CREATE INVOICE (POST)
+   - Now snapshots company_info into invoices.company_snapshot
 ========================================================= */
 async function createInvoice(req, res) {
   const data = { ...req.body };
@@ -208,42 +209,63 @@ async function createInvoice(req, res) {
 
     const vatType = normalizeVatType(data.vat_type);
 
+    // ✅ Snapshot company info for this invoice (so future updates won't affect old invoices)
+    const [[companyRow]] = await conn.execute('SELECT * FROM company_info LIMIT 1');
+    const companySnapshot = companyRow
+      ? {
+          company_name: companyRow.company_name || '',
+          company_address: companyRow.company_address || '',
+          tel_no: companyRow.tel_no || '',
+          vat_tin: companyRow.vat_tin || '',
+          logo_path: companyRow.logo_path || ''
+        }
+      : null;
+
     const [result] = await conn.execute(
-      `INSERT INTO invoices
-       (invoice_no, invoice_mode, invoice_category, invoice_type,
-        bill_to, address, tin, terms,
-        currency, exchange_rate,
-        vat_type,
-        date, due_date,
-        total_amount_due, foreign_total,
-        logo, extra_columns,
-        recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status,
-        status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        invoiceNo,
-        data.invoice_mode || 'standard',
-        data.invoice_category || 'service',
-        data.invoice_type || 'SERVICE INVOICE',
-        data.bill_to,
-        data.address || null,
-        data.tin || null,
-        data.terms || null,
-        currency,
-        exchangeRate,
-        vatType,
-        data.date,
-        data.due_date || null,
-        data.logo || null,
-        JSON.stringify(data.extra_columns || []),
-        data.recurrence_type || null,
-        data.recurrence_start_date || null,
-        data.recurrence_end_date || null,
-        data.recurrence_type ? 'active' : null,
-        data.status || 'draft',
-        req.session.user.id
-      ]
-    );
+  `INSERT INTO invoices
+   (invoice_no, invoice_mode, invoice_category, invoice_type,
+    bill_to, address, tin, terms,
+    currency, exchange_rate,
+    vat_type,
+    date, due_date,
+    total_amount_due, foreign_total,
+    logo, extra_columns,
+    recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status,
+    status, created_by,
+    company_snapshot)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  [
+    invoiceNo,
+    data.invoice_mode || 'standard',
+    data.invoice_category || 'service',
+    data.invoice_type || 'SERVICE INVOICE',
+    data.bill_to,
+    data.address || null,
+    data.tin || null,
+    data.terms || null,
+    currency,
+    exchangeRate,
+    vatType,
+    data.date,
+    data.due_date || null,
+
+    // ✅ start at 0, will be updated after items insert
+    0,
+    0,
+
+    data.logo || null,
+    JSON.stringify(data.extra_columns || []),
+    data.recurrence_type || null,
+    data.recurrence_start_date || null,
+    data.recurrence_end_date || null,
+    data.recurrence_type ? 'active' : null,
+    data.status || 'draft',
+    req.session.user.id,
+
+    companySnapshot ? JSON.stringify(companySnapshot) : null
+  ]
+);
+
 
     invoiceId = result.insertId;
 
@@ -296,7 +318,7 @@ async function createInvoice(req, res) {
       return res.status(400).json({ error: 'Invoice number already exists' });
     }
 
-    // Optional: audit failed create attempts (still "transactional", but failed)
+    // Optional: audit failed create attempts
     try {
       await logAudit(pool, req, {
         action: 'invoice.create',
@@ -316,6 +338,7 @@ async function createInvoice(req, res) {
 
 /* =========================================================
    UPDATE INVOICE (PUT)
+   - Does NOT modify company_snapshot (keeps original)
 ========================================================= */
 
 async function updateInvoice(req, res) {
@@ -332,7 +355,7 @@ async function updateInvoice(req, res) {
   let beforeItemsCount = 0;
 
   try {
-    // BEFORE snapshot (small + meaningful)
+    // BEFORE snapshot
     {
       const { inv, items_count } = await getInvoiceAuditState(conn, invoiceNo);
       if (!inv) return res.status(404).json({ error: 'Invoice not found' });
@@ -469,13 +492,41 @@ async function getInvoice(req, res) {
     const [items] = await conn.execute('SELECT * FROM invoice_items WHERE invoice_id=?', [invoice.id]);
     const [[tax]] = await conn.execute('SELECT * FROM invoice_tax_summary WHERE invoice_id=? LIMIT 1', [invoice.id]);
     const [[footer]] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id=? LIMIT 1', [invoice.id]);
-    const [[company]] = await conn.execute('SELECT * FROM company_info LIMIT 1');
+
+    // ✅ Company info: use per-invoice snapshot first; fallback to current company_info for legacy invoices
+    let company = null;
+
+    if (invoice.company_snapshot) {
+      try {
+        company = (typeof invoice.company_snapshot === 'string')
+          ? JSON.parse(invoice.company_snapshot)
+          : invoice.company_snapshot;
+      } catch {
+        company = null;
+      }
+    }
+
+    if (!company) {
+      const [[companyRow]] = await conn.execute('SELECT * FROM company_info LIMIT 1');
+      company = companyRow
+        ? {
+            company_name: companyRow.company_name || '',
+            company_address: companyRow.company_address || '',
+            tel_no: companyRow.tel_no || '',
+            vat_tin: companyRow.vat_tin || '',
+            logo_path: companyRow.logo_path || ''
+          }
+        : {};
+    }
 
     invoice.items = items;
     invoice.tax_summary = tax || {};
     invoice.footer = footer || {};
     invoice.company = company || {};
     invoice.extra_columns = invoice.extra_columns ? JSON.parse(invoice.extra_columns) : [];
+
+    // Optional: don't expose raw snapshot field to frontend
+    delete invoice.company_snapshot;
 
     res.json(invoice);
   } finally {
@@ -513,7 +564,7 @@ async function deleteInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const conn = await getConn();
 
-  // Capture BEFORE snapshot (transactional)
+  // Capture BEFORE snapshot
   let beforeSnap = null;
   let beforeItemsCount = 0;
 
