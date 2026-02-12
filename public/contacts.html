@@ -13,20 +13,31 @@
       <h1>Contact Manager</h1>
     </header>
 
-    <!-- TOP BUTTONS -->
+    <div class="card">
+  <div class="toolbar">
     <div class="top-buttons">
       <button id="addBtn" class="btn">Add</button>
-      <button id="editBtn" class="btn">Edit</button>
+      <button id="editBtn" class="btn secondary">Edit</button>
       <button id="deleteBtn" class="btn danger">Delete</button>
-      <a href="Dashboard.html" class="btn danger">Exit</a>
+      <button id="importContactsBtn" class="btn secondary">Import</button>
+<input type="file" id="contactsImportFile" accept=".xlsx,.csv" hidden>
+      <a href="Dashboard.html" class="btn secondary exit-btn">Exit</a>
     </div>
 
-    <!-- SEARCH -->
     <div class="search-row">
-      <input type="text" id="searchInput" placeholder="Search name, business, code..." />
-    </div>
+      <div class="search-wrap">
+        <span class="search-icon">🔎</span>
+        <input type="text" id="searchInput" placeholder="Search name, business, code..." />
+      </div>
 
-    <!-- TABLE -->
+      <div class="meta">
+        <span class="pill"><span class="label">Records</span> <span class="value" id="recordCount">0</span></span>
+        <span class="pill"><span class="label">Selected</span> <span class="value" id="selectedLabel">None</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
     <table class="contact-table">
       <thead>
         <tr>
@@ -44,6 +55,10 @@
       </thead>
       <tbody id="contactBody"></tbody>
     </table>
+    <div id="emptyState" class="empty" style="display:none;">
+      No contacts found. Try a different search, or click <b>Add</b>.
+    </div>
+  </div>
 
     <!-- FORM -->
     <form id="contactForm" class="contact-form" onsubmit="return false;">
@@ -124,7 +139,6 @@
 
   </div>
 
-  <script src="/js/shortcuts.js"></script>
 
   <script src="contacts.js"></script>
 </body>
