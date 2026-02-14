@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Sales Tax Summary</title>
+  <link rel="stylesheet" href="SalesTaxSummary.css" />
+</head>
+<body>
+
+  <header class="page-header">
+    <div class="page-header-inner">
+      <div class="title-wrap">
+        <h1>Sales Tax Summary</h1>
+        <p class="subtitle">Summary of sales taxes from <b>Pending</b> and <b>Approved</b> invoices.</p>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-success" id="btnExport" type="button">Export Excel</button>
+        <button class="btn btn-ghost" id="btnExit" type="button">Exit</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <section class="filters-card">
+      <div class="filters-grid">
+        <div class="field">
+          <label for="from-date">From</label>
+          <input type="date" id="from-date" />
+        </div>
+
+        <div class="field">
+          <label for="to-date">To</label>
+          <input type="date" id="to-date" />
+        </div>
+
+        <div class="field field-grow">
+          <label for="customer-filter">Customer</label>
+          <input type="text" id="customer-filter" placeholder="Search customer name…" />
+        </div>
+      </div>
+
+      <div class="filters-meta">
+        <span class="hint" id="rangeHint">Tip: Leave dates blank to show all.</span>
+        <span class="status-pill" id="statusPill">Ready</span>
+      </div>
+    </section>
+
+    <!-- SUMMARY CARDS -->
+    <section class="summary">
+      <div class="card">
+        <div class="card-label">VATable Sales</div>
+        <div class="card-value" id="sum-vatable">0.00</div>
+      </div>
+      <div class="card">
+        <div class="card-label">VAT Exempt Sales</div>
+        <div class="card-value" id="sum-exempt">0.00</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Zero-Rated Sales</div>
+        <div class="card-value" id="sum-zero">0.00</div>
+      </div>
+      <div class="card subtle">
+        <div class="card-label">Output VAT</div>
+        <div class="card-value" id="sum-vat">0.00</div>
+      </div>
+    </section>
+
+    <section class="table-card">
+      <div class="table-topbar">
+        <div class="table-title">
+          <span>Results</span>
+          <small id="resultsMeta">—</small>
+        </div>
+
+        <div class="table-actions">
+          <button class="btn btn-mini" id="btnGroupToggle" type="button" aria-label="Toggle group mode">
+            Group: Month
+          </button>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-period">Period</th>
+              <th>Customer</th>
+              <th class="col-tin">TIN</th>
+              <th class="col-num">VATable</th>
+              <th class="col-num">Exempt</th>
+              <th class="col-num">Zero</th>
+              <th class="col-num">Output VAT</th>
+              <th class="col-num">Gross</th>
+              <th class="col-num">Invoices</th>
+            </tr>
+          </thead>
+          <tbody id="tax-table"></tbody>
+        </table>
+      </div>
+
+      <div class="state" id="stateBox" hidden>
+        <div class="spinner" id="spinner" hidden></div>
+        <div class="state-title" id="stateTitle">Loading…</div>
+        <div class="state-subtitle" id="stateSubtitle">Fetching tax summary data</div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="SalesTaxSummary.js"></script>
+</body>
+</html>
