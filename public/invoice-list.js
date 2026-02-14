@@ -1,15 +1,34 @@
-import { requireAnyRole, getCurrentUser } from './authClient.js';
+// invoice-list.js
+import { getCurrentUser } from './authClient.js';
 
 console.log("✅ Invoice-list.js loaded");
 
-let showDraftsOnly = false;
 let currentSort = { key: 'invoice_no', order: 'desc' };
-
 let currentUser = null;
 
-/* ===================== NOTIF -> SEARCH + HIGHLIGHT HELPERS ===================== */
+let activeStatus = 'all';          // tabs + URL sync
+let allCountsCache = null;         // counts from /api/invoices
+let lastFetchedInvoices = [];      // current table dataset
+
+/* ===================== URL HELPERS ===================== */
 function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
+}
+
+function setQueryParams(patch = {}) {
+  const url = new URL(window.location.href);
+  Object.entries(patch).forEach(([k, v]) => {
+    if (v === null || v === undefined || v === '') url.searchParams.delete(k);
+    else url.searchParams.set(k, v);
+  });
+  window.history.replaceState({}, '', url.toString());
+}
+
+function getStatusFromQuery() {
+  const raw = (getQueryParam('status') || '').trim().toLowerCase();
+  const allowed = new Set(['draft', 'returned', 'pending', 'approved', 'paid', 'canceled', 'all']);
+  if (!raw) return null;
+  return allowed.has(raw) ? raw : null;
 }
 
 function applySearchFromQuery() {
@@ -18,10 +37,14 @@ function applySearchFromQuery() {
   if (search && input) input.value = search;
 }
 
-function filterRowsBySearchValue() {
+function getSearchValue() {
   const input = document.getElementById("searchInput");
-  const v = (input?.value || '').toLowerCase();
+  return (input?.value || '').trim().toLowerCase();
+}
 
+/* ===================== SEARCH + HIGHLIGHT ===================== */
+function filterRowsBySearchValue() {
+  const v = getSearchValue();
   document.querySelectorAll("#invoiceTable tbody tr").forEach(r => {
     r.style.display = r.textContent.toLowerCase().includes(v) ? "" : "none";
   });
@@ -34,8 +57,7 @@ function focusInvoiceRow(invoiceNo) {
   let targetRow = null;
 
   rows.forEach(r => {
-    // 2nd column is invoice_no based on your table
-    const cellText = (r.children?.[1]?.textContent || '').trim();
+    const cellText = (r.children?.[1]?.textContent || '').trim(); // invoice_no column
     if (cellText === invoiceNo) targetRow = r;
     r.classList.remove('row-focus');
   });
@@ -43,14 +65,11 @@ function focusInvoiceRow(invoiceNo) {
   if (targetRow) {
     targetRow.classList.add('row-focus');
     targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    // remove highlight after a few seconds (optional)
     setTimeout(() => targetRow.classList.remove('row-focus'), 6000);
   }
 }
-/* ============================================================================ */
 
-// ---------------- RBAC ----------------
+/* ===================== RBAC ===================== */
 async function initRBAC() {
   currentUser = await getCurrentUser();
   if (!currentUser) {
@@ -61,25 +80,93 @@ async function initRBAC() {
   return true;
 }
 
-// ---------------- FETCH & POPULATE ----------------
-async function fetchInvoices() {
+/* ===================== STATUS TABS ===================== */
+function setActiveTab(status) {
+  activeStatus = status;
+
+  document.querySelectorAll('.filter-tab').forEach(btn => {
+    const isActive = btn.dataset.status === status;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  setQueryParams({ status: status === 'all' ? null : status });
+}
+
+function bindStatusTabs() {
+  const tabs = document.querySelectorAll('.filter-tab');
+  if (!tabs.length) return;
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', async () => {
+      const status = tab.dataset.status;
+      if (!status) return;
+      setActiveTab(status);
+      await fetchInvoices();
+    });
+  });
+}
+
+function updateCountsFromAllInvoices(allInvoices) {
+  const counts = {
+    all: allInvoices.length,
+    draft: 0,
+    returned: 0,
+    pending: 0,
+    approved: 0,
+    paid: 0,
+    canceled: 0
+  };
+
+  for (const inv of allInvoices) {
+    if (counts[inv.status] !== undefined) counts[inv.status]++;
+  }
+
+  Object.keys(counts).forEach(k => {
+    const el = document.getElementById(`count-${k}`);
+    if (el) el.textContent = `(${counts[k]})`;
+  });
+}
+
+/* ===================== FETCH ===================== */
+async function fetchAllForCountsIfNeeded() {
+  if (allCountsCache) return;
+
   try {
     const res = await fetch('/api/invoices');
+    if (!res.ok) throw new Error("Failed to fetch invoices for counts");
+    const all = await res.json();
+    allCountsCache = all;
+    updateCountsFromAllInvoices(all);
+  } catch (err) {
+    console.warn("⚠️ Counts fetch failed:", err);
+  }
+}
+
+async function fetchInvoices() {
+  try {
+    await fetchAllForCountsIfNeeded();
+
+    const url = (activeStatus && activeStatus !== 'all')
+      ? `/api/invoices?status=${encodeURIComponent(activeStatus)}`
+      : `/api/invoices`;
+
+    const res = await fetch(url);
     if (!res.ok) throw new Error("Failed to fetch invoices");
 
     let invoices = await res.json();
 
-    if (showDraftsOnly) invoices = invoices.filter(inv => inv.status === 'draft');
-
     invoices = sortInvoices(invoices, currentSort.key, currentSort.order);
+
+    lastFetchedInvoices = invoices;
     populateTable(invoices);
 
-    // ✅ Apply search + focus after rows are rendered
     const search = getQueryParam('search');
     if (search) {
       applySearchFromQuery();
       filterRowsBySearchValue();
     }
+
     const focus = getQueryParam('focus');
     if (focus) focusInvoiceRow(focus);
 
@@ -88,7 +175,7 @@ async function fetchInvoices() {
   }
 }
 
-// ---------------- SORT ----------------
+/* ===================== SORT ===================== */
 function sortInvoices(invoices, key, order) {
   return invoices.slice().sort((a, b) => {
     let valA, valB;
@@ -113,7 +200,7 @@ function sortInvoices(invoices, key, order) {
 
       case 'due_date':
         return order === 'asc'
-          ? new Date(a.due_date || 0) - new Date(a.due_date || 0)
+          ? new Date(a.due_date || 0) - new Date(b.due_date || 0)
           : new Date(b.due_date || 0) - new Date(a.due_date || 0);
 
       case 'status': {
@@ -136,7 +223,7 @@ function sortInvoices(invoices, key, order) {
   });
 }
 
-// ---------------- TABLE ----------------
+/* ===================== TABLE ===================== */
 function populateTable(invoices) {
   const tbody = document.querySelector("#invoiceTable tbody");
   if (!tbody) return;
@@ -152,7 +239,6 @@ function populateTable(invoices) {
     const issueFmt = issueDate ? new Date(issueDate).toLocaleDateString('en-PH') : '';
     const dueFmt = dueDate ? new Date(dueDate).toLocaleDateString('en-PH') : '';
 
-    // Status Badge
     let statusBadge = `<span class="status-badge">${inv.status || ''}</span>`;
     if (inv.status === 'draft') statusBadge = `<span class="status-badge status-draft">Draft</span>`;
     if (inv.status === 'returned') statusBadge = `<span class="status-badge status-returned">Returned</span>`;
@@ -176,7 +262,7 @@ function populateTable(invoices) {
       }
     }
 
-    // --- RETURNED  ---
+    // --- RETURNED ---
     if (inv.status === 'returned') {
       if (role === 'submitter') {
         buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
@@ -191,23 +277,30 @@ function populateTable(invoices) {
     }
 
     // --- PENDING ---
-    if (inv.status === 'pending') {
-      buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
+if (inv.status === 'pending') {
+  buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
 
-      if (
-        ['approver', 'admin', 'super'].includes(role) &&
-        Number(inv.created_by) !== Number(currentUser.id)
-      ) {
-        if (role === 'approver' || role === 'admin' || role === 'super') {
-          buttons.push(`<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>`);
-        }
-        buttons.push(`<button class="action-btn return" onclick="returnInvoice('${inv.invoice_no}')">Return</button>`);
-      }
+  const isOwner = Number(inv.created_by) === Number(currentUser.id);
+  const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+  const isApprover = role === 'approver';
 
-      if (['super', 'admin'].includes(role)) {
-        buttons.push(`<button class="action-btn cancel" onclick="cancelInvoice('${inv.invoice_no}')">Cancel</button>`);
-      }
-    }
+  // ✅ allow submitter (owner) to edit pending
+  // ✅ allow approver/admin to edit pending (you said they control any invoice any status)
+  if (isOwner || isAdmin || isApprover) {
+    buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
+  }
+
+  // ✅ Approver/admin can approve/return (keep your "cannot approve own invoice" rule)
+  if ((isApprover || isAdmin) && !isOwner) {
+    buttons.push(`<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>`);
+    buttons.push(`<button class="action-btn return" onclick="returnInvoice('${inv.invoice_no}')">Return</button>`);
+  }
+
+  // ✅ Admin/super can cancel
+  if (isAdmin) {
+    buttons.push(`<button class="action-btn cancel" onclick="cancelInvoice('${inv.invoice_no}')">Cancel</button>`);
+  }
+}
 
     // --- APPROVED ---
     if (inv.status === 'approved') {
@@ -240,46 +333,61 @@ function populateTable(invoices) {
   setupSelectAllCheckbox();
 }
 
-// ---------------- EXPORT ----------------
-const exportBtn = document.getElementById("exportBtn");
-if (exportBtn) {
-  const menu = document.createElement("div");
-  menu.className = "export-dropdown";
-  menu.style.display = "none";
-  menu.innerHTML = `
-    <button data-status="all">All Invoices</button>
-    <button data-status="draft">Draft Only</button>
-    <button data-status="returned">Returned Only</button>
-    <button data-status="pending">Pending Only</button>
-    <button data-status="approved">Approved Only</button>
+/* ===================== EXPORT (HEADER) ===================== */
+function setupExportDropdown() {
+  const btnTop = document.getElementById("exportBtnTop");
+  const menuTop = document.getElementById("exportMenuTop");
+  if (!btnTop || !menuTop) return;
+
+  if (btnTop.dataset.bound === '1') return;
+  btnTop.dataset.bound = '1';
+
+  menuTop.innerHTML = `
+    <button type="button" class="export-item" data-status="all">All Invoices</button>
+    <button type="button" class="export-item" data-status="draft">Draft Only</button>
+    <button type="button" class="export-item" data-status="returned">Returned Only</button>
+    <button type="button" class="export-item" data-status="pending">Pending Only</button>
+    <button type="button" class="export-item" data-status="approved">Approved Only</button>
+    <button type="button" class="export-item" data-status="paid">Paid Only</button>
+    <button type="button" class="export-item" data-status="canceled">Canceled Only</button>
   `;
-  exportBtn.parentElement.appendChild(menu);
 
-  exportBtn.addEventListener("click", (e) => {
+  function close() { menuTop.classList.remove('show'); }
+
+  btnTop.addEventListener("click", (e) => {
+    e.preventDefault();
     e.stopPropagation();
-    menu.style.display = menu.style.display === "block" ? "none" : "block";
+
+    // close other dropdowns in the navbar/page header
+    document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+      if (m !== menuTop) m.classList.remove('show');
+    });
+
+    menuTop.classList.toggle('show');
   });
 
-  menu.addEventListener("click", async (e) => {
-    const status = e.target.dataset.status;
+  menuTop.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const b = e.target.closest('[data-status]');
+    const status = b?.dataset?.status;
     if (!status) return;
-    menu.style.display = "none";
-    await exportInvoices(status);
+
+    close();
+    exportInvoices(status);
   });
 
-  document.addEventListener("click", () => { menu.style.display = "none"; });
+  document.addEventListener("click", close);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
 }
 
-async function exportInvoices(status) {
-  try {
-    window.location.href = `/api/invoices/export/excel?status=${status}`;
-  } catch (err) {
-    console.error("Export failed:", err);
-    alert("Failed to export invoices");
-  }
+function exportInvoices(status) {
+  // browser download
+  window.location.href = `/api/invoices/export/excel?status=${encodeURIComponent(status)}`;
 }
 
-// ---------------- ACTIONS ----------------
+
+/* ===================== ACTIONS ===================== */
 function viewInvoice(no) {
   window.open(`/InvoicePreviewViewer.html?invoice_no=${no}`, '_blank');
 }
@@ -290,34 +398,38 @@ function editInvoice(no) {
 async function deleteInvoice(no) {
   if (!confirm(`Delete invoice ${no}?`)) return;
   await fetch(`/api/invoices/${no}`, { method: 'DELETE' });
-  fetchInvoices();
+  allCountsCache = null;
+  await fetchInvoices();
 }
 
 async function approveInvoice(no) {
   if (!confirm(`Approve invoice ${no}?`)) return;
   await fetch(`/api/invoices/${no}/approve`, { method: 'POST' });
-  fetchInvoices();
+  allCountsCache = null;
+  await fetchInvoices();
 }
 
 async function submitInvoice(no) {
   if (!confirm(`Submit invoice ${no}?`)) return;
   await fetch(`/api/invoices/${no}/submit`, { method: 'POST' });
-  fetchInvoices();
+  allCountsCache = null;
+  await fetchInvoices();
 }
 
 async function markPaid(no) {
   if (!confirm(`Mark invoice ${no} as paid?`)) return;
   await fetch(`/api/invoices/${no}/mark-paid`, { method: 'POST' });
-  fetchInvoices();
+  allCountsCache = null;
+  await fetchInvoices();
 }
 
 async function cancelInvoice(no) {
   if (!confirm(`Cancel invoice ${no}?`)) return;
   await fetch(`/api/invoices/${no}/cancel`, { method: 'POST' });
-  fetchInvoices();
+  allCountsCache = null;
+  await fetchInvoices();
 }
 
-// ✅ Return pending invoice -> sets status "returned"
 async function returnInvoice(no) {
   const reason = prompt("Reason for returning this invoice?");
   if (reason === null) return;
@@ -334,16 +446,20 @@ async function returnInvoice(no) {
     return;
   }
 
-  fetchInvoices();
+  allCountsCache = null;
+  await fetchInvoices();
 }
 
-// ---------------- BULK ----------------
+/* ===================== BULK ===================== */
 document.getElementById("deleteSelectedBtn")?.addEventListener("click", async () => {
   const selected = [...document.querySelectorAll(".select-invoice:checked")].map(cb => cb.dataset.invoice);
   if (!selected.length) return alert("No invoices selected");
   if (!confirm(`Delete ${selected.length} invoices?`)) return;
+
   for (const no of selected) await fetch(`/api/invoices/${no}`, { method: 'DELETE' });
-  fetchInvoices();
+
+  allCountsCache = null;
+  await fetchInvoices();
 });
 
 function setupSelectAllCheckbox() {
@@ -354,38 +470,50 @@ function setupSelectAllCheckbox() {
   all.onchange = () => boxes.forEach(cb => cb.checked = all.checked);
 }
 
-// ---------------- SEARCH ----------------
+/* ===================== SEARCH ===================== */
 document.getElementById("searchInput")?.addEventListener("input", () => {
+  setQueryParams({ search: getSearchValue() || null });
   filterRowsBySearchValue();
 });
 
-// ---------------- TOGGLE DRAFT ----------------
-document.getElementById("toggleDrafts")?.addEventListener("click", function () {
-  showDraftsOnly = !showDraftsOnly;
-  this.textContent = showDraftsOnly ? "Show All" : "Show Drafts";
-  fetchInvoices();
-});
-
-// ---------------- SORT HEADERS ----------------
+/* ===================== SORT HEADERS ===================== */
 document.querySelectorAll("#invoiceTable th.sortable").forEach(th => {
   th.onclick = () => {
     const key = th.dataset.sort;
-    currentSort.order = currentSort.key === key && currentSort.order === 'asc' ? 'desc' : 'asc';
+    currentSort.order = (currentSort.key === key && currentSort.order === 'asc') ? 'desc' : 'asc';
     currentSort.key = key;
     fetchInvoices();
   };
 });
 
-// ---------------- INIT ----------------
+/* ===================== INIT ===================== */
 window.addEventListener("DOMContentLoaded", async () => {
+  // Wait for navbar/layout injection so header buttons exist
+  if (window.navbarReady) {
+    try { await window.navbarReady; } catch {}
+  }
+
   const ok = await initRBAC();
   if (!ok) return;
 
-  // Prefill search if coming from notification
+  // Bind tabs
+  bindStatusTabs();
+
+  // Set active tab from URL if present
+  const statusFromUrl = getStatusFromQuery();
+  setActiveTab(statusFromUrl || 'all');
+
+  // Search from URL if present
   applySearchFromQuery();
 
-  // Fetch invoices (populateTable runs, then fetchInvoices applies focus/search)
-  fetchInvoices();
+  // Setup export dropdown after navbar is ready (header button exists)
+  setupExportDropdown();
+
+  await fetchInvoices();
+
+  // Focus from URL if any
+  const focus = getQueryParam('focus');
+  if (focus) focusInvoiceRow(focus);
 });
 
 // Expose functions globally

@@ -70,8 +70,7 @@ router.post(
   asyncHandler(invoicesCtrl.createInvoice)
 );
 
-// ---------------- UPDATE INVOICE (DRAFT OR RETURNED) ----------------
-// NOTE: your controller should do the log inside if you want invoice.update audit
+// ---------------- UPDATE INVOICE (ANY status for approver/admin + pending for submitter) ----------------
 router.put(
   '/invoices/:invoiceNo',
   requireLogin,
@@ -80,13 +79,30 @@ router.put(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    if (!['draft', 'returned'].includes(invoice.status)) {
-      return res.status(400).json({ error: 'Only draft or returned invoices can be edited' });
+    const role = req.session.user.role;
+    const userId = req.session.user.id;
+
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+    const isApprover = ['approver'].includes(role);
+    const isOwner = invoice.created_by === userId;
+
+    // ✅ Approver/Admin can edit ANY invoice regardless of status
+    if (isAdmin || isApprover) {
+      return invoicesCtrl.updateInvoice(req, res);
     }
 
-    return invoicesCtrl.updateInvoice(req, res);
+    // ✅ Submitter can edit: draft/returned/pending
+    if (isOwner && ['draft', 'returned', 'pending'].includes(invoice.status)) {
+      req.__invoice_before = invoice;     // optional
+      req.__pending_edit = invoice.status === 'pending';
+      return invoicesCtrl.updateInvoice(req, res);
+    }
+
+    // ❌ Everyone else blocked
+    return res.status(403).json({ error: 'You are not allowed to edit this invoice' });
   })
 );
+
 
 // ---------------- SUBMIT INVOICE → PENDING (DRAFT OR RETURNED) ----------------
 router.post(
@@ -319,8 +335,12 @@ router.get(
   '/invoices',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_LIST),
-  asyncHandler(invoicesCtrl.listInvoices)
+  asyncHandler(async (req, res) => {
+    // Pass filter into controller via req.query.status
+    return invoicesCtrl.listInvoices(req, res);
+  })
 );
+
 
 // ---------------- EXPORT INVOICES ----------------
 router.get(

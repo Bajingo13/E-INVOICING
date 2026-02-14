@@ -64,17 +64,24 @@ window.initNavbar = async function initNavbar() {
   const systemBtn = document.getElementById('SystemconfigBtn');
   const createInvoiceBtn = document.getElementById('createInvoiceBtn');
 
+  // Invoice list is sometimes a link, sometimes a button
+  const invoiceListBtn =
+    document.getElementById('invoiceListBtn') ||
+    document.querySelector('.nav a[href*="invoice-list"]');
+
   // --- Menus ---
   const accountingMenu = document.getElementById('accountingDropdown');
   const reportsMenu = document.getElementById('reportsDropdown');
   const systemMenu = document.getElementById('systemConfigDropdown');
-  const invoiceMenu = document.getElementById('invoiceDropdown'); // (kept for future)
+  const invoiceMenu = document.getElementById('invoiceDropdown');
 
   // Helper: hide link by href contains (case-insensitive)
   function hideLinkByHref(menuEl, hrefContains) {
     if (!menuEl) return;
     const items = Array.from(menuEl.querySelectorAll('a.dropdown-item'));
-    const target = items.find(a => (a.getAttribute('href') || '').toLowerCase().includes(hrefContains.toLowerCase()));
+    const target = items.find(a =>
+      (a.getAttribute('href') || '').toLowerCase().includes(hrefContains.toLowerCase())
+    );
     if (target) target.style.display = 'none';
   }
 
@@ -92,42 +99,31 @@ window.initNavbar = async function initNavbar() {
       btnEl.style.display = 'none';
     }
   }
-  
-// -------------------------
-// Hide Invoice List on Dashboard only
-// -------------------------
-const path = (window.location.pathname || '').toLowerCase();
 
-// adjust if your dashboard route is different
-const isDashboard =
-  path === '/dashboard' ||
-  path === '/dashboard/' ||
-  path.endsWith('/dashboard.html');
+  // -------------------------
+  // Hide Invoice List on Dashboard only
+  // -------------------------
+  const path = (window.location.pathname || '').toLowerCase();
 
-const invoiceListBtn =
-  document.getElementById('invoiceListBtn') ||
-  document.querySelector('nav.nav a[href*="invoice-list"]');
+  const isDashboard =
+    path === '/dashboard' ||
+    path === '/dashboard/' ||
+    path.endsWith('/dashboard.html');
 
-if (isDashboard && invoiceListBtn) {
-  invoiceListBtn.style.display = 'none';
-}
+  if (isDashboard && invoiceListBtn) {
+    invoiceListBtn.style.display = 'none';
+  }
 
   // -------------------------
   // Accounting dropdown
   // -------------------------
-  // Chart of Accounts
   if (!has('coa_view', 'COA_VIEW')) hideLinkByHref(accountingMenu, 'coa');
-
-  // Contacts
   if (!has('contact_view', 'CONTACT_VIEW')) hideLinkByHref(accountingMenu, 'contacts');
-
-  // Hide Accounting button if empty
   hideButtonIfMenuEmpty(accountingBtn, accountingMenu);
 
   // -------------------------
-  // Create Invoice dropdown
+  // Create Invoice dropdown (permission)
   // -------------------------
-  // Create invoice requires invoice_create
   if (!has('invoice_create', 'INVOICE_CREATE')) {
     if (createInvoiceBtn) createInvoiceBtn.style.display = 'none';
   }
@@ -135,32 +131,87 @@ if (isDashboard && invoiceListBtn) {
   // -------------------------
   // Reports dropdown
   // -------------------------
-  // Reports require report_generate OR report_export
   if (!has('report_generate', 'REPORT_GENERATE', 'report_export', 'REPORT_EXPORT')) {
     if (reportsBtn) reportsBtn.style.display = 'none';
-  } else {
-    // If you want to hide specific report links later, do it here (optional)
-    // Example:
-    // if (!has('report_export','REPORT_EXPORT')) hideLinkByHref(reportsMenu, 'export');
   }
 
   // -------------------------
   // System Configuration dropdown
   // -------------------------
-  // Company Info
   if (!has('settings_access', 'SETTINGS_ACCESS')) hideLinkByHref(systemMenu, 'company_info');
-
-  // Transaction Locking
   if (!has('lock_period', 'LOCK_PERIOD', 'settings_access', 'SETTINGS_ACCESS')) hideLinkByHref(systemMenu, 'translock');
-
-  // Invoice Settings
   if (!has('invoice_settings', 'INVOICE_SETTINGS')) hideLinkByHref(systemMenu, 'invoicesettings');
-
-  // EWT Library
   if (!has('settings_access', 'SETTINGS_ACCESS')) hideLinkByHref(systemMenu, 'ewtlib');
-
-  // Hide System Config button if empty
   hideButtonIfMenuEmpty(systemBtn, systemMenu);
+
+  // =========================================================
+  // ✅ Active-page nav behavior (hover-look + disabled) for ALL
+  // =========================================================
+  function setNavDisabled(el, menuEl, disabled) {
+    if (!el) return;
+
+    // ensure consistent styling (links too)
+    el.classList.add('btn');
+
+    if (disabled) {
+      el.classList.add('active', 'is-disabled');
+      el.setAttribute('aria-current', 'page');
+      el.setAttribute('aria-disabled', 'true');
+      el.setAttribute('tabindex', '-1');
+
+      // if it is a link, neutralize navigation
+      if (el.tagName === 'A') {
+        el.dataset.href = el.getAttribute('href') || '';
+        el.setAttribute('href', '#');
+      }
+
+      if (menuEl) menuEl.classList.remove('show');
+    } else {
+      el.classList.remove('is-disabled');
+      el.removeAttribute('aria-disabled');
+      el.removeAttribute('tabindex');
+
+      if (el.tagName === 'A' && el.dataset.href) {
+        el.setAttribute('href', el.dataset.href);
+        delete el.dataset.href;
+      }
+    }
+  }
+
+  // Hard block for ANY disabled nav element (button OR link)
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('.nav .is-disabled');
+    if (!el) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+
+  // ---- Page detection ----
+  const p = (window.location.pathname || '').toLowerCase();
+
+  const isInvoiceListPage =
+    p.includes('/invoice-list') || p.endsWith('/invoice-list.html');
+
+  // STRICT create invoice matching (exclude invoice-list)
+  const isCreateInvoicePage =
+    (p === '/invoice' || p === '/invoice/' || p.endsWith('/invoice.html') || p.startsWith('/invoice/'))
+    && !isInvoiceListPage;
+
+  const isAccountingPage = p.includes('coa') || p.includes('contacts');
+  const isReportsPage = p.includes('reports');
+  const isSystemConfigPage =
+    p.includes('company_info') ||
+    p.includes('translock') ||
+    p.includes('invoicesettings') ||
+    p.includes('ewtlib');
+
+  // Apply states
+  setNavDisabled(createInvoiceBtn, invoiceMenu, isCreateInvoicePage);
+  setNavDisabled(invoiceListBtn, null, isInvoiceListPage);
+  setNavDisabled(accountingBtn, accountingMenu, isAccountingPage);
+  setNavDisabled(reportsBtn, reportsMenu, isReportsPage);
+  setNavDisabled(systemBtn, systemMenu, isSystemConfigPage);
 
   // =========================================================
   // DROPDOWNS (single outside click listener, no duplicates)
@@ -179,6 +230,11 @@ if (isDashboard && invoiceListBtn) {
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
+
+      // ✅ DO NOT OPEN if disabled
+      if (btn.classList.contains('is-disabled') || btn.getAttribute('aria-disabled') === 'true') {
+        return;
+      }
 
       // ignore if hidden
       const style = window.getComputedStyle(btn);
@@ -244,7 +300,7 @@ if (isDashboard && invoiceListBtn) {
     toggle.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
-      const submenu = toggle.nextElementSibling; // matches your HTML
+      const submenu = toggle.nextElementSibling;
       if (submenu) submenu.classList.toggle('show');
     });
   });

@@ -1,69 +1,107 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Sales Report</title>
-  <link rel="stylesheet" href="Sales_report.css">
+  <link rel="stylesheet" href="Sales_report.css" />
 </head>
 <body>
 
-<header class="header">
-  <h1>Sales Report</h1>
-</header>
+  <header class="page-header">
+    <div class="page-header-inner">
+      <div class="title-wrap">
+        <h1>Sales Report</h1>
+        <p class="subtitle">Shows only <b>Pending</b> and <b>Approved</b> invoices.</p>
+      </div>
 
-<section class="filters">
-  <div>
-    <label>From</label>
-    <input type="date" id="from-date">
-  </div>
+      <div class="header-actions">
+  <button class="btn btn-success" id="btnExport" type="button">Export Excel</button>
+  <button class="btn btn-ghost" id="btnExit" type="button">Exit</button>
+</div>
+    </div>
+  </header>
 
-  <div>
-    <label>To</label>
-    <input type="date" id="to-date">
-  </div>
+  <main class="container">
 
-  <div>
-    <label>Customer</label>
-    <input type="text" id="customer-filter" placeholder="All customers">
-  </div>
+    <section class="filters-card">
+      <div class="filters-grid">
+        <div class="field">
+          <label for="from-date">From</label>
+          <input type="date" id="from-date" />
+        </div>
 
-  <button onclick="loadSales()">Load</button>
-  <button class="excel" onclick="exportSales()">Export Excel</button>
-</section>
+        <div class="field">
+          <label for="to-date">To</label>
+          <input type="date" id="to-date" />
+        </div>
 
-<section class="summary">
-  <div class="card">
-    <h3>Total Sales</h3>
-    <p id="total-sales">0.00</p>
-  </div>
-  <div class="card">
-    <h3>Total VAT</h3>
-    <p id="total-vat">0.00</p>
-  </div>
-  <div class="card">
-    <h3>Total Gross</h3>
-    <p id="total-gross">0.00</p>
-  </div>
-</section>
+        <div class="field field-grow">
+          <label for="customer-filter">Customer</label>
+          <input type="text" id="customer-filter" placeholder="Search customer name…" />
+        </div>
+      </div>
 
-<section class="table-section">
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Invoice No</th>
-        <th>Customer</th>
-        <th>TIN</th>
-        <th>Net Sales</th>
-        <th>VAT</th>
-        <th>Gross</th>
-      </tr>
-    </thead>
-    <tbody id="sales-table"></tbody>
-  </table>
-</section>
+      <div class="filters-meta">
+        <span class="hint" id="rangeHint">Tip: Leave dates blank to show all.</span>
+        <span class="status-pill" id="statusPill">Ready</span>
+      </div>
+    </section>
 
-<script src="/js/shortcuts.js"></script>
-<script src="Sales_report.js"></script>
+    <section class="summary">
+      <div class="card">
+        <div class="card-label">Total Net Sales</div>
+        <div class="card-value" id="total-sales">0.00</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Total VAT</div>
+        <div class="card-value" id="total-vat">0.00</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Total Gross</div>
+        <div class="card-value" id="total-gross">0.00</div>
+      </div>
+      <div class="card subtle">
+        <div class="card-label">Invoices</div>
+        <div class="card-value" id="total-count">0</div>
+      </div>
+    </section>
+
+    <section class="table-card">
+      <div class="table-topbar">
+        <div class="table-title">
+          <span>Results</span>
+          <small id="resultsMeta">—</small>
+        </div>
+      </div>
+
+      <div class="table-wrap" id="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="col-date">Date</th>
+              <th class="col-inv">Invoice No</th>
+              <th>Customer</th>
+              <th class="col-tin">TIN</th>
+              <th class="col-num">Net Sales</th>
+              <th class="col-num">VAT</th>
+              <th class="col-num">Gross</th>
+            </tr>
+          </thead>
+          <tbody id="sales-table"></tbody>
+        </table>
+      </div>
+
+      <div class="state" id="stateBox" hidden>
+        <div class="spinner" id="spinner" hidden></div>
+        <div class="state-title" id="stateTitle">Loading…</div>
+        <div class="state-subtitle" id="stateSubtitle">Fetching sales data</div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <script src="Sales_report.js"></script>
 </body>
 </html>

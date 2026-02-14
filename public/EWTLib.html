@@ -25,9 +25,10 @@
     <div class="form-section">
 
         <div class="form-group">
-            <label>CODE</label>
-            <input type="text" id="code" disabled>
-        </div>
+  <label>CODE</label>
+  <input type="text" id="code" disabled>
+</div>
+
 
         <div class="form-group">
             <label>NATURE OF INCOME</label>
@@ -46,14 +47,25 @@
 
     </div>
 
-    <div class="search-section">
+  <div class="search-section coa-search-row">
+  <div class="search-wrap">
+    <span class="search-icon">🔎</span>
     <input type="text" id="search" placeholder="Search EWT..." />
-    <select id="searchFilter">
-        <option value="code">Code</option>
-        <option value="nature">Nature of Income</option>
-    </select>
-    <button id="btnSearch" class="btn-blue">Search</button>
+  </div>
+
+  <select id="searchFilter">
+    <option value="code">Code</option>
+    <option value="nature">Nature of Income</option>
+  </select>
+
+  <button id="btnSearch" class="btn-blue">Search</button>
+
+  <div class="meta">
+    <span class="pill"><span class="label">Shown</span> <span class="value" id="shownCount">0</span></span>
+    <span class="pill"><span class="label">Selected</span> <span class="value" id="selectedCount">0</span></span>
+  </div>
 </div>
+
 
 
     <table class="ewt-table">
@@ -69,7 +81,8 @@
 
 </div>
 
-<script src="/js/shortcuts.js"></script>
+
 <script src="EWTLib.js"></script>
 </body>
 </html>
+ 

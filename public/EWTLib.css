@@ -1,107 +1,334 @@
-.ewt-container {
-    background: white;
-    padding: 25px;
-    border-radius: 15px;
-    box-shadow: 0px 2px 20px rgba(0,0,0,0.1);
-    width: 98%;
-    margin: auto;
-    margin-top: 20px;
-    font-family: Arial, sans-serif;
+:root{
+  --bg:#f6f7fb;
+  --card:#ffffff;
+  --text:#111827;
+  --muted:#6b7280;
+  --border:#e5e7eb;
+
+  --primary:#4a68f4;
+  --primaryHover:#3654d8;
+
+  --danger:#dc2626;
+  --dangerHover:#b91c1c;
+
+  --success:#16a34a;
+  --successHover:#15803d;
+
+  --shadow: 0 12px 28px rgba(0,0,0,.08);
+  --radius: 14px;
 }
 
-.title {
-    font-size: 32px;
-    font-weight: bold;
-    margin-bottom: 15px;
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+
+body{
+  margin:0;
+  background: radial-gradient(1200px 600px at 20% 0%, #eef2ff 0%, rgba(238,242,255,0) 60%), var(--bg);
+  color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
 }
 
-.top-buttons {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 30px;
+/* -------------------- Container -------------------- */
+.ewt-container{
+  max-width: 1180px;
+  margin: 26px auto;
+  padding: 16px;
+
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
 }
 
-.btn-blue {
-    background: #4169E1;
-    color: white;
-    padding: 7px 15px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
+/* Title like COA header */
+.title{
+  margin: 6px 0 4px;
+  font-size: 24px;
+  letter-spacing: .2px;
 }
 
-.btn-red {
-    background: #d9534f;
-    color: white;
-    padding: 7px 15px;
-    border-radius: 6px;
-    border: none;
-    margin-left: auto;
-    cursor: pointer;
+/* Optional subhead (if you add later) */
+.ewt-subhead{
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
-.btn-green {
-    background: #28a745;
-    color: white;
-    padding: 8px 18px;
-    border: none;
-    border-radius: 6px;
+/* -------------------- Top buttons (COA toolbar vibe) -------------------- */
+.top-buttons{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+
+  margin: 12px 0 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:#fff;
+  box-shadow: 0 10px 18px rgba(0,0,0,.05);
 }
 
-.btn-gray {
-    background: #6c757d;
-    color: white;
-    padding: 8px 18px;
-    border: none;
-    border-radius: 6px;
+/* Buttons: map your old classes to COA-style buttons */
+.btn-blue,
+.btn-red,
+.btn-green,
+.btn-gray{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+  transition: transform .06s ease, filter .15s ease, opacity .15s ease;
+  user-select:none;
 }
 
-.form-section {
-    margin-bottom: 25px;
-    margin-top: 30px;
+.btn-blue{
+  background: var(--primary);
+  color:#fff;
+}
+.btn-blue:hover{ background: var(--primaryHover); }
+
+.btn-red{
+  background: var(--danger);
+  color:#fff;
+  margin-left:auto; /* keep Exit pinned right like your old layout */
+}
+.btn-red:hover{ background: var(--dangerHover); }
+
+.btn-green{
+  background: var(--success);
+  color:#fff;
+}
+.btn-green:hover{ background: var(--successHover); }
+
+.btn-gray{
+  background:#fff;
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-gray:hover{ background:#f3f4f6; }
+
+button:active{ transform: translateY(1px); }
+button:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
+
+/* -------------------- Form section (sticky like COA) -------------------- */
+.form-section{
+  position: sticky;
+  top: 10px;
+  z-index: 8;
+
+  margin: 0 0 12px;
+  padding: 14px 14px 10px;
+
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+
+  background: linear-gradient(#fff, #fbfbff);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 18px rgba(0,0,0,.05);
 }
 
-.form-group {
-    margin-bottom: 15px;
-    display: flex;
-    align-items: center;
+/* Each label+input becomes vertical like COA form groups */
+.form-group{
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+  margin: 0; /* remove old spacing */
+  align-items: stretch; /* override previous align center */
 }
 
-.form-group label {
-    font-weight: bold;
-    width: 180px;
+.form-group label{
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .3px;
+  color:#374151;
+  width: auto; /* override old fixed width */
 }
 
-.form-group input {
-    width: 350px;
-    padding: 8px;
+.form-group input{
+  width: 100%; /* override old 350px */
+  padding: 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+  outline:none;
+  background:#fff;
 }
 
-.action-buttons {
-    margin-top: 20px;
-    display: flex;
-    gap: 15px;
+.form-group input:focus{
+  border-color: #c7d2fe;
+  box-shadow: 0 0 0 4px rgba(99,102,241,.12);
 }
 
-.search-section {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-bottom: 15px;
+.form-section input:disabled{
+  background:#f3f4f6;
+  color: var(--muted);
 }
 
-.ewt-table {
-    width: 100%;
-    border-collapse: collapse;
+/* ✅ prevent grid items from collapsing (fixes missing CODE label) */
+.form-section .form-group{
+  min-width: 0;
 }
 
-.ewt-table th {
-    background: #f5f5f5;
-    padding: 12px;
-    text-align: left;
+.form-section .form-group label{
+  display: block;
+  white-space: nowrap;
 }
 
-.ewt-table td {
-    padding: 10px;
-    border-bottom: 1px solid #ddd;
+.form-section .form-group input{
+  min-width: 0;
 }
+
+
+/* Action buttons row (Save/Cancel) like COA form-actions */
+.action-buttons{
+  grid-column: 1 / -1;
+  display:flex;
+  justify-content:flex-end;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+/* -------------------- Search section (COA search row) -------------------- */
+.search-section{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
+
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:#fff;
+  box-shadow: 0 10px 18px rgba(0,0,0,.05);
+}
+
+.search-section input[type="text"]{
+  width: min(420px, 60vw);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  outline:none;
+  font-size: 14px;
+}
+
+.search-section input[type="text"]:focus{
+  border-color: #c7d2fe;
+  box-shadow: 0 0 0 4px rgba(99,102,241,.12);
+}
+
+.search-section select{
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background:#fff;
+  font-size: 14px;
+  outline:none;
+}
+
+/* -------------------- Table -------------------- */
+.ewt-table{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow:hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.ewt-table thead th{
+  background: #fbfbff;
+  border-bottom: 1px solid var(--border);
+  color:#374151;
+
+  font-size: 12px;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  padding: 12px 12px;
+  text-align:left;
+  white-space: nowrap;
+}
+
+.ewt-table td{
+  padding: 11px 12px;
+  border-bottom: 1px solid #f0f2f6;
+  font-size: 14px;
+  vertical-align: top;
+}
+
+.ewt-table tbody tr{
+  cursor:pointer;
+  transition: background .12s ease;
+}
+.ewt-table tbody tr:hover{ background:#f7f9ff; }
+
+/* selected row class if you add it from JS */
+.row-selected{
+  background: #eef2ff !important;
+}
+
+/* Responsive like COA */
+@media (max-width: 900px){
+  .form-section{ 
+    grid-template-columns: 1fr;
+    position: static;
+  }
+  .top-buttons, .search-section{
+    justify-content:flex-start;
+  }
+  .btn-red{ margin-left: 0; } /* Exit won't force far right on small screens */
+}
+/* COA-like search row */
+.search-section{
+  justify-content: flex-start; /* ✅ left align like COA */
+}
+
+.search-wrap{
+  position: relative;
+  width: min(520px, 70vw);
+}
+
+.search-icon{
+  position:absolute;
+  left:12px;
+  top:50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.search-section input[type="text"]{
+  width:100%;
+  padding: 10px 12px 10px 38px; /* space for icon */
+}
+/* ✅ COA-style meta pills (Shown / Selected) */
+.meta{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border:1px solid var(--border);
+  background:#fff;
+  color: var(--text);
+}
+
+.pill .label{ color: var(--muted); }
+.pill .value{ font-weight:800; }

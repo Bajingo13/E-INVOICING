@@ -9,19 +9,58 @@ const { pool } = require('../helpers/db');
    TAX RATE PARSER (fixes 1/2%)
    =============================== */
 function parseTaxRate(value) {
-  if (!value) return null;
-  if (typeof value === 'number') return value < 1 ? value * 100 : value;
+  if (value === null || value === undefined || value === '') return null;
 
-  const str = value.toString().trim();
+  if (typeof value === 'number') {
+    return value < 1 ? value * 100 : value;
+  }
+
+  const str = String(value).trim();
   if (str === '1/2%' || str === '0.5%') return 0.5;
+
   if (str.endsWith('%')) {
     const num = parseFloat(str.replace('%', ''));
-    return isNaN(num) ? null : num;
+    return Number.isNaN(num) ? null : num;
   }
+
   const num = parseFloat(str);
-  if (!isNaN(num)) return num < 1 ? num * 100 : num;
+  if (!Number.isNaN(num)) return num < 1 ? num * 100 : num;
 
   return null;
+}
+
+/* ===============================
+   CLASSIFICATION DERIVER
+   =============================== */
+function deriveClassificationFromCode(code) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c) return null;
+  return c.startsWith('WI') ? 'WI' : 'WC';
+}
+
+/* ===============================
+   NORMALIZE PAYLOAD
+   - accepts taxRate or tax_rate
+   - derives classification if missing
+   =============================== */
+function normalizeEwtPayload(body = {}) {
+  const code = String(body.code ?? '').trim();
+  const nature = String(body.nature ?? '').trim();
+
+  const classification =
+    (body.classification ?? body.class ?? null)
+      ? String(body.classification ?? body.class).trim()
+      : deriveClassificationFromCode(code);
+
+  const rawRate = body.taxRate ?? body.tax_rate ?? body.rate ?? null;
+  const parsed = parseTaxRate(rawRate);
+
+  return {
+    code,
+    nature,
+    classification,
+    taxRate: parsed
+  };
 }
 
 /* ===============================
@@ -29,14 +68,12 @@ function parseTaxRate(value) {
    =============================== */
 function pickEwtSnapshot(row) {
   if (!row) return null;
-
-  // support various model naming styles
   return {
     id: row.id ?? null,
     code: row.code ?? null,
     classification: row.classification ?? row.class ?? null,
     nature: row.nature ?? row.description ?? null,
-    tax_rate: row.taxRate ?? row.tax_rate ?? null
+    tax_rate: row.tax_rate ?? row.taxRate ?? null
   };
 }
 
@@ -54,15 +91,23 @@ exports.getAllEWT = async (req, res) => {
 
 exports.createEWT = async (req, res) => {
   try {
-    const payload = { ...req.body };
+    const payload = normalizeEwtPayload(req.body);
+
+    if (!payload.code || !payload.nature) {
+      return res.status(400).json({ message: 'code and nature are required' });
+    }
+    if (payload.taxRate === null) {
+      return res.status(400).json({ message: 'taxRate is required/invalid' });
+    }
+    if (!payload.classification) {
+      return res.status(400).json({ message: 'classification is required/invalid' });
+    }
 
     const id = await EWT.create(payload);
 
     // Try to read back the created row for audit "after"
     let after = null;
-    try {
-      if (typeof EWT.getById === 'function') after = await EWT.getById(id);
-    } catch {}
+    try { after = await EWT.getById(id); } catch {}
 
     await logAudit(pool, req, {
       action: 'ewt.create',
@@ -75,7 +120,7 @@ exports.createEWT = async (req, res) => {
         code: payload.code || null,
         classification: payload.classification || null,
         nature: payload.nature || null,
-        tax_rate: payload.taxRate ?? payload.tax_rate ?? null
+        tax_rate: payload.taxRate ?? null
       }
     });
 
@@ -100,19 +145,40 @@ exports.updateEWT = async (req, res) => {
   const id = req.params.id;
 
   try {
-    // before snapshot (if model supports it)
+    // before snapshot
     let before = null;
-    try {
-      if (typeof EWT.getById === 'function') before = await EWT.getById(id);
-    } catch {}
+    try { before = await EWT.getById(id); } catch {}
 
-    await EWT.update(id, req.body);
+    if (!before) {
+      return res.status(404).json({ message: 'EWT not found' });
+    }
+
+    // normalize incoming, but DO NOT allow missing fields to wipe existing data
+    const incoming = normalizeEwtPayload(req.body);
+
+    const payload = {
+      code: incoming.code || before.code,
+      nature: incoming.nature || before.nature,
+      classification: incoming.classification || before.classification,
+      taxRate: (incoming.taxRate === null ? before.tax_rate : incoming.taxRate)
+    };
+
+    // basic validation
+    if (!payload.code || !payload.nature) {
+      return res.status(400).json({ message: 'code and nature are required' });
+    }
+    if (payload.taxRate === null || Number.isNaN(Number(payload.taxRate))) {
+      return res.status(400).json({ message: 'taxRate is required/invalid' });
+    }
+    if (!payload.classification) {
+      return res.status(400).json({ message: 'classification is required/invalid' });
+    }
+
+    await EWT.update(id, payload);
 
     // after snapshot
     let after = null;
-    try {
-      if (typeof EWT.getById === 'function') after = await EWT.getById(id);
-    } catch {}
+    try { after = await EWT.getById(id); } catch {}
 
     await logAudit(pool, req, {
       action: 'ewt.update',
@@ -145,11 +211,8 @@ exports.deleteEWT = async (req, res) => {
   const id = req.params.id;
 
   try {
-    // before snapshot (if model supports it)
     let before = null;
-    try {
-      if (typeof EWT.getById === 'function') before = await EWT.getById(id);
-    } catch {}
+    try { before = await EWT.getById(id); } catch {}
 
     await EWT.delete(id);
 
@@ -210,7 +273,7 @@ exports.importEWT = async (req, res) => {
       const code = indCode ? String(indCode).trim() : corpCode ? String(corpCode).trim() : null;
       if (!code) continue;
 
-      const classification = code.startsWith('WI') ? 'WI' : 'WC';
+      const classification = deriveClassificationFromCode(code);
       const taxRate = parseTaxRate(taxRateRaw);
       if (taxRate === null) continue;
 
@@ -221,20 +284,18 @@ exports.importEWT = async (req, res) => {
         taxRate
       });
 
-      // keep preview small (avoid giant logs)
       if (preview.length < 50) {
         preview.push({
           code,
           classification,
           nature: currentNature,
-          tax_rate: Number(taxRate.toFixed(2))
+          tax_rate: Number(Number(taxRate).toFixed(2))
         });
       }
 
       inserted++;
     }
 
-    // ✅ AUDIT (transaction-only)
     await logAudit(pool, req, {
       action: 'ewt.import',
       entity_type: 'ewt',
@@ -243,12 +304,11 @@ exports.importEWT = async (req, res) => {
       success: 1,
       meta: {
         inserted,
-        preview_sample: preview // capped to 50
+        preview_sample: preview
       }
     });
 
     res.json({ inserted, preview });
-
   } catch (err) {
     console.error(err);
 

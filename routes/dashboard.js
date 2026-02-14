@@ -14,18 +14,18 @@ router.get('/', async (req, res) => {
     `);
 
     // ✅ Total billed: unpaid pipeline (pending + approved)
-    // (submit => pending; approve => approved; paid is excluded automatically)
+    // (submit => pending; approve => approved; paid is excluded)
     const [[totalPayments]] = await pool.query(`
       SELECT IFNULL(SUM(total_amount_due), 0) AS totalPayments
       FROM invoices
       WHERE status IN ('pending', 'approved')
     `);
 
-    // ✅ Pending invoices count: not paid & not canceled
+    // ✅ Pending invoices count: ONLY pending
     const [[pendingInvoices]] = await pool.query(`
       SELECT COUNT(*) AS pendingInvoices
       FROM invoices
-      WHERE status NOT IN ('paid', 'canceled')
+      WHERE status = 'pending'
     `);
 
     res.json({

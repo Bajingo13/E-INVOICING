@@ -7,6 +7,7 @@ const fetchFn = global.fetch || require('node-fetch');
 const AbortCtrl = global.AbortController || require('abort-controller');
 
 const { logAudit } = require('../helpers/audit');
+const { getApprovers } = require('../utils/getApprovers');
 
 const {
   generateInvoiceNo,
@@ -25,6 +26,7 @@ function pickInvoiceSnapshot(inv) {
   return {
     invoice_no: inv.invoice_no,
     status: inv.status,
+    created_by: inv.created_by,
     bill_to: inv.bill_to,
     date: inv.date,
     due_date: inv.due_date,
@@ -54,7 +56,7 @@ async function getInvoiceAuditState(conn, invoiceNoOrId) {
   const where = isId ? 'id = ?' : 'invoice_no = ?';
 
   const [[inv]] = await conn.execute(
-    `SELECT invoice_no, status, bill_to, date, due_date, currency, exchange_rate, vat_type,
+    `SELECT invoice_no, status, created_by, bill_to, date, due_date, currency, exchange_rate, vat_type,
             total_amount_due, foreign_total, terms
      FROM invoices
      WHERE ${where}
@@ -145,6 +147,24 @@ async function getExchangeRate(currency = 'PHP') {
   }
 }
 
+async function notifyPendingInvoiceEdited(invoiceNo) {
+  const approvers = await getApprovers();
+  const [admins] = await pool.query(
+    `SELECT id FROM users WHERE role IN ('admin','super','super_admin')`
+  );
+
+  const recipients = [...approvers, ...admins];
+  const uniqueIds = [...new Set(recipients.map(u => u.id))];
+
+  for (const userId of uniqueIds) {
+    await pool.query(
+      `INSERT INTO notifications (user_id, type, reference_no, message)
+       VALUES (?, 'INVOICE_PENDING_EDITED', ?, ?)`,
+      [userId, invoiceNo, `Invoice ${invoiceNo} was modified while pending approval`]
+    );
+  }
+}
+
 /* =========================================================
    COMPANY INFO
 ========================================================= */
@@ -164,6 +184,7 @@ async function getCompanyInfo(req, res) {
    CREATE INVOICE (POST)
    - Now snapshots company_info into invoices.company_snapshot
 ========================================================= */
+
 async function createInvoice(req, res) {
   const data = { ...req.body };
 
@@ -222,50 +243,49 @@ async function createInvoice(req, res) {
       : null;
 
     const [result] = await conn.execute(
-  `INSERT INTO invoices
-   (invoice_no, invoice_mode, invoice_category, invoice_type,
-    bill_to, address, tin, terms,
-    currency, exchange_rate,
-    vat_type,
-    date, due_date,
-    total_amount_due, foreign_total,
-    logo, extra_columns,
-    recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status,
-    status, created_by,
-    company_snapshot)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  [
-    invoiceNo,
-    data.invoice_mode || 'standard',
-    data.invoice_category || 'service',
-    data.invoice_type || 'SERVICE INVOICE',
-    data.bill_to,
-    data.address || null,
-    data.tin || null,
-    data.terms || null,
-    currency,
-    exchangeRate,
-    vatType,
-    data.date,
-    data.due_date || null,
+      `INSERT INTO invoices
+       (invoice_no, invoice_mode, invoice_category, invoice_type,
+        bill_to, address, tin, terms,
+        currency, exchange_rate,
+        vat_type,
+        date, due_date,
+        total_amount_due, foreign_total,
+        logo, extra_columns,
+        recurrence_type, recurrence_start_date, recurrence_end_date, recurrence_status,
+        status, created_by,
+        company_snapshot)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        invoiceNo,
+        data.invoice_mode || 'standard',
+        data.invoice_category || 'service',
+        data.invoice_type || 'SERVICE INVOICE',
+        data.bill_to,
+        data.address || null,
+        data.tin || null,
+        data.terms || null,
+        currency,
+        exchangeRate,
+        vatType,
+        data.date,
+        data.due_date || null,
 
-    // ✅ start at 0, will be updated after items insert
-    0,
-    0,
+        // ✅ start at 0, will be updated after items insert
+        0,
+        0,
 
-    data.logo || null,
-    JSON.stringify(data.extra_columns || []),
-    data.recurrence_type || null,
-    data.recurrence_start_date || null,
-    data.recurrence_end_date || null,
-    data.recurrence_type ? 'active' : null,
-    data.status || 'draft',
-    req.session.user.id,
+        data.logo || null,
+        JSON.stringify(data.extra_columns || []),
+        data.recurrence_type || null,
+        data.recurrence_start_date || null,
+        data.recurrence_end_date || null,
+        data.recurrence_type ? 'active' : null,
+        data.status || 'draft',
+        req.session.user.id,
 
-    companySnapshot ? JSON.stringify(companySnapshot) : null
-  ]
-);
-
+        companySnapshot ? JSON.stringify(companySnapshot) : null
+      ]
+    );
 
     invoiceId = result.insertId;
 
@@ -339,6 +359,8 @@ async function createInvoice(req, res) {
 /* =========================================================
    UPDATE INVOICE (PUT)
    - Does NOT modify company_snapshot (keeps original)
+   - OPTION B: if invoice is pending, submitter/admin can edit,
+               status stays pending, audit + notify approvers/admins
 ========================================================= */
 
 async function updateInvoice(req, res) {
@@ -353,12 +375,14 @@ async function updateInvoice(req, res) {
 
   let beforeSnap = null;
   let beforeItemsCount = 0;
+  let beforeInvRow = null;
 
   try {
     // BEFORE snapshot
     {
       const { inv, items_count } = await getInvoiceAuditState(conn, invoiceNo);
       if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+      beforeInvRow = inv;
       beforeSnap = pickInvoiceSnapshot(inv);
       beforeItemsCount = items_count;
     }
@@ -379,6 +403,21 @@ async function updateInvoice(req, res) {
     const exchangeRate = await getExchangeRate(currency);
 
     const vatType = normalizeVatType(data.vat_type);
+
+    // ✅ Option B rules for pending
+    const isPending = String(beforeInvRow?.status || '').toLowerCase() === 'pending';
+    const role = req.session.user?.role;
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+    const isOwner = Number(beforeInvRow?.created_by) === Number(req.session.user?.id);
+
+    // safety check even if route already checks
+    if (isPending && !isOwner && !isAdmin) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'Only the submitter can edit a pending invoice' });
+    }
+
+    // force status behavior
+    const nextStatus = isPending ? 'pending' : (data.status || 'draft');
 
     await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [invoice.id]);
     await conn.execute('DELETE FROM invoice_tax_summary WHERE invoice_id=?', [invoice.id]);
@@ -414,7 +453,10 @@ async function updateInvoice(req, res) {
         foreignTotal,
         data.logo || null,
         JSON.stringify(data.extra_columns || []),
-        data.status || 'draft',
+
+        // ✅ keep pending if it was pending
+        nextStatus,
+
         invoice.id
       ]
     );
@@ -423,23 +465,27 @@ async function updateInvoice(req, res) {
 
     await conn.commit();
 
-    // AFTER snapshot + audit
+    // AFTER snapshot + audit (+ pending notifications)
     try {
       const stateConn = await getConn();
       try {
         const { inv: afterInv, items_count: afterItemsCount } = await getInvoiceAuditState(stateConn, invoiceNo);
         const afterSnap = pickInvoiceSnapshot(afterInv);
 
+        const changedFields = diffKeys(beforeSnap, afterSnap);
+
         await logAudit(pool, req, {
-          action: 'invoice.update',
+          action: isPending ? 'invoice.update_pending' : 'invoice.update',
           entity_type: 'invoice',
           entity_id: invoiceNo,
-          summary: `Updated invoice ${invoiceNo}`,
+          summary: isPending
+            ? `Updated invoice ${invoiceNo} while pending (status stays pending)`
+            : `Updated invoice ${invoiceNo}`,
           success: 1,
           before: { ...beforeSnap, items_count: beforeItemsCount },
           after: { ...afterSnap, items_count: afterItemsCount },
           meta: {
-            changed_fields: diffKeys(beforeSnap, afterSnap),
+            changed_fields: changedFields,
             items_count_before: beforeItemsCount,
             items_count_after: afterItemsCount
           }
@@ -447,8 +493,12 @@ async function updateInvoice(req, res) {
       } finally {
         stateConn.release();
       }
+
+      if (isPending) {
+        await notifyPendingInvoiceEdited(invoiceNo);
+      }
     } catch (e) {
-      console.error('Audit log (invoice.update) failed:', e);
+      console.error('Audit/notify (invoice.update) failed:', e);
     }
 
     res.json({ success: true });
@@ -537,21 +587,29 @@ async function getInvoice(req, res) {
 async function listInvoices(req, res) {
   const conn = await getConn();
   try {
-    const { status } = req.query;
+    // normalize status filter
+    const statusRaw = String(req.query.status || '').trim().toLowerCase();
+
+    // allow only these statuses (matches your system)
+    const allowed = new Set(['draft', 'returned', 'pending', 'approved', 'paid', 'canceled']);
+
+    const hasStatusFilter = statusRaw && statusRaw !== 'all' && allowed.has(statusRaw);
+
     let sql = `
       SELECT invoice_no, bill_to, date, due_date,
              total_amount_due, foreign_total,
-             status, currency, exchange_rate, vat_type
+             status, currency, exchange_rate, vat_type,
+             created_by
       FROM invoices
     `;
     const params = [];
 
-    if (status) {
-      sql += ' WHERE status=?';
-      params.push(status);
+    if (hasStatusFilter) {
+      sql += ` WHERE status = ?`;
+      params.push(statusRaw);
     }
 
-    sql += ' ORDER BY date DESC';
+    sql += ` ORDER BY date DESC`;
 
     const [rows] = await conn.execute(sql, params);
     res.json(rows);
@@ -655,12 +713,23 @@ async function insertItems(conn, invoiceId, items) {
 async function insertTaxAndFooter(conn, invoiceId, data) {
   const tax = normalizeTaxSummary(data);
 
-  if (tax) {
+    if (tax) {
     await conn.execute(
-      `INSERT INTO invoice_tax_summary
-       (invoice_id, subtotal, discount, vatable_sales, vat_exempt_sales,
-        zero_rated_sales, vat_amount, withholding, total_payable)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `
+      INSERT INTO invoice_tax_summary
+        (invoice_id, subtotal, discount, vatable_sales, vat_exempt_sales,
+         zero_rated_sales, vat_amount, withholding, total_payable)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        subtotal = VALUES(subtotal),
+        discount = VALUES(discount),
+        vatable_sales = VALUES(vatable_sales),
+        vat_exempt_sales = VALUES(vat_exempt_sales),
+        zero_rated_sales = VALUES(zero_rated_sales),
+        vat_amount = VALUES(vat_amount),
+        withholding = VALUES(withholding),
+        total_payable = VALUES(total_payable)
+      `,
       [
         invoiceId,
         tax.subtotal,
@@ -674,6 +743,7 @@ async function insertTaxAndFooter(conn, invoiceId, data) {
       ]
     );
   }
+
 
   const f = data.footer || {};
   await conn.execute(

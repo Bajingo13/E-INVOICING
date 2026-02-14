@@ -92,6 +92,21 @@
   .brand-divider{ height: 32px; }
 }
 
+/* ================= ACTIVE NAV (HOVER-LOOK, DISABLED) ================= */
+.nav .btn.is-disabled,
+.nav .btn.is-disabled:hover,
+.nav .btn.is-disabled:focus {
+  background: #4338ca;        /* hover color */
+  color: #ffffff;
+  border-color: #4338ca;
+  cursor: default;
+  pointer-events: none;       /* fully disabled */
+}
+
+/* caret stays visible */
+.nav .btn.is-disabled::after {
+  opacity: 0.9;
+}
 
 .nav{
   display:flex;

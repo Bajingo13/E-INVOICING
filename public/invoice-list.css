@@ -1,274 +1,274 @@
-/* -------------------- General Reset -------------------- */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* =========================================================
+   invoice-list.css (Dashboard layout compatible)
+   - Navbar + Page Header handled by /css/navbar.css + layout.js
+========================================================= */
+
+*{
+  box-sizing:border-box;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-body {
-  background: #f5f7fa;
-  color: #333;
-  min-height: 100vh;
+body{
+  margin:0;
+  background:#f5f7fa;
+  color:#111827;
+  min-height:100vh;
 }
 
-/* -------------------- Header -------------------- */
-header {
-  background: linear-gradient(90deg, #4e54c8, #8f94fb);
-  color: #fff;
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
+/* Align content under the dashboard white page header */
+.page-body{
+  max-width:1200px;
+  margin:0 auto;
+  padding:18px;
 }
 
-header h1 {
-  font-size: 1.8rem;
-  font-weight: 700;
+/* ===================== Tabs (Pill Segmented) ===================== */
+.invoice-filters{
+  display:flex;
+  gap:10px;
+  padding:10px;
+  margin: 0 0 14px 0;
+
+  background:#fff;
+  border:1px solid #e6eaf2;
+  border-radius:16px;
+  box-shadow: 0 6px 18px rgba(15,23,42,0.06);
+
+  overflow-x:auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* -------------------- Navbar -------------------- */
-header nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
+.invoice-filters::-webkit-scrollbar{ height:6px; }
+.invoice-filters::-webkit-scrollbar-thumb{ background:#e6eaf2; border-radius:999px; }
+
+.filter-tab{
+  border:1px solid transparent;
+  background:transparent;
+  padding:10px 14px;
+  border-radius:999px;
+
+  font-size:14px;
+  font-weight:800;
+  color:#334155;
+
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+
+  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .05s ease;
+  white-space:nowrap;
 }
 
-header nav a {
-  color: #fff;
-  text-decoration: none;
-  padding: 8px 20px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
-  font-size: 15px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.filter-tab span{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:34px;
+  height:22px;
+  padding:0 8px;
+  border-radius:999px;
+  background:#f1f5f9;
+  color:#475569;
+  font-size:12px;
+  font-weight:900;
 }
 
-header nav a:hover {
-  background: #fff;
-  color: #4e54c8;
-  font-weight: 600;
+.filter-tab:hover{
+  background:#f8fafc;
+  border-color:#e6eaf2;
 }
 
-header nav a.logout {
-  background: #ff4d4f;
-  margin-left: auto;
+.filter-tab:active{ transform: translateY(1px); }
+
+.filter-tab.active{
+  background:#4338ca; /* matches navbar primary */
+  color:#fff;
+  border-color:#4338ca;
+  box-shadow: 0 10px 20px rgba(67,56,202,0.20);
+}
+.filter-tab.active span{
+  background: rgba(255,255,255,0.22);
+  color:#fff;
 }
 
-header nav a.logout:hover {
-  background: #ff7875;
-  color: #fff;
+/* ===================== Search ===================== */
+.search-container{ margin-bottom:12px; }
+
+#searchInput{
+  width:100%;
+  padding:10px 14px;
+  font-size:14px;
+
+  border:1px solid #d7dce6;
+  border-radius:12px;
+  outline:none;
+
+  background:#fff;
+  transition: border .2s ease, box-shadow .2s ease;
 }
 
-/* -------------------- Main -------------------- */
-main {
-  padding: 2rem;
+#searchInput:focus{
+  border-color:#4338ca;
+  box-shadow: 0 0 0 4px rgba(67,56,202,0.12);
 }
 
-/* -------------------- Subheader / Toggle -------------------- */
-.invoice-subheader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding: 0.5rem 2rem; /* Match the main content padding */
-  border-bottom: 2px solid #e0e0e0;
-  max-width: 1200px; /* Optional: keep it aligned with main content */
-  margin-left: auto;
-  margin-right: auto;
-  box-sizing: border-box;
+/* ===================== Bulk Actions ===================== */
+.bulk-actions{
+  margin: 10px 0 12px 0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
 }
 
-.invoice-subheader span {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #4e54c8;
+.bulk-actions .btn{
+  height:40px;
+  padding:0 14px;
+  border-radius:10px;
+  border:1px solid #e5e7eb;
+  background:#fff;
+  color:#111827;
+
+  cursor:pointer;
+  font-size:13px;
+  font-weight:800;
+
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+
+  transition: background .2s ease, border-color .2s ease, transform .05s ease;
+}
+.bulk-actions .btn:active{ transform: translateY(1px); }
+
+.bulk-actions .btn-danger{
+  background:#dc3545;
+  border-color:#dc3545;
+  color:#fff;
+}
+.bulk-actions .btn-danger:hover{
+  background:#c82333;
+  border-color:#c82333;
 }
 
-.invoice-subheader button {
-  padding: 6px 16px;
-  font-size: 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  border: none;
-  background: #8793e6;
-  color: #fff;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+.bulk-actions .btn-secondary{
+  background:#eef2ff;
+  border-color:#c7d2fe;
+  color:#3730a3;
+}
+.bulk-actions .btn-secondary:hover{
+  background:#4338ca;
+  border-color:#4338ca;
+  color:#fff;
 }
 
-.invoice-subheader button:hover {
-  background: #4e54c8;
+.export-wrapper{ position:relative; }
+
+/* ===================== Export Dropdown ===================== */
+.export-dropdown{
+  position:absolute;
+  top: calc(100% + 8px);
+  right:0;
+
+  min-width: 220px;
+  background:#fff;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 14px 35px rgba(0,0,0,0.18);
+  padding:8px;
+  z-index:9999;
 }
 
-/* -------------------- Search -------------------- */
-.search-container {
-  margin-bottom: 15px;
+.export-dropdown button{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:8px;
+
+  padding:10px 12px;
+  margin:6px 0;
+
+  border-radius:10px;
+  border:1px solid rgba(0,0,0,0.06);
+  background:#fff;
+  color:#111827;
+
+  cursor:pointer;
+  text-align:left;
+  font-weight:800;
+  font-size:13px;
+
+  transition: background .15s ease, border-color .15s ease;
 }
 
-#searchInput {
-  width: 100%;
-  padding: 10px 15px;
-  font-size: 14px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  outline: none;
-  transition: border 0.3s;
+.export-dropdown button:hover{
+  background:#eef2ff;
+  border-color:#c7d2fe;
 }
 
-#searchInput:focus {
-  border-color: #4e54c8;
+/* ===================== Table ===================== */
+table{
+  width:100%;
+  border-collapse:collapse;
+  background:#fff;
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow: 0 6px 20px rgba(15,23,42,0.07);
 }
 
-/* -------------------- Bulk Actions -------------------- */
-.bulk-actions {
-  margin-bottom: 10px;
+th, td{
+  padding:12px 14px;
+  border-bottom:1px solid #eef2f7;
+  text-align:left;
+  font-size:14px;
 }
 
-.bulk-actions button {
-  padding: 6px 14px;
-  border-radius: 6px;
-  border: none;
-  background: #ff4d4f;
-  color: #fff;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.3s;
+th{
+  background:#f8fafc;
+  color:#334155;
+  font-weight:900;
 }
 
-.bulk-actions button:hover {
-  background: #ff7875;
+tr:hover{ background:#f3f6ff; }
+
+/* Sort arrows */
+.sortable{ cursor:pointer; }
+.sortable.asc::after{ content:" ▲"; font-size:12px; opacity:.8; }
+.sortable.desc::after{ content:" ▼"; font-size:12px; opacity:.8; }
+
+/* ===================== Status Badges ===================== */
+.status-badge{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.4px;
 }
 
-/* -------------------- Table -------------------- */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background-color: #fff;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+.status-draft    { background:#f1f3f5; color:#495057; }
+.status-returned { background:#ffedd5; color:#7c2d12; }
+.status-pending  { background:#fff3cd; color:#856404; }
+.status-approved { background:#d1e7dd; color:#0f5132; }
+.status-paid     { background:#cfe2ff; color:#084298; }
+.status-canceled { background:#f8d7da; color:#842029; }
+
+/* ===================== Action Buttons ===================== */
+.action-btn{
+  padding:6px 10px;
+  border-radius:10px;
+  border:none;
+  cursor:pointer;
+  margin:0 4px 4px 0;
+  font-size:12px;
+  font-weight:900;
+  transition: transform .05s ease, opacity .2s ease;
 }
-
-th, td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #eee;
-  text-align: left;
-  font-size: 14px;
-}
-
-th {
-  background-color: #f5f5f5;
-  color: #333;
-  font-weight: 600;
-}
-
-tr:hover {
-  background-color: #f1f7ff;
-}
-
-/* -------------------- Action Buttons -------------------- */
-.action-btn {
-  margin-right: 5px;
-  padding: 6px 12px;
-  border: none;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.3s ease;
-}
-
-.action-btn.view {
-  background-color: #4e54c8;
-}
-
-.action-btn.edit {
-  background-color: #f39c12;
-}
-
-.action-btn.delete {
-  background-color: #ff4d4f;
-}
-
-.action-btn:hover {
-  opacity: 0.85;
-}
-
-/* -------------------- Responsive -------------------- */
-@media (max-width: 768px) {
-  header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  header nav a {
-    margin-left: 0;
-    margin-top: 0.5rem;
-  }
-
-  table th, table td {
-    font-size: 13px;
-    padding: 10px;
-  }
-
-  .invoice-subheader {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .invoice-subheader button {
-    width: 100%;
-    text-align: center;
-  }
-
-  .bulk-actions button {
-    width: 100%;
-  }
-}
-
-.sortable {
-  cursor: pointer;
-  text-decoration: underline;
-}
-.sortable.asc::after {
-  content: " ▲";
-}
-.sortable.desc::after {
-  content: " ▼";
-}
-
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status-draft    { background: #f1f3f5; color: #495057; }
-.status-pending  { background: #fff3cd; color: #856404; }
-.status-approved { background: #d1e7dd; color: #0f5132; }
-.status-paid     { background: #cfe2ff; color: #084298; }
-.status-canceled { background: #f8d7da; color: #842029; }
-
-.action-btn {
-  padding: 4px 10px;
-  border-radius: 5px;
-  border: none;
-  cursor: pointer;
-  margin: 0 2px 2px 0;
-  font-size: 12px;
-  font-weight: 600;
-}
+.action-btn:active{ transform: translateY(1px); }
+.action-btn:hover{ opacity:.92; }
 
 .action-btn.view    { background:#6c757d; color:#fff; }
 .action-btn.edit    { background:#0d6efd; color:#fff; }
@@ -279,46 +279,40 @@ tr:hover {
 .action-btn.cancel  { background:#ffc107; color:#000; }
 .action-btn.return  { background:#ff9900; color:#fff; }
 
-.export-dropdown {
-  position: absolute;
-  margin-top: 6px;
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,.15);
-  padding: 6px;
-  z-index: 9999;
+/* Focus row (from notifications) */
+.row-focus{
+  outline:3px solid #4338ca;
+  background:#eef2ff !important;
 }
 
-.export-dropdown button {
-  display: block;
+/* ===================== Responsive ===================== */
+@media (max-width: 768px){
+  .page-body{ padding:14px; }
+
+  th, td{ font-size:13px; padding:10px; }
+
+  .bulk-actions .btn{
+    width:100%;
+    justify-content:center;
+  }
+
+  .export-dropdown{
+    right:0;
+    left:0;
+    min-width:unset;
+  }
+}
+#exportMenuTop .export-item{
   width: 100%;
-  background: #ff4d4f;
-  color: #fff;
-  border: none;
-  padding: 8px 14px;
-  margin: 4px 0;
-  border-radius: 4px;
-  cursor: pointer;
   text-align: left;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #111827;
 }
-
-.export-dropdown button:hover {
-  background: #e63e3f;
-}
-.bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.export-wrapper {
-  position: relative; /* anchor for dropdown */
-}
-.status-badge.status-returned {
-  background: #ff9900;
-  color: #5a3b00;
-}
-.row-focus {
-  outline: 3px solid #4e54c8;
-  background: #eef2ff !important;
+#exportMenuTop .export-item:hover{
+  background: #f3f4f6;
 }
