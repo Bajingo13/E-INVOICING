@@ -70,13 +70,52 @@
   <!-- ✅ Navbar injected here -->
   <div id="navbarMount"></div>
 
-  <div class="invoice-header-dates">
-    <label for="issueDate"><strong>Issue Date:</strong></label>
-    <input type="date" id="issueDate" name="issueDate">
+  <div id="invoiceTopSettingsMount"></div>
 
-    <label for="dueDate" style="margin-left: 20px;"><strong>Due Date:</strong></label>
-    <input type="date" id="dueDate" name="dueDate">
+<!-- keep the original as a template (hidden) -->
+<div class="invoice-header-dates" id="standardHeaderDates">
+  <label for="issueDate"><strong>Issue Date:</strong></label>
+  <input type="date" id="issueDate" name="issueDate">
+
+  <label for="dueDate" style="margin-left: 20px;"><strong>Due Date:</strong></label>
+  <input type="date" id="dueDate" name="dueDate">
+</div>
+
+<!-- this will be shown when recurring mode is activated -->
+<div class="invoice-header-dates" id="recurringHeaderSettings" style="display:none;">
+  <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;">
+    <div>
+      <label><strong>Mode:</strong></label>
+      <input type="text" value="Recurring (Monthly)" readonly>
+    </div>
+
+    <div>
+      <label for="recurrenceStart"><strong>Next Run Date:</strong></label>
+      <input type="date" id="recurrenceStart">
+    </div>
+
+    <div>
+      <label for="recurrenceEnd"><strong>End Date (optional):</strong></label>
+      <input type="date" id="recurrenceEnd">
+    </div>
+
+    <div>
+      <label for="recurrenceStatus"><strong>Status:</strong></label>
+      <select id="recurrenceStatus">
+        <option value="active">Active</option>
+        <option value="paused">Paused</option>
+      </select>
+    </div>
+
+    <div>
+      <button type="button" class="btn btn-outline" id="switchToStandardBtn">
+        Switch to Standard
+      </button>
+    </div>
   </div>
+</div>
+
+<input type="hidden" id="invoiceMode" name="invoiceMode" value="standard" />
 
   <form id="invoiceForm">
     <div class="invoice-container">

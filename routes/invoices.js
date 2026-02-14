@@ -11,9 +11,9 @@ const invoicesCtrl = require('../controllers/invoicesController');
 const { requireLogin } = require('../middleware/roles');
 const { requirePermission } = require('../middleware/permissions');
 const { PERMISSIONS } = require('../config/permissions');
+
 const { exportInvoicesExcel } = require('../controllers/invoiceExportController');
 const { getApprovers } = require('../utils/getApprovers');
-
 const { logAudit } = require('../helpers/audit');
 
 // ---------------- HELPERS ----------------
@@ -62,7 +62,6 @@ router.post(
 );
 
 // ---------------- CREATE INVOICE (DRAFT) ----------------
-// NOTE: your controller should do the log inside if you want invoice.create audit
 router.post(
   '/invoices',
   requireLogin,
@@ -70,7 +69,9 @@ router.post(
   asyncHandler(invoicesCtrl.createInvoice)
 );
 
-// ---------------- UPDATE INVOICE (ANY status for approver/admin + pending for submitter) ----------------
+// ---------------- UPDATE INVOICE ----------------
+// Approver/Admin can edit ANY invoice
+// Submitter (owner) can edit: draft/returned/pending
 router.put(
   '/invoices/:invoiceNo',
   requireLogin,
@@ -83,26 +84,20 @@ router.put(
     const userId = req.session.user.id;
 
     const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
-    const isApprover = ['approver'].includes(role);
-    const isOwner = invoice.created_by === userId;
+    const isApprover = role === 'approver';
+    const isOwner = Number(invoice.created_by) === Number(userId);
 
-    // ✅ Approver/Admin can edit ANY invoice regardless of status
     if (isAdmin || isApprover) {
       return invoicesCtrl.updateInvoice(req, res);
     }
 
-    // ✅ Submitter can edit: draft/returned/pending
-    if (isOwner && ['draft', 'returned', 'pending'].includes(invoice.status)) {
-      req.__invoice_before = invoice;     // optional
-      req.__pending_edit = invoice.status === 'pending';
+    if (isOwner && ['draft', 'returned', 'pending'].includes(String(invoice.status || '').toLowerCase())) {
       return invoicesCtrl.updateInvoice(req, res);
     }
 
-    // ❌ Everyone else blocked
     return res.status(403).json({ error: 'You are not allowed to edit this invoice' });
   })
 );
-
 
 // ---------------- SUBMIT INVOICE → PENDING (DRAFT OR RETURNED) ----------------
 router.post(
@@ -113,15 +108,17 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    if (!['draft', 'returned'].includes(invoice.status)) {
+    const currentStatus = String(invoice.status || '').toLowerCase();
+    if (!['draft', 'returned'].includes(currentStatus)) {
       return res.status(400).json({ error: 'Only draft or returned invoices can be submitted' });
     }
 
-    if (invoice.created_by !== req.session.user.id && !['super','admin'].includes(req.session.user.role)) {
+    const role = req.session.user.role;
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+
+    if (Number(invoice.created_by) !== Number(req.session.user.id) && !isAdmin) {
       return res.status(403).json({ error: 'You cannot submit this invoice' });
     }
-
-    const oldStatus = invoice.status;
 
     await pool.query(
       'UPDATE invoices SET status = "pending" WHERE invoice_no = ?',
@@ -132,15 +129,17 @@ router.post(
       action: 'invoice.submit',
       entity_type: 'invoice',
       entity_id: invoice.invoice_no,
-      summary: `Submitted invoice ${invoice.invoice_no} (${oldStatus} → pending)`,
+      summary: `Submitted invoice ${invoice.invoice_no} (${currentStatus} → pending)`,
       success: 1,
-      before: { status: oldStatus },
+      before: { status: currentStatus },
       after: { status: 'pending' }
     });
 
     // Notify approvers + admins
     const approvers = await getApprovers();
-    const [admins] = await pool.query(`SELECT id FROM users WHERE role IN ('admin','super','super_admin')`);
+    const [admins] = await pool.query(
+      `SELECT id FROM users WHERE role IN ('admin','super','super_admin')`
+    );
     const recipients = [...approvers, ...admins];
     const uniqueIds = [...new Set(recipients.map(u => u.id))];
 
@@ -164,10 +163,19 @@ router.post(
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-    if (invoice.status !== 'pending') return res.status(400).json({ error: 'Only pending invoices can be approved' });
 
-    if (invoice.created_by === req.session.user.id) return res.status(403).json({ error: 'You cannot approve your own invoice' });
-    if (!['approver','admin','super'].includes(req.session.user.role)) return res.status(403).json({ error: 'You are not allowed to approve this invoice' });
+    const status = String(invoice.status || '').toLowerCase();
+    if (status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending invoices can be approved' });
+    }
+
+    const role = req.session.user.role;
+
+    // ✅ Allowed roles (self-approval allowed)
+    const canApproveRole = ['approver', 'admin', 'super', 'super_admin'].includes(role);
+    if (!canApproveRole) {
+      return res.status(403).json({ error: 'You are not allowed to approve this invoice' });
+    }
 
     await pool.query(
       'UPDATE invoices SET status = "approved" WHERE invoice_no = ?',
@@ -187,14 +195,18 @@ router.post(
     await pool.query(
       `INSERT INTO notifications (user_id, type, reference_no, message)
        VALUES (?, 'INVOICE_APPROVED', ?, ?)`,
-      [invoice.created_by, invoice.invoice_no, `Your invoice ${invoice.invoice_no} has been approved`]
+      [
+        invoice.created_by,
+        invoice.invoice_no,
+        `Your invoice ${invoice.invoice_no} has been approved`
+      ]
     );
 
     res.json({ message: 'Invoice approved successfully' });
   })
 );
 
-// ---------------- RETURN INVOICE (PENDING → RETURNED) ----------------
+// ---------------- RETURN INVOICE ----------------
 router.post(
   '/invoices/:invoiceNo/return',
   requireLogin,
@@ -203,19 +215,18 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    if (invoice.status !== 'pending') {
+    const status = String(invoice.status || '').toLowerCase();
+    if (status !== 'pending') {
       return res.status(400).json({ error: 'Only pending invoices can be returned' });
     }
 
-    if (invoice.created_by === req.session.user.id) {
-      return res.status(403).json({ error: 'You cannot return your own invoice' });
-    }
-
-    if (!['approver','admin','super'].includes(req.session.user.role)) {
+    const role = req.session.user.role;
+    const canReturnRole = ['approver', 'admin', 'super', 'super_admin'].includes(role);
+    if (!canReturnRole) {
       return res.status(403).json({ error: 'You are not allowed to return this invoice' });
     }
 
-    const reason = (req.body?.reason || '').trim();
+    const reason = String(req.body?.reason || '').trim();
 
     await pool.query(
       'UPDATE invoices SET status = "returned" WHERE invoice_no = ?',
@@ -235,21 +246,10 @@ router.post(
       meta: reason ? { reason } : null
     });
 
-    await pool.query(
-      `INSERT INTO notifications (user_id, type, reference_no, message)
-       VALUES (?, 'INVOICE_RETURNED', ?, ?)`,
-      [
-        invoice.created_by,
-        invoice.invoice_no,
-        reason
-          ? `Invoice ${invoice.invoice_no} was returned: ${reason}`
-          : `Invoice ${invoice.invoice_no} was returned for revision`
-      ]
-    );
-
-    res.json({ message: 'Invoice returned to submitter (returned)' });
+    res.json({ message: 'Invoice returned successfully' });
   })
 );
+
 
 // ---------------- MARK PAID ----------------
 router.post(
@@ -259,11 +259,13 @@ router.post(
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-    if (invoice.status !== 'approved') return res.status(400).json({ error: 'Only approved invoices can be marked as paid' });
 
-    if (!['super','admin'].includes(req.session.user.role)) {
-      return res.status(403).json({ error: 'You are not allowed to mark this invoice as paid' });
-    }
+    const status = String(invoice.status || '').toLowerCase();
+    if (status !== 'approved') return res.status(400).json({ error: 'Only approved invoices can be marked as paid' });
+
+    const role = req.session.user.role;
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+    if (!isAdmin) return res.status(403).json({ error: 'You are not allowed to mark this invoice as paid' });
 
     await pool.query(
       'UPDATE invoices SET status = "paid" WHERE invoice_no = ?',
@@ -293,15 +295,14 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    if (!['draft','returned','pending'].includes(invoice.status)) {
+    const status = String(invoice.status || '').toLowerCase();
+    if (!['draft', 'returned', 'pending'].includes(status)) {
       return res.status(400).json({ error: 'Only draft, returned, or pending invoices can be canceled' });
     }
 
-    if (!['super','admin'].includes(req.session.user.role)) {
-      return res.status(403).json({ error: 'You are not allowed to cancel this invoice' });
-    }
-
-    const oldStatus = invoice.status;
+    const role = req.session.user.role;
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+    if (!isAdmin) return res.status(403).json({ error: 'You are not allowed to cancel this invoice' });
 
     await pool.query(
       'UPDATE invoices SET status = "canceled" WHERE invoice_no = ?',
@@ -312,9 +313,9 @@ router.post(
       action: 'invoice.cancel',
       entity_type: 'invoice',
       entity_id: invoice.invoice_no,
-      summary: `Canceled invoice ${invoice.invoice_no} (${oldStatus} → canceled)`,
+      summary: `Canceled invoice ${invoice.invoice_no} (${status} → canceled)`,
       success: 1,
-      before: { status: oldStatus },
+      before: { status },
       after: { status: 'canceled' }
     });
 
@@ -335,12 +336,8 @@ router.get(
   '/invoices',
   requireLogin,
   requirePermission(PERMISSIONS.INVOICE_LIST),
-  asyncHandler(async (req, res) => {
-    // Pass filter into controller via req.query.status
-    return invoicesCtrl.listInvoices(req, res);
-  })
+  asyncHandler((req, res) => invoicesCtrl.listInvoices(req, res))
 );
-
 
 // ---------------- EXPORT INVOICES ----------------
 router.get(
@@ -361,7 +358,6 @@ router.get(
 );
 
 // ---------------- DELETE INVOICE (DRAFT OR RETURNED) ----------------
-// NOTE: your controller does the actual delete; we log before calling it
 router.delete(
   '/invoices/:invoiceNo',
   requireLogin,
@@ -370,21 +366,27 @@ router.delete(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    if (!['draft','returned'].includes(invoice.status)) {
+    const status = String(invoice.status || '').toLowerCase();
+    if (!['draft', 'returned'].includes(status)) {
       return res.status(400).json({ error: 'Only draft or returned invoices can be deleted' });
     }
 
-    if (invoice.created_by !== req.session.user.id && !['super','admin'].includes(req.session.user.role)) {
+    const role = req.session.user.role;
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+
+    if (Number(invoice.created_by) !== Number(req.session.user.id) && !isAdmin) {
       return res.status(403).json({ error: 'You cannot delete this invoice' });
     }
 
+    // NOTE: invoicesCtrl.deleteInvoice already logs a full before-snapshot in your controller code;
+    // keep this route log lightweight (or remove it to avoid duplicate audit entries)
     await logAudit(pool, req, {
-      action: 'invoice.delete',
+      action: 'invoice.delete.request',
       entity_type: 'invoice',
       entity_id: invoice.invoice_no,
-      summary: `Deleted invoice ${invoice.invoice_no}`,
+      summary: `Delete requested for invoice ${invoice.invoice_no}`,
       success: 1,
-      before: { status: invoice.status }
+      before: { status }
     });
 
     return invoicesCtrl.deleteInvoice(req, res);
@@ -399,39 +401,45 @@ router.get(
 );
 
 // ---------------- GET EXCHANGE RATE (BAP) ----------------
-// Use built-in AbortController + fetch (Node 18+). If your Node is older, tell me and I'll adapt.
-router.get('/exchange-rate', requireLogin, asyncHandler(async (req, res) => {
-  const to = req.query.to?.toUpperCase();
-  if (!to) return res.status(400).json({ error: 'Missing currency code' });
+// If Node < 18, replace fetch/AbortController with your controller helper.
+// (You already have getExchangeRate() inside invoicesController; you may use that instead.)
+router.get(
+  '/exchange-rate',
+  requireLogin,
+  asyncHandler(async (req, res) => {
+    const to = String(req.query.to || '').toUpperCase().trim();
+    if (!to) return res.status(400).json({ error: 'Missing currency code' });
 
-  const fallbackRates = { USD: 56, SGD: 42, AUD: 38, PHP: 1 };
+    const fallbackRates = { USD: 56, SGD: 42, AUD: 38, EUR: 60, PHP: 1 };
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const response = await fetch('https://www.bap.org.ph/downloads/daily-rates.json', {
-      signal: controller.signal
-    });
+      const response = await fetch('https://www.bap.org.ph/downloads/daily-rates.json', {
+        signal: controller.signal
+      });
 
-    clearTimeout(timeout);
+      clearTimeout(timeout);
 
-    if (!response.ok) throw new Error('BAP source not available');
+      if (!response.ok) throw new Error('BAP source not available');
 
-    const data = await response.json();
-    if (to === 'PHP') return res.json({ rate: 1 });
+      const data = await response.json();
 
-    const rate = Number(data[to]) || fallbackRates[to];
-    if (!rate) return res.status(404).json({ error: 'Exchange rate unavailable' });
+      if (to === 'PHP') return res.json({ rate: 1 });
 
-    const note = data[to] ? undefined : 'Using fallback rate';
-    res.json({ rate, note });
-  } catch (err) {
-    console.error('Exchange rate error:', err);
-    const rate = fallbackRates[to];
-    if (!rate) return res.status(500).json({ error: 'Exchange rate unavailable' });
-    res.json({ rate, note: 'Using fallback rate' });
-  }
-}));
+      const rate = Number(data[to]) || fallbackRates[to];
+      if (!rate) return res.status(404).json({ error: 'Exchange rate unavailable' });
+
+      const note = data[to] ? undefined : 'Using fallback rate';
+      res.json({ rate, note });
+    } catch (err) {
+      console.error('Exchange rate error:', err);
+      const rate = fallbackRates[to];
+      if (!rate) return res.status(500).json({ error: 'Exchange rate unavailable' });
+      res.json({ rate, note: 'Using fallback rate' });
+    }
+  })
+);
 
 module.exports = router;

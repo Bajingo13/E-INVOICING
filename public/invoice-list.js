@@ -285,13 +285,13 @@ if (inv.status === 'pending') {
   const isApprover = role === 'approver';
 
   // ✅ allow submitter (owner) to edit pending
-  // ✅ allow approver/admin to edit pending (you said they control any invoice any status)
+  // ✅ allow approver/admin to edit pending
   if (isOwner || isAdmin || isApprover) {
     buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
   }
 
-  // ✅ Approver/admin can approve/return (keep your "cannot approve own invoice" rule)
-  if ((isApprover || isAdmin) && !isOwner) {
+  // ✅ Approver/admin can approve/return (ALLOW OWN INVOICE)
+  if (isApprover || isAdmin) {
     buttons.push(`<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>`);
     buttons.push(`<button class="action-btn return" onclick="returnInvoice('${inv.invoice_no}')">Return</button>`);
   }
@@ -301,6 +301,7 @@ if (inv.status === 'pending') {
     buttons.push(`<button class="action-btn cancel" onclick="cancelInvoice('${inv.invoice_no}')">Cancel</button>`);
   }
 }
+
 
     // --- APPROVED ---
     if (inv.status === 'approved') {

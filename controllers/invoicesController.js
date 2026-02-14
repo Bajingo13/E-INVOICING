@@ -182,7 +182,8 @@ async function getCompanyInfo(req, res) {
 
 /* =========================================================
    CREATE INVOICE (POST)
-   - Now snapshots company_info into invoices.company_snapshot
+   - Snapshots company_info into invoices.company_snapshot
+   - Recurring validation happens BEFORE transaction (no hanging tx)
 ========================================================= */
 
 async function createInvoice(req, res) {
@@ -190,6 +191,24 @@ async function createInvoice(req, res) {
 
   if (!data.bill_to || !data.date || !Array.isArray(data.items) || !data.items.length) {
     return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  // ✅ normalize mode ONCE (case-insensitive everywhere)
+  const invoiceMode = String(data.invoice_mode || 'standard').toLowerCase();
+
+  // ✅ validate recurring payload BEFORE transaction
+  if (invoiceMode === 'recurring') {
+    if (!data.recurrence_start_date) {
+      return res.status(400).json({ error: 'Recurring invoice requires recurrence_start_date' });
+    }
+    data.recurrence_type = data.recurrence_type || 'monthly';
+    data.recurrence_status = data.recurrence_status || 'active';
+  } else {
+    // force-clean if standard
+    data.recurrence_type = null;
+    data.recurrence_start_date = null;
+    data.recurrence_end_date = null;
+    data.recurrence_status = null;
   }
 
   const conn = await getConn();
@@ -222,7 +241,12 @@ async function createInvoice(req, res) {
     await conn.beginTransaction();
 
     currency = (data.currency || 'PHP').toUpperCase();
-    exchangeRate = await getExchangeRate(currency);
+
+    // ✅ use client-provided exchange_rate if valid, otherwise fetch
+    exchangeRate =
+      (data.exchange_rate && Number(data.exchange_rate) > 0)
+        ? Number(data.exchange_rate)
+        : await getExchangeRate(currency);
 
     if (mode === 'auto') {
       invoiceNo = await generateInvoiceNo(conn);
@@ -257,7 +281,7 @@ async function createInvoice(req, res) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invoiceNo,
-        data.invoice_mode || 'standard',
+        invoiceMode,
         data.invoice_category || 'service',
         data.invoice_type || 'SERVICE INVOICE',
         data.bill_to,
@@ -276,10 +300,13 @@ async function createInvoice(req, res) {
 
         data.logo || null,
         JSON.stringify(data.extra_columns || []),
-        data.recurrence_type || null,
-        data.recurrence_start_date || null,
-        data.recurrence_end_date || null,
-        data.recurrence_type ? 'active' : null,
+
+        // ✅ recurrence fields (only if recurring mode)
+        invoiceMode === 'recurring' ? (data.recurrence_type || 'monthly') : null,
+        invoiceMode === 'recurring' ? (data.recurrence_start_date || null) : null,
+        invoiceMode === 'recurring' ? (data.recurrence_end_date || null) : null,
+        invoiceMode === 'recurring' ? (data.recurrence_status || 'active') : null,
+
         data.status || 'draft',
         req.session.user.id,
 
@@ -359,8 +386,8 @@ async function createInvoice(req, res) {
 /* =========================================================
    UPDATE INVOICE (PUT)
    - Does NOT modify company_snapshot (keeps original)
-   - OPTION B: if invoice is pending, submitter/admin can edit,
-               status stays pending, audit + notify approvers/admins
+   - If invoice is pending, submitter/admin can edit,
+     status stays pending, audit + notify approvers/admins
 ========================================================= */
 
 async function updateInvoice(req, res) {
@@ -400,23 +427,26 @@ async function updateInvoice(req, res) {
     }
 
     const currency = (data.currency || 'PHP').toUpperCase();
-    const exchangeRate = await getExchangeRate(currency);
+
+    // ✅ use client-provided exchange_rate if valid, otherwise fetch
+    const exchangeRate =
+      (data.exchange_rate && Number(data.exchange_rate) > 0)
+        ? Number(data.exchange_rate)
+        : await getExchangeRate(currency);
 
     const vatType = normalizeVatType(data.vat_type);
 
-    // ✅ Option B rules for pending
+    // ✅ pending rules
     const isPending = String(beforeInvRow?.status || '').toLowerCase() === 'pending';
     const role = req.session.user?.role;
     const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
     const isOwner = Number(beforeInvRow?.created_by) === Number(req.session.user?.id);
 
-    // safety check even if route already checks
     if (isPending && !isOwner && !isAdmin) {
       await conn.rollback();
       return res.status(403).json({ error: 'Only the submitter can edit a pending invoice' });
     }
 
-    // force status behavior
     const nextStatus = isPending ? 'pending' : (data.status || 'draft');
 
     await conn.execute('DELETE FROM invoice_items WHERE invoice_id=?', [invoice.id]);
@@ -426,6 +456,22 @@ async function updateInvoice(req, res) {
     const totalAmount = await insertItems(conn, invoice.id, data.items);
     const foreignTotal = +(totalAmount / exchangeRate).toFixed(2);
 
+    // ✅ normalize + validate recurring on update
+    const nextMode = String(data.invoice_mode || 'standard').toLowerCase();
+    let recType = null, recStart = null, recEnd = null, recStatus = null;
+
+    if (nextMode === 'recurring') {
+      recType = data.recurrence_type || 'monthly';
+      recStart = data.recurrence_start_date || null;
+      recEnd = data.recurrence_end_date || null;
+      recStatus = data.recurrence_status || 'active';
+
+      if (!recStart) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Recurring invoice requires recurrence_start_date' });
+      }
+    }
+
     await conn.execute(
       `UPDATE invoices
        SET invoice_mode=?, invoice_category=?, invoice_type=?,
@@ -434,10 +480,12 @@ async function updateInvoice(req, res) {
            vat_type=?,
            date=?, due_date=?,
            total_amount_due=?, foreign_total=?,
-           logo=?, extra_columns=?, status=?
+           logo=?, extra_columns=?,
+           recurrence_type=?, recurrence_start_date=?, recurrence_end_date=?, recurrence_status=?,
+           status=?
        WHERE id=?`,
       [
-        data.invoice_mode || 'standard',
+        nextMode,
         data.invoice_category || 'service',
         data.invoice_type || 'SERVICE INVOICE',
         data.bill_to,
@@ -453,6 +501,12 @@ async function updateInvoice(req, res) {
         foreignTotal,
         data.logo || null,
         JSON.stringify(data.extra_columns || []),
+
+        // ✅ recurrence
+        recType,
+        recStart,
+        recEnd,
+        recStatus,
 
         // ✅ keep pending if it was pending
         nextStatus,
@@ -713,7 +767,7 @@ async function insertItems(conn, invoiceId, items) {
 async function insertTaxAndFooter(conn, invoiceId, data) {
   const tax = normalizeTaxSummary(data);
 
-    if (tax) {
+  if (tax) {
     await conn.execute(
       `
       INSERT INTO invoice_tax_summary
@@ -743,7 +797,6 @@ async function insertTaxAndFooter(conn, invoiceId, data) {
       ]
     );
   }
-
 
   const f = data.footer || {};
   await conn.execute(

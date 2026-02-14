@@ -25,6 +25,9 @@ const path = require('path');
 const morgan = require('morgan');
 const session = require('express-session');
 
+/* ✅ Recurring job scheduler */
+const { startRecurringJob } = require('./jobs/recurringJob');
+
 /* =========================
    Route modules
 ========================= */
@@ -43,7 +46,6 @@ const invoiceSettingsRoutes = require('./routes/invoiceSettings');
 const reportsRouter = require('./routes/reports');
 const auditLogsRoute = require('./routes/auditLogs');
 const { ensureRequestId } = require('./helpers/audit');
-
 
 /* =========================
    App setup
@@ -100,6 +102,9 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/invoices/import', require('./routes/invoiceImport'));
 app.use('/api/audit-logs', auditLogsRoute);
 
+/* ✅ Recurring invoices runner endpoint */
+app.use('/api/recurring-invoices', require('./routes/recurringInvoices'));
+
 /* =========================
    Static pages
 ========================= */
@@ -145,6 +150,11 @@ app.use((err, req, res, next) => {
     error: err.message || 'Internal Server Error'
   });
 });
+
+/* =========================
+   ✅ Start recurring scheduler BEFORE listen
+========================= */
+startRecurringJob();
 
 /* =========================
    Start server

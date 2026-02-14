@@ -45,9 +45,20 @@ function setInputValue(name, value) {
   el.type === 'checkbox' ? el.checked = !!value : ('value' in el ? el.value = value : el.textContent = value);
 }
 
+/* ✅ URL helpers */
+function getUrlParam(name) {
+  return new URLSearchParams(window.location.search).get(name);
+}
+function setUrlParam(name, value) {
+  const url = new URL(window.location.href);
+  if (value === null || value === undefined || value === '') url.searchParams.delete(name);
+  else url.searchParams.set(name, value);
+  window.history.replaceState({}, '', url.toString());
+}
+
 /* ===================== RBAC APPROVAL UI (Injected actions) ===================== */
 window.addEventListener('DOMContentLoaded', async () => {
-  await waitNavbar(); // ✅ approve dropdown is inside injected pageActions
+  await waitNavbar();
 
   const approveDropdown = document.querySelector('.dropdown[data-dropdown]');
   if (!approveDropdown) return;
@@ -84,7 +95,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 const currencySelect = document.getElementById('currency');
 const exchangeRateInput = document.getElementById('exchangeRate');
 
-/* -------------------- EWT LIST (for COA labels + per-line override) -------------------- */
+/* -------------------- EWT LIST -------------------- */
 window._ewtList = [];
 
 async function loadEWTList() {
@@ -166,6 +177,69 @@ document.querySelectorAll('.item-desc').forEach(t => {
   autoResize(t);
   t.addEventListener('input', () => autoResize(t));
 });
+
+/* ===================== ✅ RECURRING HEADER UI ===================== */
+function initRecurringHeaderUI() {
+  const standard = document.getElementById('standardHeaderDates');
+  const recurring = document.getElementById('recurringHeaderSettings');
+  const modeInput = document.getElementById('invoiceMode');
+
+  const startEl = document.getElementById('recurrenceStart');
+  const endEl = document.getElementById('recurrenceEnd');
+  const statusEl = document.getElementById('recurrenceStatus');
+  const switchBtn = document.getElementById('switchToStandardBtn');
+
+  if (!standard || !recurring || !modeInput) {
+    DBG.warn('Recurring header UI missing elements (check invoice.html IDs)');
+    return;
+  }
+
+  function showRecurring() {
+    standard.style.display = 'none';
+    recurring.style.display = 'block';
+    modeInput.value = 'recurring';
+
+    const invDate = document.getElementsByName('date')[0]?.value;
+    const today = new Date().toISOString().split('T')[0];
+
+    if (startEl && !startEl.value) startEl.value = invDate || today;
+    if (statusEl && !statusEl.value) statusEl.value = 'active';
+
+    setUrlParam('invoiceMode', 'recurring');
+  }
+
+  function showStandard() {
+    standard.style.display = 'flex';
+    recurring.style.display = 'none';
+    modeInput.value = 'standard';
+
+    if (startEl) startEl.value = '';
+    if (endEl) endEl.value = '';
+    if (statusEl) statusEl.value = 'active';
+
+    setUrlParam('invoiceMode', 'standard');
+  }
+
+  const urlMode = (getUrlParam('invoiceMode') || 'standard').toLowerCase();
+  if (urlMode === 'recurring') showRecurring();
+  else showStandard();
+
+  if (switchBtn && !switchBtn.dataset.bound) {
+    switchBtn.addEventListener('click', () => showStandard());
+    switchBtn.dataset.bound = '1';
+  }
+
+  const invoiceDateEl = document.getElementsByName('date')[0];
+  if (invoiceDateEl && startEl) {
+    invoiceDateEl.addEventListener('change', () => {
+      const modeNow = (getUrlParam('invoiceMode') || modeInput.value || 'standard').toLowerCase();
+      if (modeNow !== 'recurring') return;
+      if (!startEl.value) startEl.value = invoiceDateEl.value || '';
+    });
+  }
+
+  window.__setInvoiceModeUI__ = (m) => (String(m).toLowerCase() === 'recurring' ? showRecurring() : showStandard());
+}
 
 /* -------------------- 2. COMPANY INFO -------------------- */
 async function loadCompanyInfo() {
@@ -291,6 +365,20 @@ async function loadInvoiceForEdit() {
     safeSetText('.invoice-title', data.invoice_title || 'SERVICE INVOICE');
     setInputValue('vatType', data.vat_type || 'inclusive');
 
+    // ✅ reflect recurring/standard header UI
+    if (window.__setInvoiceModeUI__) window.__setInvoiceModeUI__(data.invoice_mode || 'standard');
+
+    // ✅ if recurring, populate settings fields
+    if ((data.invoice_mode || '').toLowerCase() === 'recurring') {
+      const startEl = document.getElementById('recurrenceStart');
+      const endEl = document.getElementById('recurrenceEnd');
+      const statusEl = document.getElementById('recurrenceStatus');
+
+      if (startEl) startEl.value = dateToYYYYMMDD(data.recurrence_start_date);
+      if (endEl) endEl.value = dateToYYYYMMDD(data.recurrence_end_date);
+      if (statusEl) statusEl.value = (data.recurrence_status || 'active').toLowerCase();
+    }
+
     // Header
     const theadRow = $("#items-table thead tr");
     if (theadRow) {
@@ -355,7 +443,6 @@ async function loadInvoiceForEdit() {
         tbody.appendChild(row);
       });
 
-      // ✅ Setup account combo + preselect account + preselect EWT
       const inputs = $$('input.account-input', tbody);
 
       inputs.forEach((input, idx) => {
@@ -373,7 +460,6 @@ async function loadInvoiceForEdit() {
         input.value = `${acc.code || ''} - ${acc.title || ''}`.trim();
         input.dataset.accountId = String(acc.id);
 
-        // ✅ EWT: item override first, else account default
         const row = input.closest('tr');
         const ewtSel = row?.querySelector('.ewt-select');
         if (ewtSel) {
@@ -536,7 +622,7 @@ function addRow() {
 
   row.innerHTML = Array.from(ths).map((th, i) => {
     const colName = th.textContent.trim().toLowerCase().replace(/\s+/g, "_");
-    switch(i) {
+    switch (i) {
       case 0:
         return `<td><textarea class="input-full item-desc" name="desc[]" rows="1" style="overflow:hidden; resize:none;"></textarea></td>`;
       case 1:
@@ -689,7 +775,6 @@ function calculateTotals() {
   safeSetValue('#vatAmount', vatAmount.toFixed(2));
   safeSetValue('#vatExemptSales', vatExemptSales.toFixed(2));
 
-  // these IDs must exist in your HTML if you want them populated
   safeSetValue('#vatExemptAmount', vatExemptAmount.toFixed(2));
   safeSetValue('#vatZeroRatedSales', zeroRatedSales.toFixed(2));
   safeSetValue('#vatZeroRatedAmount', zeroRatedAmount.toFixed(2));
@@ -882,6 +967,7 @@ async function saveToDatabase() {
       terms: getInputValue('terms'),
       invoice_title: $('.invoice-title')?.textContent || 'SERVICE INVOICE',
       invoice_mode: getInputValue('invoiceMode'),
+
       invoice_category: getInputValue('invoiceCategory'),
       invoice_type: getInputValue('invoice_type'),
       currency: currencySelect?.value || 'PHP',
@@ -907,6 +993,25 @@ async function saveToDatabase() {
         serial_nos: getFooterValue('footerSerialNos')
       }
     };
+
+    // ✅ recurring fields
+    if ((payload.invoice_mode || '').toLowerCase() === 'recurring') {
+      const start = document.getElementById('recurrenceStart')?.value || '';
+      if (!start) {
+        alert('Recurring: Next Run Date is required.');
+        return false;
+      }
+
+      payload.recurrence_type = 'monthly';
+      payload.recurrence_start_date = start;
+      payload.recurrence_end_date = document.getElementById('recurrenceEnd')?.value || null;
+      payload.recurrence_status = document.getElementById('recurrenceStatus')?.value || 'active';
+    } else {
+      payload.recurrence_type = null;
+      payload.recurrence_start_date = null;
+      payload.recurrence_end_date = null;
+      payload.recurrence_status = null;
+    }
 
     if (window.__NUMBERING_MODE__ === 'manual') {
       payload.invoice_no = invoiceNo;
@@ -979,14 +1084,17 @@ function autofillDates() {
   if (footerAtpDate && !footerAtpDate.value) footerAtpDate.value = today;
 }
 
-/* ✅ MAIN PAGE INIT (wait navbar first) */
+/* ✅ MAIN PAGE INIT */
 window.addEventListener('DOMContentLoaded', async () => {
-  await waitNavbar(); // ✅ injected navbar + actions exist now
+  await waitNavbar();
 
   const allowed = await requireAnyRole(['super', 'approver', 'submitter']);
   if (!allowed) return;
 
   autofillDates();
+
+  // ✅ must be after DOM exists
+  initRecurringHeaderUI();
 
   await loadEWTList();
   ensureEWTOnExistingRows();
