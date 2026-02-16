@@ -46,6 +46,7 @@ const invoiceSettingsRoutes = require('./routes/invoiceSettings');
 const reportsRouter = require('./routes/reports');
 const auditLogsRoute = require('./routes/auditLogs');
 const { ensureRequestId } = require('./helpers/audit');
+const invoicePreviewPdfPuppeteerRoutes = require('./routes/invoicePreviewPdfPuppeteer.routes');
 
 /* =========================
    App setup
@@ -101,6 +102,7 @@ app.use('/api/invoice-settings', invoiceSettingsRoutes);
 app.use('/api/reports', reportsRouter);
 app.use('/api/invoices/import', require('./routes/invoiceImport'));
 app.use('/api/audit-logs', auditLogsRoute);
+app.use('/api/invoices', invoicePreviewPdfPuppeteerRoutes);
 
 /* ✅ Recurring invoices runner endpoint */
 app.use('/api/recurring-invoices', require('./routes/recurringInvoices'));

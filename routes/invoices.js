@@ -288,40 +288,41 @@ router.post(
 
 // ---------------- CANCEL INVOICE (DRAFT/RETURNED/PENDING) ----------------
 router.post(
-  '/invoices/:invoiceNo/cancel',
+  '/invoices/:invoiceNo/void',
   requireLogin,
-  requirePermission(PERMISSIONS.INVOICE_CANCEL),
+  requirePermission(PERMISSIONS.INVOICE_VOID), // ✅ rename permission
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
     const status = String(invoice.status || '').toLowerCase();
-    if (!['draft', 'returned', 'pending'].includes(status)) {
-      return res.status(400).json({ error: 'Only draft, returned, or pending invoices can be canceled' });
-    }
+   if (!['draft', 'returned', 'pending', 'approved'].includes(status)) {
+  return res.status(400).json({ error: 'Only draft, returned, pending, or approved invoices can be voided' });
+}
 
-    const role = req.session.user.role;
+    const role = String(req.session.user?.role || '').toLowerCase();
     const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
-    if (!isAdmin) return res.status(403).json({ error: 'You are not allowed to cancel this invoice' });
+    if (!isAdmin) return res.status(403).json({ error: 'You are not allowed to void this invoice' });
 
     await pool.query(
-      'UPDATE invoices SET status = "canceled" WHERE invoice_no = ?',
+      'UPDATE invoices SET status = "void" WHERE invoice_no = ?',
       [invoice.invoice_no]
     );
 
     await logAudit(pool, req, {
-      action: 'invoice.cancel',
+      action: 'invoice.void',
       entity_type: 'invoice',
       entity_id: invoice.invoice_no,
-      summary: `Canceled invoice ${invoice.invoice_no} (${status} → canceled)`,
+      summary: `Voided invoice ${invoice.invoice_no} (${status} → void)`,
       success: 1,
       before: { status },
-      after: { status: 'canceled' }
+      after: { status: 'void' }
     });
 
-    res.json({ message: 'Invoice canceled successfully' });
+    res.json({ message: 'Invoice voided successfully' });
   })
 );
+
 
 // ---------------- GET SINGLE INVOICE ----------------
 router.get(

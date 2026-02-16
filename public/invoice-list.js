@@ -26,7 +26,7 @@ function setQueryParams(patch = {}) {
 
 function getStatusFromQuery() {
   const raw = (getQueryParam('status') || '').trim().toLowerCase();
-  const allowed = new Set(['draft', 'returned', 'pending', 'approved', 'paid', 'canceled', 'all']);
+  const allowed = new Set(['draft', 'returned', 'pending', 'approved', 'paid', 'void', 'all']);
   if (!raw) return null;
   return allowed.has(raw) ? raw : null;
 }
@@ -115,7 +115,7 @@ function updateCountsFromAllInvoices(allInvoices) {
     pending: 0,
     approved: 0,
     paid: 0,
-    canceled: 0
+    void: 0
   };
 
   for (const inv of allInvoices) {
@@ -133,7 +133,7 @@ async function fetchAllForCountsIfNeeded() {
   if (allCountsCache) return;
 
   try {
-    const res = await fetch('/api/invoices');
+    const res = await fetch('/api/invoices', { credentials: 'include' });
     if (!res.ok) throw new Error("Failed to fetch invoices for counts");
     const all = await res.json();
     allCountsCache = all;
@@ -151,7 +151,7 @@ async function fetchInvoices() {
       ? `/api/invoices?status=${encodeURIComponent(activeStatus)}`
       : `/api/invoices`;
 
-    const res = await fetch(url);
+    const res = await fetch(url, { credentials: 'include' });
     if (!res.ok) throw new Error("Failed to fetch invoices");
 
     let invoices = await res.json();
@@ -204,14 +204,7 @@ function sortInvoices(invoices, key, order) {
           : new Date(b.due_date || 0) - new Date(a.due_date || 0);
 
       case 'status': {
-        const orderMap = {
-          draft: 1,
-          returned: 2,
-          pending: 3,
-          approved: 4,
-          paid: 5,
-          canceled: 6
-        };
+        const orderMap = { draft: 1, returned: 2, pending: 3, approved: 4, paid: 5, void: 6 };
         valA = orderMap[a.status] ?? 99;
         valB = orderMap[b.status] ?? 99;
         return order === 'asc' ? valA - valB : valB - valA;
@@ -245,76 +238,75 @@ function populateTable(invoices) {
     if (inv.status === 'pending') statusBadge = `<span class="status-badge status-pending">Pending</span>`;
     if (inv.status === 'approved') statusBadge = `<span class="status-badge status-approved">Approved</span>`;
     if (inv.status === 'paid') statusBadge = `<span class="status-badge status-paid">Paid</span>`;
-    if (inv.status === 'canceled') statusBadge = `<span class="status-badge status-canceled">Canceled</span>`;
+    if (inv.status === 'void') statusBadge = `<span class="status-badge status-void">Void</span>`;
 
     const buttons = [];
+
+    // helper to safely pass status to view
+    const safeNo = String(inv.invoice_no || '').replace(/'/g, "\\'");
+    const safeStatus = String(inv.status || '').replace(/'/g, "\\'");
 
     // --- DRAFT ---
     if (inv.status === 'draft') {
       if (role === 'submitter') {
-        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
-        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
+        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${safeNo}','${safeStatus}')">View</button>`);
+        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${safeNo}')">Edit</button>`);
       } else if (['super', 'admin', 'approver'].includes(role)) {
-        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
-        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
-        buttons.push(`<button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>`);
-        buttons.push(`<button class="action-btn submit" onclick="submitInvoice('${inv.invoice_no}')">Submit</button>`);
+        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${safeNo}','${safeStatus}')">View</button>`);
+        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${safeNo}')">Edit</button>`);
+        buttons.push(`<button class="action-btn delete" onclick="deleteInvoice('${safeNo}')">Delete</button>`);
+        buttons.push(`<button class="action-btn submit" onclick="submitInvoice('${safeNo}')">Submit</button>`);
       }
     }
 
     // --- RETURNED ---
     if (inv.status === 'returned') {
       if (role === 'submitter') {
-        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
-        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
-        buttons.push(`<button class="action-btn submit" onclick="submitInvoice('${inv.invoice_no}')">Resubmit</button>`);
+        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${safeNo}','${safeStatus}')">View</button>`);
+        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${safeNo}')">Edit</button>`);
+        buttons.push(`<button class="action-btn submit" onclick="submitInvoice('${safeNo}')">Resubmit</button>`);
       } else if (['super', 'admin', 'approver'].includes(role)) {
-        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
-        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
-        buttons.push(`<button class="action-btn delete" onclick="deleteInvoice('${inv.invoice_no}')">Delete</button>`);
-        buttons.push(`<button class="action-btn submit" onclick="submitInvoice('${inv.invoice_no}')">Resubmit</button>`);
+        buttons.push(`<button class="action-btn view" onclick="viewInvoice('${safeNo}','${safeStatus}')">View</button>`);
+        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${safeNo}')">Edit</button>`);
+        buttons.push(`<button class="action-btn delete" onclick="deleteInvoice('${safeNo}')">Delete</button>`);
+        buttons.push(`<button class="action-btn submit" onclick="submitInvoice('${safeNo}')">Resubmit</button>`);
       }
     }
 
     // --- PENDING ---
-if (inv.status === 'pending') {
-  buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
+    if (inv.status === 'pending') {
+      buttons.push(`<button class="action-btn view" onclick="viewInvoice('${safeNo}','${safeStatus}')">View</button>`);
 
-  const isOwner = Number(inv.created_by) === Number(currentUser.id);
-  const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
-  const isApprover = role === 'approver';
+      const isOwner = Number(inv.created_by) === Number(currentUser.id);
+      const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+      const isApprover = role === 'approver';
 
-  // ✅ allow submitter (owner) to edit pending
-  // ✅ allow approver/admin to edit pending
-  if (isOwner || isAdmin || isApprover) {
-    buttons.push(`<button class="action-btn edit" onclick="editInvoice('${inv.invoice_no}')">Edit</button>`);
-  }
+      if (isOwner || isAdmin || isApprover) {
+        buttons.push(`<button class="action-btn edit" onclick="editInvoice('${safeNo}')">Edit</button>`);
+      }
 
-  // ✅ Approver/admin can approve/return (ALLOW OWN INVOICE)
-  if (isApprover || isAdmin) {
-    buttons.push(`<button class="action-btn approve" onclick="approveInvoice('${inv.invoice_no}')">Approve</button>`);
-    buttons.push(`<button class="action-btn return" onclick="returnInvoice('${inv.invoice_no}')">Return</button>`);
-  }
+      if (isApprover || isAdmin) {
+        buttons.push(`<button class="action-btn approve" onclick="approveInvoice('${safeNo}')">Approve</button>`);
+        buttons.push(`<button class="action-btn return" onclick="returnInvoice('${safeNo}')">Return</button>`);
+      }
 
-  // ✅ Admin/super can cancel
-  if (isAdmin) {
-    buttons.push(`<button class="action-btn cancel" onclick="cancelInvoice('${inv.invoice_no}')">Cancel</button>`);
-  }
-}
-
+      if (isAdmin) {
+        buttons.push(`<button class="action-btn void" onclick="voidInvoice('${safeNo}')">Void</button>`);
+      }
+    }
 
     // --- APPROVED ---
     if (inv.status === 'approved') {
-      buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
+      buttons.push(`<button class="action-btn view" onclick="viewInvoice('${safeNo}','${safeStatus}')">View</button>`);
       if (['super', 'admin'].includes(role)) {
-        buttons.push(`<button class="action-btn pay" onclick="markPaid('${inv.invoice_no}')">Mark as Paid</button>`);
-        buttons.push(`<button class="action-btn cancel" onclick="cancelInvoice('${inv.invoice_no}')">Cancel</button>`);
+        buttons.push(`<button class="action-btn pay" onclick="markPaid('${safeNo}')">Mark as Paid</button>`);
+        buttons.push(`<button class="action-btn void" onclick="voidInvoice('${safeNo}')">Void</button>`);
       }
     }
 
     // --- PAID / CANCELED ---
-    if (inv.status === 'paid' || inv.status === 'canceled') {
-      buttons.push(`<button class="action-btn view" onclick="viewInvoice('${inv.invoice_no}')">View</button>`);
+    if (inv.status === 'paid' || inv.status === 'void') {
+      buttons.push(`<button class="action-btn view" onclick="viewInvoice('${safeNo}','${safeStatus}')">View</button>`);
     }
 
     tr.innerHTML = `
@@ -350,7 +342,7 @@ function setupExportDropdown() {
     <button type="button" class="export-item" data-status="pending">Pending Only</button>
     <button type="button" class="export-item" data-status="approved">Approved Only</button>
     <button type="button" class="export-item" data-status="paid">Paid Only</button>
-    <button type="button" class="export-item" data-status="canceled">Canceled Only</button>
+    <button type="button" class="export-item" data-status="void">Void Only</button>
   `;
 
   function close() { menuTop.classList.remove('show'); }
@@ -359,7 +351,6 @@ function setupExportDropdown() {
     e.preventDefault();
     e.stopPropagation();
 
-    // close other dropdowns in the navbar/page header
     document.querySelectorAll('.dropdown-menu.show').forEach(m => {
       if (m !== menuTop) m.classList.remove('show');
     });
@@ -383,61 +374,77 @@ function setupExportDropdown() {
 }
 
 function exportInvoices(status) {
-  // browser download
   window.location.href = `/api/invoices/export/excel?status=${encodeURIComponent(status)}`;
 }
 
-
 /* ===================== ACTIONS ===================== */
-function viewInvoice(no) {
-  window.open(`/InvoicePreviewViewer.html?invoice_no=${no}`, '_blank');
+function viewInvoice(no, status = '') {
+  const q = new URLSearchParams();
+  q.set('invoice_no', no);
+  if (status) q.set('status', status);
+  window.open(`/InvoicePreviewViewer.html?${q.toString()}`, '_blank');
 }
+
 function editInvoice(no) {
-  window.location.href = `/invoice?invoice_no=${no}&edit=true`;
+  window.location.href = `/invoice?invoice_no=${encodeURIComponent(no)}&edit=true`;
 }
 
 async function deleteInvoice(no) {
   if (!confirm(`Delete invoice ${no}?`)) return;
-  await fetch(`/api/invoices/${no}`, { method: 'DELETE' });
+  await fetch(`/api/invoices/${encodeURIComponent(no)}`, { method: 'DELETE', credentials: 'include' });
   allCountsCache = null;
   await fetchInvoices();
 }
 
 async function approveInvoice(no) {
   if (!confirm(`Approve invoice ${no}?`)) return;
-  await fetch(`/api/invoices/${no}/approve`, { method: 'POST' });
+  await fetch(`/api/invoices/${encodeURIComponent(no)}/approve`, { method: 'POST', credentials: 'include' });
   allCountsCache = null;
   await fetchInvoices();
 }
 
 async function submitInvoice(no) {
   if (!confirm(`Submit invoice ${no}?`)) return;
-  await fetch(`/api/invoices/${no}/submit`, { method: 'POST' });
+  await fetch(`/api/invoices/${encodeURIComponent(no)}/submit`, { method: 'POST', credentials: 'include' });
   allCountsCache = null;
   await fetchInvoices();
 }
 
 async function markPaid(no) {
   if (!confirm(`Mark invoice ${no} as paid?`)) return;
-  await fetch(`/api/invoices/${no}/mark-paid`, { method: 'POST' });
+  await fetch(`/api/invoices/${encodeURIComponent(no)}/mark-paid`, { method: 'POST', credentials: 'include' });
   allCountsCache = null;
   await fetchInvoices();
 }
 
-async function cancelInvoice(no) {
-  if (!confirm(`Cancel invoice ${no}?`)) return;
-  await fetch(`/api/invoices/${no}/cancel`, { method: 'POST' });
+async function voidInvoice(no) {
+  if (!confirm(`Void invoice ${no}?`)) return;
+
+  const res = await fetch(`/api/invoices/${encodeURIComponent(no)}/void`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    alert(data.error || `Failed to void invoice (${res.status})`);
+    return;
+  }
+
   allCountsCache = null;
   await fetchInvoices();
 }
+
 
 async function returnInvoice(no) {
   const reason = prompt("Reason for returning this invoice?");
   if (reason === null) return;
 
-  const res = await fetch(`/api/invoices/${no}/return`, {
+  const res = await fetch(`/api/invoices/${encodeURIComponent(no)}/return`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ reason })
   });
 
@@ -457,7 +464,9 @@ document.getElementById("deleteSelectedBtn")?.addEventListener("click", async ()
   if (!selected.length) return alert("No invoices selected");
   if (!confirm(`Delete ${selected.length} invoices?`)) return;
 
-  for (const no of selected) await fetch(`/api/invoices/${no}`, { method: 'DELETE' });
+  for (const no of selected) {
+    await fetch(`/api/invoices/${encodeURIComponent(no)}`, { method: 'DELETE', credentials: 'include' });
+  }
 
   allCountsCache = null;
   await fetchInvoices();
@@ -489,7 +498,6 @@ document.querySelectorAll("#invoiceTable th.sortable").forEach(th => {
 
 /* ===================== INIT ===================== */
 window.addEventListener("DOMContentLoaded", async () => {
-  // Wait for navbar/layout injection so header buttons exist
   if (window.navbarReady) {
     try { await window.navbarReady; } catch {}
   }
@@ -497,22 +505,17 @@ window.addEventListener("DOMContentLoaded", async () => {
   const ok = await initRBAC();
   if (!ok) return;
 
-  // Bind tabs
   bindStatusTabs();
 
-  // Set active tab from URL if present
   const statusFromUrl = getStatusFromQuery();
   setActiveTab(statusFromUrl || 'all');
 
-  // Search from URL if present
   applySearchFromQuery();
 
-  // Setup export dropdown after navbar is ready (header button exists)
   setupExportDropdown();
 
   await fetchInvoices();
 
-  // Focus from URL if any
   const focus = getQueryParam('focus');
   if (focus) focusInvoiceRow(focus);
 });
@@ -524,5 +527,5 @@ window.deleteInvoice = deleteInvoice;
 window.approveInvoice = approveInvoice;
 window.submitInvoice = submitInvoice;
 window.markPaid = markPaid;
-window.cancelInvoice = cancelInvoice;
+window.voidInvoice = voidInvoice;
 window.returnInvoice = returnInvoice;

@@ -254,7 +254,7 @@ tr:hover{ background:#f3f6ff; }
 .status-pending  { background:#fff3cd; color:#856404; }
 .status-approved { background:#d1e7dd; color:#0f5132; }
 .status-paid     { background:#cfe2ff; color:#084298; }
-.status-canceled { background:#f8d7da; color:#842029; }
+.status-void{ background:#f8d7da; color:#842029; }
 
 /* ===================== Action Buttons ===================== */
 .action-btn{

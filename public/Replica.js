@@ -4,11 +4,47 @@
 
 console.log("✅ REPLICA.js loaded");
 
-// ============================ 
-// Main Invoice Renderer 
+// ✅ Puppeteer "ready" flag (used by PDF generator)
+window.__REPLICA_READY = false;
+
+/* ============================
+   WATERMARK
+   - Needs <div id="wm" class="watermark"></div> inside Replica.html
+============================ */
+function applyWatermark(statusRaw) {
+  const wm = document.getElementById('wm');
+  if (!wm) return;
+
+  const status = String(statusRaw || '').trim().toLowerCase();
+
+  // ✅ reset (NO inline display:none)
+  wm.className = 'watermark';
+  wm.textContent = '';
+  wm.style.display = '';   // clear inline display if it exists
+  wm.style.opacity = '';   // optional: clear inline opacity too
+
+  if (status === 'draft') {
+    wm.textContent = 'DRAFT';
+    wm.classList.add('show', 'draft');
+    return;
+  }
+
+  if (status === 'canceled' || status === 'cancelled' || status === 'void') {
+    wm.textContent = 'VOID';
+    wm.classList.add('show', 'void');
+    return;
+  }
+}
+
+
+// ============================
+// Main Invoice Renderer
 // ============================
 function renderInvoice(data) {
-  const invoice = data;
+  const invoice = data || {};
+
+  // ✅ watermark based on invoice status
+  applyWatermark(invoice.status);
 
   // -------------------- FORMATTERS --------------------
   const formatCurrency = (value, currency = "PHP") => {
@@ -34,10 +70,13 @@ function renderInvoice(data) {
   fillById("company-address", company.company_address || "");
   fillById("company-tel", company.tel_no || "");
   fillById("company-tin", company.vat_tin || "");
+
   if (company.logo_path) {
     const logoEl = document.getElementById("invoice-logo");
-    logoEl.src = company.logo_path;
-    logoEl.style.display = "block";
+    if (logoEl) {
+      logoEl.src = company.logo_path;
+      logoEl.style.display = "block";
+    }
   }
 
   // -------------------- INVOICE HEADER --------------------
@@ -54,11 +93,13 @@ function renderInvoice(data) {
   // -------------------- EXCHANGE RATE --------------------
   const exchangeRateEl = document.getElementById("exchange_rate");
   const exchangeRate = parseFloat(invoice.exchange_rate || 1);
+
   if (exchangeRateEl) {
     if (invoice.currency === "PHP") {
       exchangeRateEl.textContent = "₱1.00";
     } else {
-      exchangeRateEl.textContent = `1 ${invoice.currency} = ₱${exchangeRate.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+      exchangeRateEl.textContent =
+        `1 ${invoice.currency} = ₱${exchangeRate.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
     }
   }
 
@@ -67,6 +108,8 @@ function renderInvoice(data) {
     const theadRow = document.getElementById("replica-thead-row");
     const colgroup = document.getElementById("invoice-colgroup");
     const tbody = document.getElementById("itemRows");
+
+    if (!theadRow || !colgroup || !tbody) return [];
 
     theadRow.innerHTML = "";
     colgroup.innerHTML = "";
@@ -84,7 +127,7 @@ function renderInvoice(data) {
     // HEADER
     [...MAIN_COLUMNS, ...extraFields.map(f => ({ key: f, label: f }))].forEach(col => {
       const th = document.createElement("th");
-      th.textContent = col.label.replace(/_/g, " ").toUpperCase();
+      th.textContent = String(col.label).replace(/_/g, " ").toUpperCase();
       theadRow.appendChild(th);
     });
 
@@ -94,6 +137,7 @@ function renderInvoice(data) {
       c.style.width = col.width + "%";
       colgroup.appendChild(c);
     });
+
     if (extraFields.length) {
       const remaining = 100 - MAIN_COLUMNS.reduce((s, c) => s + c.width, 0);
       const extraWidth = remaining / extraFields.length;
@@ -104,15 +148,15 @@ function renderInvoice(data) {
       });
     }
 
-    // ROWS — only actual items
-    items.forEach(item => {
+    // ROWS
+    (items || []).forEach(item => {
       const tr = document.createElement("tr");
 
       MAIN_COLUMNS.forEach(col => {
         const td = document.createElement("td");
         if (col.key === "description") td.classList.add("desc");
 
-        let val = item[col.key];
+        let val = item?.[col.key];
 
         if (!val) {
           td.innerHTML = "&nbsp;";
@@ -130,7 +174,7 @@ function renderInvoice(data) {
 
       extraFields.forEach(f => {
         const td = document.createElement("td");
-        td.innerHTML = item[f] ?? "&nbsp;";
+        td.innerHTML = (item?.[f] ?? "&nbsp;");
         tr.appendChild(td);
       });
 
@@ -144,7 +188,7 @@ function renderInvoice(data) {
 
   // -------------------- PAYMENT SUMMARY --------------------
   const payment = invoice.tax_summary || {};
-  const showPHP = val => "₱" + ((parseFloat(val) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 }));
+  const showPHP = (val) => "₱" + ((parseFloat(val) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 }));
 
   fillById("vatableSales", showPHP(payment.vatable_sales));
   fillById("vatAmount", showPHP(payment.vat_amount));
@@ -183,22 +227,37 @@ function renderInvoice(data) {
 // ============================
 // FETCH INVOICE FROM BACKEND
 // ============================
-window.onload = async function() {
+window.onload = async function () {
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get("invoice_no");
-  if(!invoiceNo){
+
+  if (!invoiceNo) {
     alert("No invoice number provided in the URL.");
+    window.__REPLICA_READY = true; // ✅ don't hang
     return;
   }
 
   try {
-    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
-    if(!res.ok) throw new Error(await res.text());
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`, {
+      credentials: 'include'
+    });
+
+    if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
+
     renderInvoice(data);
-  } catch(err){
+
+    // ✅ Wait a tick so DOM paints before Puppeteer prints
+    requestAnimationFrame(() => {
+      window.__REPLICA_READY = true;
+    });
+
+  } catch (err) {
     console.error("❌ Error loading invoice:", err);
     alert("Error loading invoice — showing empty template.");
+
+    // ✅ IMPORTANT: avoid Puppeteer waiting forever
+    window.__REPLICA_READY = true;
   }
 };
 
@@ -209,7 +268,7 @@ function toggleDropdown() {
   document.querySelector('.dropdown')?.classList.toggle('show');
 }
 
-window.onclick = function(event) {
+window.onclick = function (event) {
   if (!event.target.matches('.export-btn')) {
     document.querySelectorAll('.dropdown.show').forEach(drop => drop.classList.remove('show'));
   }

@@ -1409,29 +1409,60 @@ function closeContactModal() {
   modal.style.display = 'none';
 }
 
-/* -------------------- 15. SAVE & CLOSE (Injected button) - FIXED -------------------- */
+/* -------------------- 15. SAVE & CLOSE (Split Button + Role-aware options) -------------------- */
 document.addEventListener('DOMContentLoaded', async () => {
-  await waitNavbar(); // ✅ saveCloseBtn exists after injection
+  await waitNavbar();
 
   const saveCloseBtn = document.getElementById('saveCloseBtn');
   if (!saveCloseBtn) {
-    DBG.warn('saveCloseBtn not found in DOM');
+    DBG?.warn?.('saveCloseBtn not found in DOM');
     return;
   }
 
-  // ✅ Wrap the button so dropdown is anchored correctly (prevents "behind" / weird layering)
+  // ✅ Wrap for split button + anchored dropdown
   if (!saveCloseBtn.parentElement.classList.contains('saveclose-wrap')) {
     const wrap = document.createElement('div');
     wrap.className = 'saveclose-wrap';
     wrap.style.position = 'relative';
-    wrap.style.display = 'inline-block';
+    wrap.style.display = 'inline-flex';
+    wrap.style.alignItems = 'stretch';
+    wrap.style.gap = '0';
     saveCloseBtn.parentElement.insertBefore(wrap, saveCloseBtn);
     wrap.appendChild(saveCloseBtn);
   }
 
   const wrap = saveCloseBtn.parentElement;
 
-  // ✅ Build dropdown inside wrapper (NOT document.body)
+  // ✅ Create arrow button beside Save & close
+  let arrowBtn = wrap.querySelector('#saveCloseArrowBtn');
+  if (!arrowBtn) {
+    arrowBtn = document.createElement('button');
+    arrowBtn.type = 'button';
+    arrowBtn.id = 'saveCloseArrowBtn';
+
+    // keep same class/style as main button
+    arrowBtn.className = saveCloseBtn.className;
+
+    // compact caret
+    arrowBtn.style.paddingLeft = '12px';
+    arrowBtn.style.paddingRight = '12px';
+    arrowBtn.style.minWidth = '44px';
+    arrowBtn.innerHTML = '&#9662;'; // ▼
+
+    wrap.appendChild(arrowBtn);
+  }
+
+  // ✅ Get user ONCE (used to decide menu items)
+  let me = null;
+  try {
+    me = await fetch('/auth/me', { credentials: 'include' }).then(r => r.json());
+  } catch (e) {
+    console.warn('⚠️ /auth/me failed, menu will show minimal options', e);
+  }
+  const role = String(me?.user?.role || me?.user?.user?.role || '').toLowerCase();
+  const isSubmitter = role === 'submitter';
+
+  // ✅ Build dropdown
   let dropdown = wrap.querySelector('.saveclose-menu');
   if (!dropdown) {
     dropdown = document.createElement('div');
@@ -1446,12 +1477,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     dropdown.style.boxShadow = '0 14px 35px rgba(0,0,0,0.18)';
     dropdown.style.padding = '6px 0';
     dropdown.style.display = 'none';
-    dropdown.style.zIndex = '99999'; // ✅ always above sticky header
+    dropdown.style.zIndex = '99999';
 
+    // ✅ Role-aware options
     const options = [
-      { text: 'Save & Preview', action: 'preview' },
       { text: 'Save & Add Another', action: 'addAnother' },
-      { text: 'Submit for Approval', action: 'submitApproval' }
+      ...(isSubmitter ? [{ text: 'Submit for Approval', action: 'submitApproval' }] : [])
     ];
 
     options.forEach(opt => {
@@ -1474,7 +1505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        dropdown.style.display = 'none';
+        close();
         await handleSaveCloseAction(opt.action);
       });
 
@@ -1486,7 +1517,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function isOpen() { return dropdown.style.display !== 'none'; }
   function open() {
-    // ✅ optional: if near right edge, flip to right align
     dropdown.style.left = '0';
     dropdown.style.right = 'auto';
 
@@ -1499,15 +1529,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function close() { dropdown.style.display = 'none'; }
 
-  // Toggle dropdown
-  saveCloseBtn.addEventListener('click', (e) => {
+  // ✅ Main button = Save & close (no dropdown)
+  saveCloseBtn.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
+    close();
+    await handleSaveCloseAction('close');
+  });
+
+  // ✅ Arrow toggles dropdown (only if there are menu items)
+  arrowBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // if submitter-only menu is empty and you want arrow disabled:
+    if (!dropdown || dropdown.children.length === 0) return;
+
     if (isOpen()) close();
     else open();
   });
 
-  // Close on outside click / ESC
+  // close on outside click / ESC
   document.addEventListener('click', (e) => {
     if (!wrap.contains(e.target)) close();
   });
@@ -1522,8 +1564,8 @@ async function handleSaveCloseAction(action) {
   const saved = await saveToDatabase();
   if (!saved) return;
 
-  if (action === 'preview') {
-    window.location.href = `InvoicePreviewViewer.html?invoice_no=${encodeURIComponent(invoiceNo)}`;
+  if (action === 'close') {
+    window.location.href = '/Dashboard.html';
     return;
   }
 
@@ -1532,10 +1574,14 @@ async function handleSaveCloseAction(action) {
     return;
   }
 
+  // ✅ Submitter-only action
   if (action === 'submitApproval') {
     const user = await fetch('/auth/me', { credentials: 'include' }).then(r => r.json());
 
-    if (user?.user?.role !== 'submitter') {
+    // IMPORTANT: handle both possible shapes just in case
+    const role = String(user?.user?.role || user?.user?.user?.role || '').toLowerCase();
+
+    if (role !== 'submitter') {
       alert('Only Submitter can submit for approval');
       return;
     }
@@ -1552,6 +1598,7 @@ async function handleSaveCloseAction(action) {
     }
   }
 }
+
 
 /* -------------------- LIVE PREVIEW (Injected preview button) -------------------- */
 const form = document.getElementById('invoiceForm');
@@ -1743,7 +1790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         invoiceDropdown.classList.remove('show');
       });
     });
-  }
+  } 
 });
 
 /* -------------------- EXPOSE GLOBALS -------------------- */

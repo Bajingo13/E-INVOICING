@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Invoice Preview</title>
 
 <style>
@@ -13,19 +14,18 @@ html, body {
   margin: 0;
   font-family: Arial, sans-serif;
   background: #2b2b2b;
-  color: #fff;
+  color: #111;
   overflow: auto; /* single scrollbar */
 }
 
 /* ===============================
    TOP BAR
+   (keep your colors; you said no need for color change)
 ================================ */
 .top-bar {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+  top: 0; left: 0; right: 0;
+  z-index: 2000;
   height: 56px;
   background: #6F75E2;
   color: #ffffff;
@@ -33,18 +33,18 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid rgba(0,0,0,0.15);
   overflow: visible; /* allow dropdown */
 }
 
-.top-bar .left {
+.top-bar .left, .top-bar .right {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 .top-bar .title {
-  font-weight: bold;
+  font-weight: 700;
   font-size: 16px;
 }
 
@@ -53,6 +53,7 @@ html, body {
   background: none;
   cursor: pointer;
   font-size: 14px;
+  color: inherit;
 }
 
 .btn-primary {
@@ -61,60 +62,7 @@ html, body {
   padding: 6px 12px;
   border-radius: 4px;
   cursor: pointer;
-}
-
-/* ===============================
-   TOOLBAR
-================================ */
-.toolbar {
-  position: fixed;
-  top: 56px;
-  left: 0;
-  right: 0;
-  height: 44px;
-  background: #6c6a6a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  font-size: 13px;
-  z-index: 999;
-}
-
-.toolbar button {
-  background: none;
   border: none;
-  color: #000000;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-/* ===============================
-   VIEWER
-================================ */
-.viewer {
-  display: flex;
-  justify-content: center;
-  padding: 124px 0 24px 0; /* top bar + toolbar */
-}
-
-.page-container {
-  width: 816px;
-  height: 1056px;
-  background: #fff;
-  box-shadow: 0 0 18px rgba(0,0,0,.55);
-  display: flex;
-  flex-direction: column;
-  transform-origin: top center;
-  transition: transform 0.12s ease-out;
-  transform: scale(1) rotate(0deg);
-}
-
-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: #fff;
 }
 
 /* ===============================
@@ -127,7 +75,7 @@ iframe {
 
 .export-toggle {
   background: #0078d4;
-  color: #000;
+  color: #fff;
   padding: 6px 14px;
   border-radius: 4px;
   border: none;
@@ -142,7 +90,7 @@ iframe {
   top: calc(100% + 8px);
   background: #ffffff;
   color: #000;
-  min-width: 150px;
+  min-width: 180px;
   border-radius: 6px;
   box-shadow: 0 8px 20px rgba(0,0,0,0.25);
   z-index: 3000;
@@ -153,6 +101,7 @@ iframe {
   padding: 10px 14px;
   cursor: pointer;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .export-menu div:hover {
@@ -164,30 +113,51 @@ iframe {
 }
 
 /* ===============================
+   VIEWER (PDF in iframe)
+   ✅ We remove the custom toolbar + transforms
+   ✅ Chrome PDF Viewer toolbar will appear automatically
+================================ */
+.viewer {
+  display: flex;
+  justify-content: center;
+  padding: 72px 0 16px 0; /* top bar only */
+}
+
+.page-container {
+  width: min(1100px, calc(100vw - 24px));
+  height: calc(100vh - 56px - 32px);
+  background: transparent;
+  box-shadow: 0 0 18px rgba(0,0,0,.55);
+  border-radius: 2px;
+  overflow: hidden; /* keeps the embedded PDF viewer clean */
+}
+
+iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+}
+
+/* ===============================
    PRINT CLEAN
+   (printing an iframe PDF uses browser PDF print anyway,
+    but we keep your rule for safety)
 ================================ */
 @media print {
-  body {
-    background: #fff;
-    color: #000;
-  }
-  .top-bar, .toolbar, .btn-primary, .export-menu {
-    display: none !important;
-  }
-  .page-container {
-    box-shadow: none !important;
-    width: 100%;
-    height: auto;
-  }
+  body { background: #fff; }
+  .top-bar, .export-menu, .btn-primary { display: none !important; }
+  .page-container { box-shadow: none !important; width: 100%; height: auto; }
 }
 </style>
 </head>
+
 <body>
 
 <!-- =================== TOP BAR =================== -->
 <div class="top-bar">
   <div class="left">
-    <button onclick="closePreview()">✕</button>
+    <button onclick="closePreview()" aria-label="Close">✕</button>
     <span class="title">Invoice preview</span>
   </div>
 
@@ -206,115 +176,32 @@ iframe {
       </div>
     </div>
 
-    <button class="more-btn">⋮</button>
+    <button class="more-btn" aria-label="More">⋮</button>
   </div>
-</div>
-
-<!-- =================== TOOLBAR =================== -->
-<div class="toolbar">
-  <span id="pageInfo">1 / 1</span>
-  <button onclick="zoomOut()">−</button>
-  <span id="zoomLabel">100%</span>
-  <button onclick="zoomIn()">＋</button>
-  <button onclick="rotate()">⟳</button>
-  <button onclick="resetView()">↺</button> 
-  <button onclick="printPDF()">🖨</button>
 </div>
 
 <!-- =================== VIEWER =================== -->
 <div class="viewer">
-  <div class="page-container" id="pageContainer">
-    <iframe id="pdfFrame"></iframe>
+  <div class="page-container">
+    <iframe id="pdfFrame" title="PDF Preview"></iframe>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+
 <script>
 /* ===============================
-   VIEWER LOGIC
+   HELPERS
 ================================ */
-const container = document.getElementById('pageContainer');
-const zoomLabel = document.getElementById('zoomLabel');
 const frame = document.getElementById('pdfFrame');
 
-let zoom = 1;
-let rotation = 0;
-
-function applyTransform() {
-  container.style.transform = `scale(${zoom}) rotate(${rotation}deg)`;
-  zoomLabel.textContent = Math.round(zoom * 100) + '%';
-}
-
-function zoomIn() { zoom = Math.min(2, zoom + 0.1); applyTransform(); }
-function zoomOut() { zoom = Math.max(0.4, zoom - 0.1); applyTransform(); }
-
-function rotate() {
-  rotation = (rotation + 90) % 360;
-
-  if (rotation % 180 !== 0) {
-    container.style.width = '1056px';
-    container.style.height = '816px';
-  } else {
-    container.style.width = '816px';
-    container.style.height = '1056px';
-  }
-
-  applyTransform();
-}
-
-function resetView() {
-  zoom = 1;
-  rotation = 0;
-  container.style.width = '816px';
-  container.style.height = '1056px';
-  applyTransform();
-}
-
-/* ===============================
-   ACTIONS
-================================ */
-function printPDF() {
-  if (!frame || !frame.contentWindow) return;
-  frame.contentWindow.focus();
-  setTimeout(() => frame.contentWindow.print(), 150);
-}
-
-function downloadPDF() {
-  if (!frame || !frame.contentWindow) return;
-  frame.contentWindow.focus();
-  frame.contentWindow.print();
-}
 function closePreview() {
-  // If this window was opened by JS (popup), we can safely close it
-  if (window.opener) {
-    window.close();
-  } 
-  // If we have a referrer (navigated from another page), go back
-  else if (document.referrer) {
-    window.history.back();
-  } 
-  // Fallback to invoice list
-  else {
-    window.location.href = '/invoice-list.html';
-  }
+  if (window.opener) window.close();
+  else if (document.referrer) window.history.back();
+  else window.location.href = '/invoice-list.html';
 }
 
 function openSettings() { alert('Invoice settings (future)'); }
-
-/* ===============================
-   PASS INVOICE NO TO IFRAME
-================================ */
-const params = new URLSearchParams(window.location.search);
-const invoiceNo = params.get('invoice_no');
-
-if (!invoiceNo) {
-  alert('No invoice number provided in the URL.');
-  frame.src = ''; // prevent broken iframe
-} else {
-  // ✅ Fully encode invoiceNo to prevent URL issues
-  const encodedInvoice = encodeURIComponent(invoiceNo.trim());
-  frame.src = `Replica.html?invoice_no=${encodedInvoice}`;
-}
-
 
 /* ===============================
    EXPORT DROPDOWN TOGGLE
@@ -325,47 +212,78 @@ function toggleExportMenu() {
 
 window.addEventListener('click', function (e) {
   const dropdown = document.querySelector('.export-dropdown');
-  if (!dropdown.contains(e.target)) {
+  if (dropdown && !dropdown.contains(e.target)) {
     document.getElementById('exportMenu')?.classList.remove('show');
   }
 });
 
+/* ===============================
+   LOAD PDF IN IFRAME (PUPPETEER GENERATED)
+   ✅ This is what gives you the Chrome PDF viewer toolbar like your screenshot.
+   Requires your backend route:
+     GET /api/invoices/:invoiceNo/pdf
+================================ */
+const params = new URLSearchParams(window.location.search);
+const invoiceNo = params.get('invoice_no');
+
+if (!invoiceNo) {
+  alert('No invoice number provided in the URL.');
+  frame.src = '';
+} else {
+  const encodedInvoice = encodeURIComponent(invoiceNo.trim());
+  // inline so iframe shows native viewer controls
+  frame.src = `/api/invoices/${encodedInvoice}/pdf?disposition=inline&filename=${encodeURIComponent(`Invoice-${invoiceNo}.pdf`)}`;
+}
+
+/* ===============================
+   ACTIONS (PDF)
+================================ */
+function printPDF() {
+  // Works in most browsers; if cross-origin blocks, user can click print in the PDF toolbar
+  try {
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+  } catch (e) {
+    alert('Use the Print button inside the PDF toolbar.');
+  }
+}
+
+function downloadPDF() {
+  if (!invoiceNo) return alert('Invoice number missing');
+  const encodedInvoice = encodeURIComponent(invoiceNo.trim());
+  // force download
+  const url = `/api/invoices/${encodedInvoice}/pdf?disposition=attachment&filename=${encodeURIComponent(`Invoice-${invoiceNo}.pdf`)}`;
+  window.open(url, '_blank');
+}
+
+/* ===============================
+   EXPORT EXCEL (UNCHANGED)
+================================ */
 async function exportExcel() {
   if (!invoiceNo) {
     alert('Invoice number missing');
     return;
   }
 
-  /* ===============================
-     FETCH INVOICE DATA
-  ================================ */
-  const res = await fetch(`/api/invoices/${invoiceNo}`);
+  const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
+  if (!res.ok) {
+    alert('Invoice not found');
+    return;
+  }
   const inv = await res.json();
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Invoice');
 
-  /* ===============================
-     PAGE SETUP (PRINT SAFE)
-  ================================ */
   ws.pageSetup = {
     paperSize: 9, // A4
     orientation: 'portrait',
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 1,
-    margins: {
-      left: 0.5,
-      right: 0.5,
-      top: 0.75,
-      bottom: 0.75
-    }
+    margins: { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75 }
   };
 
-  /* ===============================
-     GRID SYSTEM (DO NOT CHANGE)
-     A–J = FULL PAGE WIDTH
-  ================================ */
   ws.columns = [
     { width: 4 },   // A
     { width: 14 },  // B
@@ -381,17 +299,14 @@ async function exportExcel() {
 
   let r = 1;
 
-  /* ===============================
-     COMPANY HEADER
-  ================================ */
   ws.mergeCells(`A${r}:J${r}`);
-  ws.getCell(`A${r}`).value = inv.company_name;
+  ws.getCell(`A${r}`).value = inv.company_name || '';
   ws.getCell(`A${r}`).font = { size: 16, bold: true };
   ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
   r++;
 
   ws.mergeCells(`A${r}:J${r}`);
-  ws.getCell(`A${r}`).value = inv.company_address;
+  ws.getCell(`A${r}`).value = inv.company_address || '';
   ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
   r++;
 
@@ -400,63 +315,45 @@ async function exportExcel() {
   ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
   r += 2;
 
-  /* ===============================
-     BILL TO / SOLD TO
-  ================================ */
   ws.mergeCells(`A${r}:E${r}`);
   ws.mergeCells(`F${r}:J${r}`);
-
   ws.getCell(`A${r}`).value = 'BILL TO';
   ws.getCell(`F${r}`).value = 'SOLD TO';
   ws.getCell(`A${r}`).font = ws.getCell(`F${r}`).font = { bold: true };
-
   r++;
 
   ws.mergeCells(`A${r}:E${r}`);
   ws.mergeCells(`F${r}:J${r}`);
-
-  ws.getCell(`A${r}`).value = inv.bill_to_name;
-  ws.getCell(`F${r}`).value = inv.sold_to_name;
+  ws.getCell(`A${r}`).value = inv.bill_to_name || '';
+  ws.getCell(`F${r}`).value = inv.sold_to_name || '';
   r++;
 
   ws.mergeCells(`A${r}:E${r}`);
   ws.mergeCells(`F${r}:J${r}`);
-
-  ws.getCell(`A${r}`).value = inv.bill_to_address;
-  ws.getCell(`F${r}`).value = inv.sold_to_address;
+  ws.getCell(`A${r}`).value = inv.bill_to_address || '';
+  ws.getCell(`F${r}`).value = inv.sold_to_address || '';
   r += 2;
 
-  /* ===============================
-     ITEMS TABLE HEADER
-  ================================ */
-  const headerRow = ws.addRow([
-    '#', 'Description', '', '', 'Qty', 'Unit', 'Price', '', 'Amount', ''
-  ]);
+  const headerRow = ws.addRow(['#', 'Description', '', '', 'Qty', 'Unit', 'Price', '', 'Amount', '']);
   ws.mergeCells(`B${r}:D${r}`);
   ws.mergeCells(`H${r}:I${r}`);
 
   headerRow.eachCell(cell => {
     cell.font = { bold: true };
     cell.alignment = { horizontal: 'center' };
-    cell.border = {
-      top: { style: 'thin' },
-      bottom: { style: 'thin' }
-    };
+    cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' } };
   });
   r++;
 
-  /* ===============================
-     ITEMS
-  ================================ */
-  inv.items.forEach((item, i) => {
+  (inv.items || []).forEach((item, i) => {
     const row = ws.addRow([
       i + 1,
-      item.description, '', '',
-      item.qty,
+      item.description || '', '', '',
+      item.qty || '',
       item.unit || '',
-      item.price,
+      item.price || '',
       '',
-      item.total,
+      item.total || '',
       ''
     ]);
 
@@ -464,26 +361,20 @@ async function exportExcel() {
     ws.mergeCells(`H${r}:I${r}`);
 
     row.eachCell(cell => {
-      cell.border = {
-        bottom: { style: 'hair' }
-      };
+      cell.border = { bottom: { style: 'hair' } };
     });
 
     r++;
   });
 
-  /* ===============================
-     TOTALS
-  ================================ */
   r++;
-
   ws.mergeCells(`A${r}:H${r}`);
   ws.getCell(`A${r}`).value = 'TOTAL';
   ws.getCell(`A${r}`).alignment = { horizontal: 'right' };
   ws.getCell(`A${r}`).font = { bold: true };
 
   ws.mergeCells(`I${r}:J${r}`);
-  ws.getCell(`I${r}`).value = inv.total_amount;
+  ws.getCell(`I${r}`).value = inv.total_amount || inv.total_amount_due || '';
   ws.getCell(`I${r}`).font = { bold: true };
   ws.getCell(`I${r}`).alignment = { horizontal: 'right' };
 
@@ -491,15 +382,9 @@ async function exportExcel() {
     cell.border = { top: { style: 'thin' } };
   });
 
-  /* ===============================
-     PRINT AREA
-  ================================ */
   ws.printTitlesRow = '1:1';
   ws.printArea = `A1:J${r + 2}`;
 
-  /* ===============================
-     DOWNLOAD
-  ================================ */
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -510,27 +395,7 @@ async function exportExcel() {
   link.download = `Invoice-${invoiceNo}.xlsx`;
   link.click();
 }
-
-frame.onload = async function() {
-  try {
-    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
-    if (!res.ok) throw new Error("Invoice not found");
-    const invoice = await res.json();
-
-    const doc = frame.contentDocument || frame.contentWindow.document;
-    const badgeEl = doc.getElementById('invoiceStatus');
-    if (!badgeEl) return;
-
-    badgeEl.textContent = invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1);
-    badgeEl.className = `invoice-status ${invoice.status.toLowerCase()}`;
-
-  } catch (err) {
-    console.error('Failed to load invoice status:', err);
-  }
-};
-
 </script>
-<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
 
 </body>
 </html>

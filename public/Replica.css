@@ -18,17 +18,72 @@ html, body {
 }
 
 /* ==============================
+   WATERMARK (PDF SAFE)
+   - must be inside .invoice-page
+   - use absolute (not fixed) for Puppeteer reliability
+============================== */
+.invoice-page { position: relative; }
+
+.watermark{
+  position: absolute; /* ✅ FIX (was fixed) */
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-25deg);
+  z-index: 999999;
+  pointer-events: none;
+  user-select: none;
+
+  font-weight: 700;
+  font-size: 90px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  display: none; /* hidden by default */
+  opacity: 0;    /* hidden by default */
+}
+
+.watermark.show{
+  display: block;
+  opacity: 0.15;
+}
+
+/* ==============================
+   WATERMARK COLORS
+============================== */
+
+/* Default (DRAFT) */
+.watermark {
+  color: #000;          /* black/gray for draft */
+}
+
+/* Draft */
+.watermark.draft {
+  color: #000;
+  opacity: 0.14;
+}
+
+/* Canceled / Void */
+.watermark.void {
+  color: #c1121f;       /* strong red */
+  opacity: 0.20;       /* slightly stronger for visibility */
+}
+
+
+/* ==============================
    CONTAINER
 ============================== */
 .invoice-container {
-  width: 100%;      
+  width: 100%;
   max-width: 8.25in;
   margin: 0 auto;
   padding: 0.25in;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  overflow: hidden;
+
+  /* ✅ IMPORTANT: do NOT clip watermark */
+  overflow: visible; /* was hidden */
 }
 
 /* ==============================
@@ -38,8 +93,8 @@ html, body {
   display: flex;
   align-items: flex-start;
   border-bottom: 1px solid #000;
-  padding-bottom: 12px; /* increased */
-  margin-bottom: 18px;  /* increased */
+  padding-bottom: 12px;
+  margin-bottom: 18px;
 }
 
 .logo {
@@ -59,8 +114,8 @@ html, body {
 }
 
 .company-info h1 {
-  font-size: 20px;      /* slightly bigger */
-  margin-bottom: 4px;   /* increased */
+  font-size: 20px;
+  margin-bottom: 4px;
   font-weight: normal;
 }
 
@@ -76,7 +131,7 @@ html, body {
   text-align: center;
   font-weight: bold;
   font-size: 26px;
-  margin: 12px 0 18px 0; /* increased spacing */
+  margin: 12px 0 18px 0;
 }
 
 /* ==============================
@@ -85,25 +140,25 @@ html, body {
 .invoice-info {
   display: flex;
   justify-content: space-between;
-  gap: 36px;       /* increased gap */
-  margin-bottom: 24px; /* increased bottom margin */
+  gap: 36px;
+  margin-bottom: 24px;
 }
 
 .left-info, .right-info {
   flex: 1;
   font-size: 12px;
-  line-height: 14;  /* taller line spacing for readability */
+  line-height: 14;
 }
 
 .left-info strong,
 .right-info strong {
   display: inline-block;
-  width: 120px;      /* wider label column for clarity */
+  width: 120px;
 }
 
 .left-info div,
 .right-info div {
-  margin-bottom: 8px; /* increased spacing */
+  margin-bottom: 8px;
 }
 
 .right-info {
@@ -129,14 +184,14 @@ html, body {
   border-collapse: collapse;
   font-size: 12px;
   table-layout: fixed;
-  margin-bottom: 18px; /* increased */
-  margin-top: 12px; /* increased */
+  margin-bottom: 18px;
+  margin-top: 12px;
 }
 
 .invoice-table th,
 .invoice-table td {
   border: 1px solid #000;
-  padding: 8px 10px; /* increased */
+  padding: 8px 10px;
   word-wrap: break-word;
 }
 
@@ -164,7 +219,7 @@ html, body {
 ============================== */
 .payment-table {
   width: 400px;
-  margin: 18px 0 0 auto; /* increased top margin */
+  margin: 18px 0 0 auto;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 12px;
@@ -199,7 +254,7 @@ html, body {
 }
 
 .signatures-box {
-  margin-top: 24px; /* increased */
+  margin-top: 24px;
 }
 
 .signatures {
@@ -207,7 +262,7 @@ html, body {
   justify-content: space-between;
   text-align: center;
   font-size: 11pt;
-  margin-top: 18px; /* increased */
+  margin-top: 18px;
 }
 
 .signatures > div {
@@ -226,7 +281,7 @@ html, body {
   width: 70%;
   border-bottom: 1px solid #000;
   margin-top: 6px;
-  height: 40px; /* increased */
+  height: 40px;
 }
 
 /* ==============================
@@ -237,7 +292,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  margin-top: 20px; /* increased */
+  margin-top: 20px;
   line-height: 1.3;
 }
 
@@ -273,8 +328,6 @@ html, body {
 ============================== */
 .text-right { text-align: right; }
 .text-center { text-align: center; }
-
-.invoice-page { position: relative; }
 
 .print-footer-meta {
   position: absolute;

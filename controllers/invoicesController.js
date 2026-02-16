@@ -645,7 +645,7 @@ async function listInvoices(req, res) {
     const statusRaw = String(req.query.status || '').trim().toLowerCase();
 
     // allow only these statuses (matches your system)
-    const allowed = new Set(['draft', 'returned', 'pending', 'approved', 'paid', 'canceled']);
+    const allowed = new Set(['draft', 'returned', 'pending', 'approved', 'paid', 'void']);
 
     const hasStatusFilter = statusRaw && statusRaw !== 'all' && allowed.has(statusRaw);
 
@@ -671,6 +671,91 @@ async function listInvoices(req, res) {
     conn.release();
   }
 }
+
+async function voidInvoice(req, res) {
+  const invoiceNo = req.params.invoiceNo;
+  const conn = await getConn();
+
+  // BEFORE snapshot
+  let beforeSnap = null;
+  let beforeItemsCount = 0;
+
+  try {
+    const { inv, items_count } = await getInvoiceAuditState(conn, invoiceNo);
+    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+
+    beforeSnap = pickInvoiceSnapshot(inv);
+    beforeItemsCount = items_count;
+
+    const role = String(req.session.user?.role || '').toLowerCase();
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Only admin can void invoices' });
+    }
+
+    // Optional guard: don’t allow void paid invoices
+    if (String(inv.status).toLowerCase() === 'paid') {
+      return res.status(400).json({ error: 'Paid invoices cannot be voided' });
+    }
+
+    await conn.beginTransaction();
+
+    await conn.execute(
+      `UPDATE invoices
+       SET status = 'void'
+       WHERE invoice_no = ?
+       LIMIT 1`,
+      [invoiceNo]
+    );
+
+    await conn.commit();
+
+    // AFTER snapshot + audit
+    try {
+      const stateConn = await getConn();
+      try {
+        const { inv: afterInv, items_count: afterItemsCount } =
+          await getInvoiceAuditState(stateConn, invoiceNo);
+
+        await logAudit(pool, req, {
+          action: 'invoice.void',
+          entity_type: 'invoice',
+          entity_id: invoiceNo,
+          summary: `Voided invoice ${invoiceNo}`,
+          success: 1,
+          before: { ...beforeSnap, items_count: beforeItemsCount },
+          after: { ...pickInvoiceSnapshot(afterInv), items_count: afterItemsCount }
+        });
+      } finally {
+        stateConn.release();
+      }
+    } catch (e) {
+      console.error('Audit log (invoice.void) failed:', e);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    try { await conn.rollback(); } catch {}
+    console.error('Void invoice error:', err);
+
+    try {
+      await logAudit(pool, req, {
+        action: 'invoice.void',
+        entity_type: 'invoice',
+        entity_id: invoiceNo,
+        summary: `Void invoice ${invoiceNo} failed`,
+        success: 0,
+        meta: { error: String(err?.code || err?.message || 'unknown') }
+      });
+    } catch {}
+
+    res.status(500).json({ error: 'Failed to void invoice' });
+  } finally {
+    conn.release();
+  }
+}
+
 
 async function deleteInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
@@ -818,5 +903,6 @@ module.exports = {
   nextInvoiceNo,
   getCompanyInfo,
   getExchangeRate,
-  normalizeTaxSummary
+  normalizeTaxSummary,
+  voidInvoice
 };
