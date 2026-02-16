@@ -301,8 +301,9 @@ router.post(
 }
 
     const role = String(req.session.user?.role || '').toLowerCase();
-    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
-    if (!isAdmin) return res.status(403).json({ error: 'You are not allowed to void this invoice' });
+const canVoid = (role === 'super' || role === 'approver');
+
+if (!canVoid) return res.status(403).json({ error: 'You are not allowed to void this invoice' });
 
     await pool.query(
       'UPDATE invoices SET status = "void" WHERE invoice_no = ?',

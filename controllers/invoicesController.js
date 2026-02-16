@@ -437,15 +437,20 @@ async function updateInvoice(req, res) {
     const vatType = normalizeVatType(data.vat_type);
 
     // ✅ pending rules
-    const isPending = String(beforeInvRow?.status || '').toLowerCase() === 'pending';
-    const role = req.session.user?.role;
-    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
-    const isOwner = Number(beforeInvRow?.created_by) === Number(req.session.user?.id);
+const isPending = String(beforeInvRow?.status || '').toLowerCase() === 'pending';
 
-    if (isPending && !isOwner && !isAdmin) {
-      await conn.rollback();
-      return res.status(403).json({ error: 'Only the submitter can edit a pending invoice' });
-    }
+const role = String(req.session.user?.role || '').toLowerCase();
+const isSuper = role === 'super';
+const isApprover = role === 'approver';
+const isSubmitter = role === 'submitter';
+
+const isOwner = Number(beforeInvRow?.created_by) === Number(req.session.user?.id);
+
+// ✅ Allow edits on pending for: Owner (submitter), Approver, Super
+if (isPending && !(isOwner && isSubmitter) && !isApprover && !isSuper) {
+  await conn.rollback();
+  return res.status(403).json({ error: 'You are not allowed to edit a pending invoice' });
+}
 
     const nextStatus = isPending ? 'pending' : (data.status || 'draft');
 
@@ -688,11 +693,12 @@ async function voidInvoice(req, res) {
     beforeItemsCount = items_count;
 
     const role = String(req.session.user?.role || '').toLowerCase();
-    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+const canVoid = (role === 'super' || role === 'approver'); 
 
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Only admin can void invoices' });
-    }
+if (!canVoid) {
+  return res.status(403).json({ error: 'You are not allowed to void invoices' });
+}
+
 
     // Optional guard: don’t allow void paid invoices
     if (String(inv.status).toLowerCase() === 'paid') {

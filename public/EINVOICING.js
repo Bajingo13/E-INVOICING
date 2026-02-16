@@ -1459,10 +1459,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (e) {
     console.warn('⚠️ /auth/me failed, menu will show minimal options', e);
   }
-  const role = String(me?.user?.role || me?.user?.user?.role || '').toLowerCase();
-  const isSubmitter = role === 'submitter';
 
-  // ✅ Build dropdown
+  const role = String(me?.user?.role || me?.user?.user?.role || '').toLowerCase();
+
+const isSubmitter = role === 'submitter';
+const isApprover  = role === 'approver';
+const isSuper     = role === 'super';     // ✅ your admin
+
+  // ✅ Ensure dropdown exists
   let dropdown = wrap.querySelector('.saveclose-menu');
   if (!dropdown) {
     dropdown = document.createElement('div');
@@ -1478,40 +1482,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     dropdown.style.padding = '6px 0';
     dropdown.style.display = 'none';
     dropdown.style.zIndex = '99999';
-
-    // ✅ Role-aware options
-    const options = [
-      { text: 'Save & Add Another', action: 'addAnother' },
-      ...(isSubmitter ? [{ text: 'Submit for Approval', action: 'submitApproval' }] : [])
-    ];
-
-    options.forEach(opt => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = opt.text;
-      btn.dataset.action = opt.action;
-      btn.style.display = 'block';
-      btn.style.width = '100%';
-      btn.style.padding = '10px 14px';
-      btn.style.border = 'none';
-      btn.style.background = 'transparent';
-      btn.style.textAlign = 'left';
-      btn.style.cursor = 'pointer';
-      btn.style.fontSize = '14px';
-
-      btn.addEventListener('mouseenter', () => btn.style.background = '#f3f4f6');
-      btn.addEventListener('mouseleave', () => btn.style.background = 'transparent');
-
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        close();
-        await handleSaveCloseAction(opt.action);
-      });
-
-      dropdown.appendChild(btn);
-    });
-
     wrap.appendChild(dropdown);
   }
 
@@ -1529,6 +1499,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   function close() { dropdown.style.display = 'none'; }
 
+  // ✅ Build/Rebuild menu (IMPORTANT FIX)
+  function buildMenu() {
+    // clear old items so new options can appear
+    dropdown.innerHTML = '';
+
+    // ✅ Detect editing mode at build time (invoiceNo might be filled later)
+    const qs = new URLSearchParams(window.location.search);
+    const invoiceNoFromQS = (qs.get('invoiceNo') || qs.get('invoice_no') || qs.get('id') || '').trim();
+    const invoiceNoFromInput = String(document.getElementById('invoiceNo')?.value || '').trim();
+    const isEditingInvoice = Boolean(invoiceNoFromQS || invoiceNoFromInput);
+
+    const options = [
+      { text: 'Save & Add Another', action: 'addAnother' },
+      ...(isSubmitter ? [{ text: 'Submit for Approval', action: 'submitApproval' }] : []),
+      ...((isEditingInvoice && (isApprover || isSuper))
+  ? [{ text: 'Save & Void', action: 'saveVoid', danger: true }]
+  : [])
+    ];
+
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = opt.text;
+      btn.dataset.action = opt.action;
+      btn.style.display = 'block';
+      btn.style.width = '100%';
+      btn.style.padding = '10px 14px';
+      btn.style.border = 'none';
+      btn.style.background = 'transparent';
+      btn.style.textAlign = 'left';
+      btn.style.cursor = 'pointer';
+      btn.style.fontSize = '14px';
+
+      if (opt.danger) btn.style.color = '#b91c1c';
+
+      btn.addEventListener('mouseenter', () => btn.style.background = '#f3f4f6');
+      btn.addEventListener('mouseleave', () => btn.style.background = 'transparent');
+
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+        await handleSaveCloseAction(opt.action);
+      });
+
+      dropdown.appendChild(btn);
+    });
+  }
+
+  // build now + rebuild later (covers async invoice load)
+  buildMenu();
+  setTimeout(buildMenu, 400);
+  setTimeout(buildMenu, 1200);
+  setTimeout(buildMenu, 2500);
+
   // ✅ Main button = Save & close (no dropdown)
   saveCloseBtn.addEventListener('click', async (e) => {
     e.preventDefault();
@@ -1537,14 +1562,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     await handleSaveCloseAction('close');
   });
 
-  // ✅ Arrow toggles dropdown (only if there are menu items)
+  // ✅ Arrow toggles dropdown
   arrowBtn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // if submitter-only menu is empty and you want arrow disabled:
-    if (!dropdown || dropdown.children.length === 0) return;
+    // rebuild right before opening so it always reflects latest state
+    buildMenu();
 
+    if (!dropdown || dropdown.children.length === 0) return;
     if (isOpen()) close();
     else open();
   });
@@ -1559,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function handleSaveCloseAction(action) {
-  const invoiceNo = getInputValue('invoiceNo');
+  const invoiceNo = String(getInputValue('invoiceNo') || '').trim();
 
   const saved = await saveToDatabase();
   if (!saved) return;
@@ -1577,8 +1603,6 @@ async function handleSaveCloseAction(action) {
   // ✅ Submitter-only action
   if (action === 'submitApproval') {
     const user = await fetch('/auth/me', { credentials: 'include' }).then(r => r.json());
-
-    // IMPORTANT: handle both possible shapes just in case
     const role = String(user?.user?.role || user?.user?.user?.role || '').toLowerCase();
 
     if (role !== 'submitter') {
@@ -1595,6 +1619,36 @@ async function handleSaveCloseAction(action) {
     } catch (err) {
       console.error('Submit error:', err);
       alert('Failed to submit for approval');
+    }
+    return;
+  }
+
+  // ✅ NEW: Approver/Admin only — Save & Void
+  if (action === 'saveVoid') {
+    const user = await fetch('/auth/me', { credentials: 'include' }).then(r => r.json());
+    const role = String(user?.user?.role || user?.user?.user?.role || '').toLowerCase();
+
+    if (role !== 'approver' && role !== 'super') {
+  alert('Only Approver/Super can void invoices');
+  return;
+}
+    if (!invoiceNo) {
+      alert('No invoice number found to void.');
+      return;
+    }
+
+    const ok = confirm('Void this invoice? This will mark it as VOID.');
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/void`, { method: 'POST' });
+      if (!res.ok) throw new Error('Void failed');
+
+      alert('Invoice voided.');
+      window.location.href = '/Dashboard.html';
+    } catch (err) {
+      console.error('Void error:', err);
+      alert('Failed to void invoice');
     }
   }
 }
