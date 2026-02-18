@@ -95,7 +95,19 @@ function normalizeTaxSummary(data) {
 
   return {
     subtotal: +get(['subtotal']) || 0,
-    discount: +get(['discount']) || 0,
+    discount: (() => {
+  const sub = +get(['subtotal']) || 0;
+  let d = +get(['discount']) || 0;
+
+  // If frontend accidentally sends 0.10 or 10, convert to amount
+  // - 0 < d < 1   => rate (0.10)
+  // - 1 <= d <= 100 and subtotal > 0 => percent (10)
+  if (sub > 0) {
+    if (d > 0 && d < 1) return +(sub * d).toFixed(2);
+    if (d >= 1 && d <= 100) return +(sub * (d / 100)).toFixed(2);
+  }
+  return d; // already amount
+})(),
     vatable_sales: +get(['vatable_sales', 'vatableSales']) || 0,
     vat_exempt_sales: +get(['vat_exempt_sales', 'vatExemptSales']) || 0,
     zero_rated_sales: +get(['zero_rated_sales', 'zeroRatedSales']) || 0,

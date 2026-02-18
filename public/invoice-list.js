@@ -3,12 +3,13 @@ import { getCurrentUser } from './authClient.js';
 
 console.log("✅ Invoice-list.js loaded");
 
+/* ===================== STATE ===================== */
 let currentSort = { key: 'invoice_no', order: 'desc' };
 let currentUser = null;
 
-let activeStatus = 'all';          // tabs + URL sync
-let allCountsCache = null;         // counts from /api/invoices
-let lastFetchedInvoices = [];      // current table dataset
+let activeStatus = 'all';      // tabs + URL sync
+let allCountsCache = null;     // counts from /api/invoices
+let lastFetchedInvoices = [];  // current table dataset
 
 /* ===================== URL HELPERS ===================== */
 function getQueryParam(name) {
@@ -31,25 +32,113 @@ function getStatusFromQuery() {
   return allowed.has(raw) ? raw : null;
 }
 
-function applySearchFromQuery() {
-  const search = getQueryParam('search');
-  const input = document.getElementById("searchInput");
-  if (search && input) input.value = search;
-}
-
+/* ===================== INPUT HELPERS ===================== */
 function getSearchValue() {
   const input = document.getElementById("searchInput");
   return (input?.value || '').trim().toLowerCase();
 }
 
-/* ===================== SEARCH + HIGHLIGHT ===================== */
-function filterRowsBySearchValue() {
-  const v = getSearchValue();
-  document.querySelectorAll("#invoiceTable tbody tr").forEach(r => {
-    r.style.display = r.textContent.toLowerCase().includes(v) ? "" : "none";
+function applySearchFromQuery() {
+  const search = getQueryParam('search');
+  const input = document.getElementById("searchInput");
+  if (input) input.value = search || '';
+}
+
+function applyDateFromQuery() {
+  const from = getQueryParam('from') || '';
+  const to = getQueryParam('to') || '';
+  const fromEl = document.getElementById('from-date');
+  const toEl = document.getElementById('to-date');
+  if (fromEl) fromEl.value = from;
+  if (toEl) toEl.value = to;
+}
+
+/* ===================== DATE RANGE UX (chip + presets + clear) ===================== */
+function formatChipDate(yyyy_mm_dd) {
+  if (!yyyy_mm_dd) return '';
+  const d = new Date(yyyy_mm_dd + 'T00:00:00');
+  return d.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function setPresetActive(name) {
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.preset === name);
   });
 }
 
+function clearPresetActive() {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+}
+
+function updateDateRangeUI() {
+  const fromEl = document.getElementById('from-date');
+  const toEl = document.getElementById('to-date');
+  const clearBtn = document.getElementById('clearDateFilter');
+  const chip = document.getElementById('dateRangeChip');
+
+  const from = fromEl?.value || '';
+  const to = toEl?.value || '';
+
+  const hasAny = Boolean(from || to);
+  if (clearBtn) clearBtn.disabled = !hasAny;
+
+  if (chip) {
+    if (!hasAny) {
+      chip.style.display = 'none';
+      chip.textContent = '';
+    } else {
+      chip.style.display = 'inline-flex';
+      chip.textContent = `${from ? formatChipDate(from) : 'Any'} — ${to ? formatChipDate(to) : 'Any'}`;
+    }
+  }
+}
+
+/* ===================== FILTER PIPELINE ===================== */
+/**
+ * IMPORTANT:
+ * - Search + Date filter must work together.
+ * - Uses ISO date from dataset to avoid locale parsing issues.
+ */
+function applyAllFilters() {
+  const search = getSearchValue();
+
+  const fromStr = document.getElementById('from-date')?.value || '';
+  const toStr = document.getElementById('to-date')?.value || '';
+
+  // Parse as local midnight to avoid timezone "off by one"
+  const fromDate = fromStr ? new Date(fromStr + 'T00:00:00') : null;
+
+  let toDate = null;
+  if (toStr) {
+    toDate = new Date(toStr + 'T00:00:00');
+    toDate.setHours(23, 59, 59, 999); // inclusive end of day
+  }
+
+  document.querySelectorAll("#invoiceTable tbody tr").forEach(row => {
+    let ok = true;
+
+    // ---- Search ----
+    if (search) ok = ok && row.textContent.toLowerCase().includes(search);
+
+    // ---- Date Range (Date col index 3) ----
+    if (ok && (fromDate || toDate)) {
+      const cell = row.children?.[3];
+      const iso = cell?.dataset?.isoDate || cell?.getAttribute?.('data-iso-date') || '';
+      const rowD = iso ? new Date(String(iso).slice(0, 10) + 'T00:00:00') : null;
+
+      if (!rowD || isNaN(rowD.getTime())) {
+        ok = false; // date filter active but invalid date
+      } else {
+        if (fromDate) ok = ok && rowD >= fromDate;
+        if (toDate) ok = ok && rowD <= toDate;
+      }
+    }
+
+    row.style.display = ok ? "" : "none";
+  });
+}
+
+/* ===================== HIGHLIGHT ===================== */
 function focusInvoiceRow(invoiceNo) {
   if (!invoiceNo) return;
 
@@ -155,17 +244,14 @@ async function fetchInvoices() {
     if (!res.ok) throw new Error("Failed to fetch invoices");
 
     let invoices = await res.json();
-
     invoices = sortInvoices(invoices, currentSort.key, currentSort.order);
 
     lastFetchedInvoices = invoices;
     populateTable(invoices);
 
-    const search = getQueryParam('search');
-    if (search) {
-      applySearchFromQuery();
-      filterRowsBySearchValue();
-    }
+    // ✅ after table is drawn, apply filters (search+date)
+    updateDateRangeUI();
+    applyAllFilters();
 
     const focus = getQueryParam('focus');
     if (focus) focusInvoiceRow(focus);
@@ -229,6 +315,9 @@ function populateTable(invoices) {
 
     const issueDate = inv.date || inv.invoice_date || '';
     const dueDate = inv.due_date || '';
+
+    // ISO for filters
+    const issueIso = issueDate ? String(issueDate).slice(0, 10) : '';
     const issueFmt = issueDate ? new Date(issueDate).toLocaleDateString('en-PH') : '';
     const dueFmt = dueDate ? new Date(dueDate).toLocaleDateString('en-PH') : '';
 
@@ -242,7 +331,6 @@ function populateTable(invoices) {
 
     const buttons = [];
 
-    // helper to safely pass status to view
     const safeNo = String(inv.invoice_no || '').replace(/'/g, "\\'");
     const safeStatus = String(inv.status || '').replace(/'/g, "\\'");
 
@@ -304,7 +392,7 @@ function populateTable(invoices) {
       }
     }
 
-    // --- PAID / CANCELED ---
+    // --- PAID / VOID ---
     if (inv.status === 'paid' || inv.status === 'void') {
       buttons.push(`<button class="action-btn view" onclick="viewInvoice('${safeNo}','${safeStatus}')">View</button>`);
     }
@@ -313,7 +401,7 @@ function populateTable(invoices) {
       <td><input type="checkbox" class="select-invoice" data-invoice="${inv.invoice_no}"></td>
       <td>${inv.invoice_no || ''}</td>
       <td>${inv.bill_to || ''}</td>
-      <td>${issueFmt}</td>
+      <td data-iso-date="${issueIso}">${issueFmt}</td>
       <td>${dueFmt}</td>
       <td>₱${Number(inv.total_amount_due || 0).toFixed(2)}</td>
       <td>${statusBadge}</td>
@@ -345,7 +433,7 @@ function setupExportDropdown() {
     <button type="button" class="export-item" data-status="void">Void Only</button>
   `;
 
-  function close() { menuTop.classList.remove('show'); }
+  const close = () => menuTop.classList.remove('show');
 
   btnTop.addEventListener("click", (e) => {
     e.preventDefault();
@@ -436,7 +524,6 @@ async function voidInvoice(no) {
   await fetchInvoices();
 }
 
-
 async function returnInvoice(no) {
   const reason = prompt("Reason for returning this invoice?");
   if (reason === null) return;
@@ -483,8 +570,79 @@ function setupSelectAllCheckbox() {
 /* ===================== SEARCH ===================== */
 document.getElementById("searchInput")?.addEventListener("input", () => {
   setQueryParams({ search: getSearchValue() || null });
-  filterRowsBySearchValue();
+  applyAllFilters();
 });
+
+/* ===================== DATE FILTERS (inputs + clear + presets + chip) ===================== */
+function bindDateFilters() {
+  const fromEl = document.getElementById('from-date');
+  const toEl = document.getElementById('to-date');
+  const clearBtn = document.getElementById('clearDateFilter');
+
+  if (!fromEl && !toEl) return;
+
+  const sync = () => {
+    setQueryParams({
+      from: fromEl?.value || null,
+      to: toEl?.value || null
+    });
+    updateDateRangeUI();
+    applyAllFilters();
+  };
+
+  // manual date changes => unselect preset
+  fromEl?.addEventListener('change', () => { clearPresetActive(); sync(); });
+  toEl?.addEventListener('change', () => { clearPresetActive(); sync(); });
+
+  // clear button => clear + remove preset active + update UI
+  clearBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (fromEl) fromEl.value = '';
+    if (toEl) toEl.value = '';
+    clearPresetActive();
+    sync();
+  });
+
+  // presets (thisMonth/lastMonth/thisYear)
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.dataset.preset;
+
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = now.getMonth(); // 0-based
+
+      const pad = (n) => String(n).padStart(2, '0');
+      const toYMD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+      let start, end;
+
+      if (preset === 'thisMonth') {
+        start = new Date(yyyy, mm, 1);
+        end = new Date(yyyy, mm + 1, 0);
+      } else if (preset === 'lastMonth') {
+        start = new Date(yyyy, mm - 1, 1);
+        end = new Date(yyyy, mm, 0);
+      } else if (preset === 'thisYear') {
+        start = new Date(yyyy, 0, 1);
+        end = new Date(yyyy, 11, 31);
+      } else {
+        return;
+      }
+
+      if (fromEl) fromEl.value = toYMD(start);
+      if (toEl) toEl.value = toYMD(end);
+
+      // ✅ keep "hover" look after click
+      setPresetActive(preset);
+
+      sync();
+    });
+  });
+
+  // init
+  updateDateRangeUI();
+}
 
 /* ===================== SORT HEADERS ===================== */
 document.querySelectorAll("#invoiceTable th.sortable").forEach(th => {
@@ -511,6 +669,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   setActiveTab(statusFromUrl || 'all');
 
   applySearchFromQuery();
+  applyDateFromQuery();
+  bindDateFilters();
 
   setupExportDropdown();
 
@@ -520,7 +680,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   if (focus) focusInvoiceRow(focus);
 });
 
-// Expose functions globally
+/* ===================== EXPOSE GLOBALS ===================== */
 window.viewInvoice = viewInvoice;
 window.editInvoice = editInvoice;
 window.deleteInvoice = deleteInvoice;

@@ -45,10 +45,42 @@
       </button>
     </div>
 
-    <!-- Search -->
+    <!-- Search --> 
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search by invoice number or client..." />
     </div>
+<section class="filters-card" aria-label="Date range filter">
+  <div class="filters-head">
+    <div class="filters-title">
+      <div class="filters-label">Date Range</div>
+      <div id="dateRangeChip" class="range-chip" style="display:none;"></div>
+    </div>
+
+    <div class="filters-presets" role="group" aria-label="Date presets">
+      <button type="button" class="preset-btn" data-preset="thisMonth">This Month</button>
+      <button type="button" class="preset-btn" data-preset="lastMonth">Last Month</button>
+      <button type="button" class="preset-btn" data-preset="thisYear">This Year</button>
+    </div>
+  </div>
+
+  <div class="filters-grid">
+    <div class="field">
+      <label for="from-date">From</label>
+      <input type="date" id="from-date" />
+    </div>
+
+    <div class="field">
+      <label for="to-date">To</label>
+      <input type="date" id="to-date" />
+    </div>
+
+    <div class="field actions">
+      <button id="clearDateFilter" type="button" class="btn btn-secondary" disabled>
+        Clear
+      </button>
+    </div>
+  </div>
+</section>
 
     <!-- Bulk actions -->
     <div class="bulk-actions">

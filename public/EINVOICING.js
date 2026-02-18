@@ -472,7 +472,8 @@ async function loadInvoiceForEdit() {
 
     if (data.tax_summary) {
       const ts = data.tax_summary || {};
-      safeSetValue('#subtotal', ts.subtotal || 0);
+      window.__DISCOUNT_AMOUNT__ = Number(ts.discount || 0);
+      safeSetText('#discountAmountDisplay', Number(ts.discount || 0).toFixed(2));
       safeSetValue('#vatableSales', ts.vatable_sales || 0);
       safeSetValue('#vatAmount', ts.vat_amount || 0);
       safeSetValue('#totalPayable', ts.total_payable || 0);
@@ -738,7 +739,10 @@ function calculateTotals() {
   if (discountRate > 1) discountRate /= 100;
 
   const discountAmount = subtotal * discountRate;
+  window.__DISCOUNT_AMOUNT__ = discountAmount;
   const subtotalAfterDiscount = subtotal - discountAmount;
+  safeSetText('#discountAmountDisplay', discountAmount.toFixed(2));
+
 
   const vatType = document.querySelector('#vatType')?.value || 'inclusive';
 
@@ -784,7 +788,7 @@ function calculateTotals() {
 }
 
 document.getElementById('vatType')?.addEventListener('change', calculateTotals);
-document.getElementById('discount')?.addEventListener('input', calculateTotals);
+document.getElementById('discount')?.addEventListener('change', calculateTotals);
 
 /* -------------------- 10. ADJUST COLUMN WIDTHS -------------------- */
 function adjustColumnWidths() {
@@ -977,7 +981,7 @@ async function saveToDatabase() {
       extra_columns: extraColumns,
       tax_summary: {
         subtotal: parseFloat($('#subtotal')?.value) || 0,
-        discount: parseFloat($('#discount')?.value) || 0,
+        discount: Number(window.__DISCOUNT_AMOUNT__ || 0),
         vatable_sales: parseFloat($('#vatableSales')?.value) || 0,
         vat_exempt_sales: parseFloat($('#vatExemptSales')?.value) || 0,
         zero_rated_sales: parseFloat($('#vatZeroRatedSales')?.value) || 0,
@@ -1084,6 +1088,71 @@ function autofillDates() {
   if (footerAtpDate && !footerAtpDate.value) footerAtpDate.value = today;
 }
 
+/* ===================== ✅ ALWAYS RECALC WHEN ACCOUNT/EWT CHANGES ===================== */
+function bindItemsBodyRecalc() {
+  const tbody = document.getElementById('items-body');
+  if (!tbody || tbody.dataset.recalcBound === '1') return;
+
+  let timer = null;
+  const scheduleRecalc = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      try { calculateTotals?.(); } catch {}
+    }, 0);
+  };
+
+  // 1) EWT dropdown changes (withholding changes)
+  tbody.addEventListener('change', (e) => {
+    if (e.target?.matches?.('.ewt-select')) {
+      scheduleRecalc();
+    }
+  });
+
+  // 2) Account input typed/edited manually (VAT base may change)
+  // We recalc, but ALSO try to resolve the typed text into an account_id on blur
+  tbody.addEventListener('blur', (e) => {
+    if (!e.target?.matches?.('.account-input')) return;
+
+    const input = e.target;
+    const raw = String(input.value || '').trim().toLowerCase();
+
+    // If user typed something, attempt to match to an account
+    const accounts = window._coaAccounts || [];
+    const matched = accounts.find(a => {
+      const label = `${a.code || ''} - ${a.title || ''}`.trim().toLowerCase();
+      const codeOnly = String(a.code || '').trim().toLowerCase();
+      return raw === label || (codeOnly && raw === codeOnly);
+    });
+
+    if (matched) {
+      input.dataset.accountId = String(matched.id);
+
+      // If EWT still Default, apply account's default EWT
+      const row = input.closest('tr');
+      const ewtSel = row?.querySelector('.ewt-select');
+      if (ewtSel && !ewtSel.value && matched.ewt_id) {
+        ewtSel.value = String(matched.ewt_id);
+      }
+    } else {
+      // If they typed something that doesn't match any account,
+      // clear accountId so you don't use a stale one.
+      delete input.dataset.accountId;
+    }
+
+    scheduleRecalc();
+  }, true);
+
+  // 3) Optional: if you want totals to react while typing account text (light debounce)
+  tbody.addEventListener('input', (e) => {
+    if (e.target?.matches?.('.account-input')) {
+      scheduleRecalc();
+    }
+  });
+
+  tbody.dataset.recalcBound = '1';
+}
+
+
 /* ✅ MAIN PAGE INIT */
 window.addEventListener('DOMContentLoaded', async () => {
   await waitNavbar();
@@ -1092,7 +1161,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (!allowed) return;
 
   autofillDates();
-
+ 
   // ✅ must be after DOM exists
   initRecurringHeaderUI();
 
@@ -1110,6 +1179,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   adjustColumnWidths();
   calculateTotals?.();
+  bindItemsBodyRecalc();
+
 });
 
 /* ===================== CONTACTS AUTOCOMPLETE + MODAL ===================== */
@@ -1621,7 +1692,7 @@ async function handleSaveCloseAction(action) {
       alert('Failed to submit for approval');
     }
     return;
-  }
+  } 
 
   // ✅ NEW: Approver/Admin only — Save & Void
   if (action === 'saveVoid') {
