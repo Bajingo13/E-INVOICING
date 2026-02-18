@@ -294,6 +294,61 @@ router.post(
   })
 );
 
+router.post(
+  '/invitations/accept',
+  asyncHandler(async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Missing token' });
+
+    const [[inv]] = await pool.query(
+      `SELECT * FROM invitations
+       WHERE token = ? AND expires_at > NOW() AND used_at IS NULL
+       LIMIT 1`,
+      [token]
+    );
+
+    if (!inv) return res.status(400).json({ error: 'Invalid or expired invitation' });
+
+    // Create a temporary password OR require user to set password.
+    // For now: generate temp password and force change on first login.
+    const tempPassword = crypto.randomBytes(8).toString('hex');
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const passwordExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    // Prevent duplicates
+    const [exists] = await pool.query(
+      'SELECT id FROM users WHERE email = ? OR username = ?',
+      [inv.email, inv.username]
+    );
+    if (exists.length) return res.status(400).json({ error: 'User already exists' });
+
+    const [result] = await pool.query(
+      `INSERT INTO users (username, password, email, role, password_expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [inv.username, hashedPassword, inv.email, inv.role, passwordExpiresAt]
+    );
+
+    await pool.query(
+      `UPDATE invitations SET used_at = NOW(), used_user_id = ? WHERE id = ?`,
+      [result.insertId, inv.id]
+    );
+
+    // Optional: email temp password (or better: redirect to set-password page)
+    await queueEmail({
+      type: 'invite-accepted',
+      referenceNo: inv.username,
+      to: inv.email,
+      subject: 'Your account is ready',
+      html: `<p>Your account has been created.</p><p>Temporary password: <b>${tempPassword}</b></p><p>Please change it after login.</p>`,
+      text: `Your account has been created.\nTemporary password: ${tempPassword}\nPlease change it after login.`,
+      createdBy: null
+    });
+
+    return res.json({ message: 'Invitation accepted' });
+  })
+);
+
+
 /* =========================
    PUT /api/users/:id
    Update role / password

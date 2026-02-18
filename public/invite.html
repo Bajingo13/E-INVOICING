@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Accept Invitation</title>
+</head>
+<body>
+  <h2>Processing invitation…</h2>
+  <p id="msg">Please wait.</p>
+
+  <script>
+    (async function () {
+      const msg = document.getElementById('msg');
+      const token = new URLSearchParams(location.search).get('token');
+
+      if (!token) {
+        msg.textContent = 'Missing token.';
+        return;
+      }
+
+      try {
+        // ✅ You need to implement this API endpoint (step 3 below)
+        const res = await fetch('/api/users/invitations/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          msg.textContent = data?.error || data?.message || 'Invite acceptance failed.';
+          return;
+        }
+
+        msg.textContent = '✅ Invitation accepted! You can now log in.';
+        setTimeout(() => location.href = '/', 1200);
+      } catch (e) {
+        msg.textContent = 'Network error. Please try again.';
+      }
+    })();
+  </script>
+</body>
+</html>
