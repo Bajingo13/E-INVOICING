@@ -135,6 +135,10 @@ app.get('/invoice-list', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'invoice-list.html'))
 );
 
+app.get('/activate', (req, res) => {
+  const token = req.query.token ? `?token=${encodeURIComponent(req.query.token)}` : '';
+  res.redirect(`/invite.html${token}`);
+});
 /* =========================
    App version endpoint
 ========================= */
