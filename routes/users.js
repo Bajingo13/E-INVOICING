@@ -4,11 +4,9 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
 
 const { pool } = require('../helpers/db');
 const asyncHandler = require('../middleware/asynchandler');
-const { notifyAdminUserCreated } = require('../utils/mailer');
 
 const { requireLogin } = require('../middleware/roles');
 const { requirePermission } = require('../middleware/permissions');
@@ -16,20 +14,13 @@ const { PERMISSIONS } = require('../config/permissions');
 
 const { logAudit } = require('../helpers/audit');
 
-const VALID_ROLES = ['super', 'approver', 'submitter'];
+// ✅ OUTBOX QUEUE (DB-based)
+const { queueEmail } = require('../services/emailOutboxService');
 
-/* =========================
-   MAIL TRANSPORT
-========================= */
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  secure: process.env.EMAIL_SECURE === 'true',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+// (kept) your existing util – not changed here
+const { notifyAdminUserCreated } = require('../utils/mailer');
+
+const VALID_ROLES = ['super', 'approver', 'submitter'];
 
 /* =========================================================
    HELPERS
@@ -52,6 +43,11 @@ async function countSupers() {
     'SELECT COUNT(*) AS total FROM users WHERE role = "super"'
   );
   return Number(row?.total || 0);
+}
+
+function getAppBaseUrl() {
+  const base = String(process.env.APP_BASE_URL || process.env.APP_URL || '').trim();
+  return base ? base.replace(/\/+$/, '') : '';
 }
 
 /* =========================
@@ -152,13 +148,20 @@ router.post(
       });
     } catch {}
 
-    await notifyAdminUserCreated({
-      username,
-      role,
-      email,
-      password, // email only (not audit)
-      createdBy: actorName(req)
-    });
+    // (kept) your existing behavior - no change here
+    // If you later want: stop emailing plain passwords and switch to invite links,
+    // tell me and I’ll convert this flow to token-based activation.
+    try {
+      await notifyAdminUserCreated({
+        username,
+        role,
+        email,
+        password, 
+        createdBy: actorName(req)
+      });
+    } catch (e) {
+      console.error('notifyAdminUserCreated failed:', e);
+    }
 
     res.json({ message: 'User created successfully' });
   })
@@ -166,6 +169,7 @@ router.post(
 
 /* =========================
    POST /api/users/invite
+   ✅ Now queues email to outbox (no direct nodemailer)
 ========================= */
 router.post(
   '/invite',
@@ -221,6 +225,11 @@ router.post(
       return res.status(400).json({ error: 'Username or email already exists' });
     }
 
+    const appBaseUrl = getAppBaseUrl();
+    if (!appBaseUrl) {
+      return res.status(500).json({ error: 'Missing APP_BASE_URL (or APP_URL) env var' });
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -235,26 +244,53 @@ router.post(
         action: 'user.invite',
         entity_type: 'user',
         entity_id: username,
-        summary: `Sent invitation to ${email} for ${username} (${role})`,
+        summary: `Queued invitation to ${email} for ${username} (${role})`,
         success: 1,
         meta: { username, email, role, expires_at: expiresAt }
       });
     } catch {}
 
-    await transporter.sendMail({
-      from: `"User Management System" <${process.env.EMAIL_USER}>`,
+    const inviteLink = `${appBaseUrl}/invite.html?token=${encodeURIComponent(token)}`;
+
+    const html = `
+      <div style="font-family:Arial,sans-serif; font-size:14px; color:#111; line-height:1.5">
+        <h2 style="margin:0 0 8px 0;">You have been invited</h2>
+        <p style="margin:0 0 12px 0;">
+          An account invitation has been created for you.
+        </p>
+        <p style="margin:0 0 12px 0;">
+          Click the button below to activate your account:
+        </p>
+        <p style="margin:16px 0;">
+          <a href="${inviteLink}"
+             style="display:inline-block; padding:10px 14px; background:#111; color:#fff; text-decoration:none; border-radius:8px;">
+             Accept Invitation
+          </a>
+        </p>
+        <p style="margin:0; color:#555; font-size:12px;">
+          This link expires in 24 hours. If you did not expect this invite, ignore this email.
+        </p>
+      </div>
+    `;
+
+    const text =
+      `You have been invited.\n\n` +
+      `Open this link to activate your account:\n${inviteLink}\n\n` +
+      `This link expires in 24 hours.`;
+
+    // ✅ Queue email (worker will send + retry)
+    await queueEmail({
+      type: 'invite',
+      referenceNo: username,
       to: email,
       subject: 'Invitation to join',
-      html: `
-        <h2>You have been invited</h2>
-        <p>Click below to activate your account:</p>
-        <a href="${process.env.APP_URL}/invite.html?token=${token}">
-          Accept Invitation
-        </a>
-      `
+      html,
+      text,
+      attachments: null,
+      createdBy: req.session.user?.id || null
     });
 
-    res.json({ message: 'Invitation sent' });
+    res.json({ message: 'Invitation queued (will send shortly).' });
   })
 );
 

@@ -1,12 +1,12 @@
 import { requireRole } from './rbac.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-
   const allowed = await requireRole(['super']);
   if (!allowed) return;
 
   const API_BASE = '';
 
+  // ---------- DOM ----------
   const usersTable = document.querySelector('#users-table tbody');
   const usersSection = document.getElementById('users-section');
   const historyContainer = document.getElementById('login-history-container');
@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const confirmYes = document.getElementById('confirm-create-yes');
   const confirmNo = document.getElementById('confirm-create-no');
 
+  const inviteBtn = document.getElementById('invite-user'); // ✅ your button
+
+  // ---------- helpers ----------
   const safeText = (id, value) => {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
@@ -37,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function showSuccessToast(msg) {
     if (!successToast) return;
-    successToast.textContent = msg;
+    successToast.textContent = msg || 'Done';
     successToast.style.display = 'block';
     setTimeout(() => { successToast.style.display = 'none'; }, 3000);
   }
@@ -55,16 +58,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     return d.toLocaleString();
   }
 
+  function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+  }
+
+  function getCreateFormValues() {
+    const username = document.getElementById('new-username')?.value.trim() || '';
+    const password = document.getElementById('new-password')?.value.trim() || '';
+    const email = document.getElementById('new-email')?.value.trim() || '';
+    const role = document.getElementById('new-role')?.value || 'submitter';
+    return { username, password, email, role };
+  }
+
+  function setCreateButtonsBusy(on) {
+    const createBtn = document.getElementById('create-user-submit');
+    if (createBtn) createBtn.disabled = !!on;
+    if (inviteBtn) inviteBtn.disabled = !!on;
+    const cancelBtn = document.getElementById('cancel-create-user');
+    if (cancelBtn) cancelBtn.disabled = !!on;
+  }
+
+  // ---------- API ----------
   async function loadUsers() {
     if (!usersTable) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/users`, {
-        credentials: 'include'
-      });
-
+      const res = await fetch(`${API_BASE}/api/users`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed');
-
       const users = await res.json();
 
       usersTable.innerHTML = users.map(u => `
@@ -87,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // load audit logs
+  // audit logs
   async function loadAuditLogs() {
     const tbody = document.querySelector('#audit-logs-table tbody');
     if (!tbody) return;
@@ -105,12 +125,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     params.set('limit', '200');
 
     try {
-      const res = await fetch(`${API_BASE}/api/audit-logs?${params.toString()}`, {
-        credentials: 'include'
-      });
-
+      const res = await fetch(`${API_BASE}/api/audit-logs?${params.toString()}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed');
-
       const logs = await res.json();
 
       if (!Array.isArray(logs) || logs.length === 0) {
@@ -134,7 +150,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ✅ export audit logs (same filters)
   function exportAuditLogsExcel() {
     const q = document.getElementById('audit-search')?.value.trim() || '';
     const action = document.getElementById('audit-action')?.value || '';
@@ -148,6 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = `${API_BASE}/api/audit-logs/export/excel?${params.toString()}`;
   }
 
+  // ---------- UI actions ----------
   document.getElementById('show-create-user')?.addEventListener('click', () => {
     createModal?.classList.add('show');
     if (usersSection) usersSection.style.display = 'none';
@@ -163,18 +179,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     createForm?.reset();
   });
 
+  // ✅ Create user flow (still requires password)
   createForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     clearErrors();
 
-    const username = document.getElementById('new-username')?.value.trim() || '';
-    const password = document.getElementById('new-password')?.value.trim() || '';
-    const email = document.getElementById('new-email')?.value.trim() || '';
+    const { username, password, email } = getCreateFormValues();
     let hasError = false;
 
     if (!username) { safeText('username-error', 'Username required'); hasError = true; }
     if (!password) { safeText('password-error', 'Password required'); hasError = true; }
     if (!email) { safeText('email-error', 'Email required'); hasError = true; }
+    else if (!isValidEmail(email)) { safeText('email-error', 'Invalid email'); hasError = true; }
+
     if (hasError) return;
 
     confirmModal?.classList.add('show');
@@ -187,13 +204,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   confirmYes?.addEventListener('click', async () => {
     confirmModal?.classList.remove('show');
 
-    const username = document.getElementById('new-username')?.value.trim() || '';
-    const password = document.getElementById('new-password')?.value.trim() || '';
-    const email = document.getElementById('new-email')?.value.trim() || '';
-    const role = document.getElementById('new-role')?.value || 'submitter';
-    const btn = document.getElementById('create-user-submit');
-
-    if (btn) btn.disabled = true;
+    const { username, password, email, role } = getCreateFormValues();
+    setCreateButtonsBusy(true);
 
     try {
       const res = await fetch(`${API_BASE}/api/users`, {
@@ -203,7 +215,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify({ username, password, email, role })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         alert(data.error || 'Failed to create user');
@@ -218,10 +230,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch {
       alert('Failed to create user');
     } finally {
-      if (btn) btn.disabled = false;
+      setCreateButtonsBusy(false);
     }
   });
 
+  // ✅ INVITE FLOW (no password required)
+  inviteBtn?.addEventListener('click', async () => {
+    clearErrors();
+
+    const { username, email, role } = getCreateFormValues();
+
+    let hasError = false;
+    if (!username) { safeText('username-error', 'Username required'); hasError = true; }
+    if (!email) { safeText('email-error', 'Email required'); hasError = true; }
+    else if (!isValidEmail(email)) { safeText('email-error', 'Invalid email'); hasError = true; }
+    if (!role) { hasError = true; }
+
+    if (hasError) return;
+
+    if (!confirm(`Send invitation to ${email}?`)) return;
+
+    setCreateButtonsBusy(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/users/invite`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, role })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to send invitation');
+        return;
+      }
+
+      showSuccessToast(data.message || 'Invitation sent!');
+      // keep modal open so admin can invite multiple users quickly
+    } catch (err) {
+      console.error(err);
+      alert('Failed to send invitation');
+    } finally {
+      setCreateButtonsBusy(false);
+    }
+  });
+
+  // edit/delete buttons
   document.addEventListener('click', (e) => {
     if (e.target.matches('.btn-edit')) {
       const id = e.target.dataset.id;
@@ -272,8 +328,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
 
       document.getElementById('edit-user-modal').classList.remove('show');
       await loadUsers();
@@ -283,6 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // login history
   showLoginBtn?.addEventListener('click', async () => {
     createModal?.classList.remove('show');
     showSection('history');
@@ -293,12 +350,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     historyTable.innerHTML = `<tr><td colspan="4" style="padding:12px;color:#666;">Loading login history...</td></tr>`;
 
     try {
-      const res = await fetch(`${API_BASE}/api/login-history`, {
-        credentials: 'include'
-      });
-
+      const res = await fetch(`${API_BASE}/api/login-history`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed');
-
       const history = await res.json();
 
       if (!Array.isArray(history) || history.length === 0) {
@@ -319,7 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // show audit logs
+  // audit logs
   showAuditBtn?.addEventListener('click', async () => {
     createModal?.classList.remove('show');
     showSection('audit');

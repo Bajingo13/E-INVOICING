@@ -9,7 +9,6 @@ window.__REPLICA_READY = false;
 
 /* ============================
    WATERMARK
-   - Needs <div id="wm" class="watermark"></div> inside Replica.html
 ============================ */
 function applyWatermark(statusRaw) {
   const wm = document.getElementById('wm');
@@ -17,11 +16,10 @@ function applyWatermark(statusRaw) {
 
   const status = String(statusRaw || '').trim().toLowerCase();
 
-  // ✅ reset (NO inline display:none)
   wm.className = 'watermark';
   wm.textContent = '';
-  wm.style.display = '';   // clear inline display if it exists
-  wm.style.opacity = '';   // optional: clear inline opacity too
+  wm.style.display = '';
+  wm.style.opacity = '';
 
   if (status === 'draft') {
     wm.textContent = 'DRAFT';
@@ -36,6 +34,89 @@ function applyWatermark(statusRaw) {
   }
 }
 
+/* ============================
+   SIGNATURE RENDERER
+   Requires fields in invoice JSON:
+   - signature_image (data URL)
+   - signature_name
+   - signed_at
+============================ */
+function renderSignature(invoice) {
+  const img = document.getElementById('sigImg');
+  const line = document.getElementById('sigLine');
+  const nameEl = document.getElementById('sigName');
+  const metaEl = document.getElementById('sigMeta');
+  const fallback = document.getElementById('signature');
+
+  const signed = !!(invoice && (invoice.signature_image || invoice.signed_at));
+
+  // If credit/debit invoice type: keep your rule (no signature area)
+  const invoiceType = String(invoice?.invoice_type || '').toUpperCase();
+  const isCreditDebit = invoiceType.includes('CREDIT') || invoiceType.includes('DEBIT');
+  if (isCreditDebit) {
+    if (img) img.style.display = 'none';
+    if (line) line.style.display = 'none';
+    if (nameEl) nameEl.style.display = 'none';
+    if (metaEl) metaEl.style.display = 'none';
+    if (fallback) fallback.style.display = 'none';
+    return;
+  }
+
+  if (!signed) {
+    if (img) img.style.display = 'none';
+    if (line) line.style.display = 'none';
+    if (nameEl) nameEl.style.display = 'none';
+    if (metaEl) metaEl.style.display = 'none';
+    if (fallback) {
+      fallback.style.display = 'block';
+      fallback.textContent = 'THIS IS SYSTEM GENERATED. NO SIGNATURE REQUIRED.';
+    }
+    return;
+  }
+
+  // signed => show signature image + printed name + date
+  if (fallback) fallback.style.display = 'none';
+
+  if (img) {
+    img.src = invoice.signature_image || '';
+    img.style.display = invoice.signature_image ? 'block' : 'none';
+  }
+  if (line) line.style.display = 'block';
+
+  if (nameEl) {
+    nameEl.textContent = invoice.signature_name || 'AUTHORIZED SIGNATORY';
+    nameEl.style.display = 'block';
+  }
+
+  if (metaEl) {
+    const d = invoice.signed_at ? new Date(invoice.signed_at) : null;
+    const ds = d && !isNaN(d) ? d.toLocaleString('en-PH') : '';
+    metaEl.textContent = ds ? `Signed on: ${ds}` : '';
+    metaEl.style.display = ds ? 'block' : 'none';
+  }
+}
+
+/* ============================
+   STATUS LABEL (optional)
+   Shows SIGNED if invoice is signed
+============================ */
+function renderStatusLabel(invoice) {
+  const el = document.getElementById('invoiceStatus');
+  if (!el) return;
+
+  const status = String(invoice?.status || '').trim().toUpperCase();
+  const signed = !!(invoice && (invoice.signature_image || invoice.signed_at));
+
+  // Example: "APPROVED • SIGNED"
+  if (!status && !signed) {
+    el.textContent = '';
+    return;
+  }
+
+  if (signed && status) el.textContent = `${status} • SIGNED`;
+  else if (signed) el.textContent = `SIGNED`;
+  else el.textContent = status;
+}
 
 // ============================
 // Main Invoice Renderer
@@ -43,10 +124,8 @@ function applyWatermark(statusRaw) {
 function renderInvoice(data) {
   const invoice = data || {};
 
-  // ✅ watermark based on invoice status
   applyWatermark(invoice.status);
 
-  // -------------------- FORMATTERS --------------------
   const formatCurrency = (value, currency = "PHP") => {
     const num = parseFloat(value);
     if (isNaN(num)) return "0.00";
@@ -64,7 +143,7 @@ function renderInvoice(data) {
     if (el) el.textContent = value || "";
   };
 
-  // -------------------- COMPANY INFO --------------------
+  // COMPANY
   const company = invoice.company || {};
   fillById("company-name", company.company_name || "");
   fillById("company-address", company.company_address || "");
@@ -79,18 +158,18 @@ function renderInvoice(data) {
     }
   }
 
-  // -------------------- INVOICE HEADER --------------------
+  // HEADER
   fillById("invoice_no", invoice.invoice_no || "");
   fillById("invoice_date", invoice.date ? formatDate(invoice.date) : "");
   fillById("billTo", invoice.bill_to || "");
   fillById("address", invoice.address || "");
   fillById("tin", invoice.tin || "");
 
-  // Render terms properly
+  // TERMS
   const termsEl = document.getElementById("terms_table");
   if (termsEl) termsEl.innerHTML = invoice.terms || "";
 
-  // -------------------- EXCHANGE RATE --------------------
+  // EXCHANGE RATE
   const exchangeRateEl = document.getElementById("exchange_rate");
   const exchangeRate = parseFloat(invoice.exchange_rate || 1);
 
@@ -103,12 +182,11 @@ function renderInvoice(data) {
     }
   }
 
-  // -------------------- ITEMS TABLE --------------------
+  // ITEMS TABLE
   const buildTable = (items, extraColumns = []) => {
     const theadRow = document.getElementById("replica-thead-row");
     const colgroup = document.getElementById("invoice-colgroup");
     const tbody = document.getElementById("itemRows");
-
     if (!theadRow || !colgroup || !tbody) return [];
 
     theadRow.innerHTML = "";
@@ -124,14 +202,12 @@ function renderInvoice(data) {
 
     const extraFields = Array.isArray(extraColumns) ? extraColumns : [];
 
-    // HEADER
     [...MAIN_COLUMNS, ...extraFields.map(f => ({ key: f, label: f }))].forEach(col => {
       const th = document.createElement("th");
       th.textContent = String(col.label).replace(/_/g, " ").toUpperCase();
       theadRow.appendChild(th);
     });
 
-    // COLGROUP
     MAIN_COLUMNS.forEach(col => {
       const c = document.createElement("col");
       c.style.width = col.width + "%";
@@ -148,7 +224,6 @@ function renderInvoice(data) {
       });
     }
 
-    // ROWS
     (items || []).forEach(item => {
       const tr = document.createElement("tr");
 
@@ -186,7 +261,7 @@ function renderInvoice(data) {
 
   const extraFields = buildTable(invoice.items || [], invoice.extra_columns || []);
 
-  // -------------------- PAYMENT SUMMARY --------------------
+  // PAYMENT SUMMARY
   const payment = invoice.tax_summary || {};
   const showPHP = (val) => "₱" + ((parseFloat(val) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 }));
 
@@ -199,13 +274,13 @@ function renderInvoice(data) {
   fillById("withholdingTax", showPHP(payment.withholding));
   fillById("totalPayable", showPHP(payment.total_payable));
 
-  // -------------------- FOOTER --------------------
+  // FOOTER
   const footer = invoice.footer || {};
   fillById("footer-bir-permit", footer.bir_permit_no || "");
   fillById("footer-bir-date", footer.bir_date ? formatDate(footer.bir_date) : "");
   fillById("footer-serial-nos", footer.serial_nos || "");
 
-  // -------------------- INVOICE TITLE & NOTICE --------------------
+  // TITLE & NOTICE
   const invoiceType = invoice.invoice_type || "SERVICE INVOICE";
   const titleEl = document.querySelector(".invoice-title");
   if (titleEl) titleEl.textContent = invoiceType.toUpperCase();
@@ -217,10 +292,13 @@ function renderInvoice(data) {
     if (signatureNotice) signatureNotice.style.display = "none";
   } else {
     if (inputTaxNotice) inputTaxNotice.style.display = "none";
-    if (signatureNotice) signatureNotice.style.display = "block";
+    // signatureNotice display is managed by renderSignature()
   }
 
-  // Save extra fields globally for export
+  // NEW: signature + status label
+  renderSignature(invoice);
+  renderStatusLabel(invoice);
+
   window._extraFields = extraFields;
 }
 
@@ -233,7 +311,7 @@ window.onload = async function () {
 
   if (!invoiceNo) {
     alert("No invoice number provided in the URL.");
-    window.__REPLICA_READY = true; // ✅ don't hang
+    window.__REPLICA_READY = true;
     return;
   }
 
@@ -247,7 +325,6 @@ window.onload = async function () {
 
     renderInvoice(data);
 
-    // ✅ Wait a tick so DOM paints before Puppeteer prints
     requestAnimationFrame(() => {
       window.__REPLICA_READY = true;
     });
@@ -255,33 +332,9 @@ window.onload = async function () {
   } catch (err) {
     console.error("❌ Error loading invoice:", err);
     alert("Error loading invoice — showing empty template.");
-
-    // ✅ IMPORTANT: avoid Puppeteer waiting forever
     window.__REPLICA_READY = true;
   }
 };
-
-// ============================
-// EXPORT FUNCTIONS
-// ============================
-function toggleDropdown() {
-  document.querySelector('.dropdown')?.classList.toggle('show');
-}
-
-window.onclick = function (event) {
-  if (!event.target.matches('.export-btn')) {
-    document.querySelectorAll('.dropdown.show').forEach(drop => drop.classList.remove('show'));
-  }
-};
-
-function downloadBlob(blob, filename) {
-  const link = document.createElement('a');
-  link.href = window.URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
 
 // -------------------- FOOTER UPDATE --------------------
 function updateOnScreenFooter() {

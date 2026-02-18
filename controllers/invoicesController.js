@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const { getConn, pool } = require('../helpers/db');
 
 // Robust fetch (Node 18+ has global fetch, otherwise uses node-fetch v2)
@@ -16,6 +17,72 @@ const {
 } = require('../utils/invoiceCounter');
 
 const defaultItemCols = ['description', 'quantity', 'unit_price', 'amount', 'account_id'];
+
+/* =========================================================
+   SIGNING HELPERS
+========================================================= */
+
+function sha256(str) {
+  return crypto.createHash('sha256').update(str, 'utf8').digest('hex');
+}
+
+function getClientIp(req) {
+  return req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip;
+}
+
+// Build a stable signing snapshot (keep it deterministic)
+async function buildInvoiceSnapshotForHash(conn, invoiceRow) {
+  const [items] = await conn.execute(
+    `SELECT description, quantity, unit_price, amount, account_id, ewt_id
+     FROM invoice_items
+     WHERE invoice_id = ?
+     ORDER BY id ASC`,
+    [invoiceRow.id]
+  );
+
+  const [[tax]] = await conn.execute(
+    `SELECT subtotal, discount, vatable_sales, vat_exempt_sales,
+            zero_rated_sales, vat_amount, withholding, total_payable
+     FROM invoice_tax_summary
+     WHERE invoice_id = ?
+     LIMIT 1`,
+    [invoiceRow.id]
+  );
+
+  const [[footer]] = await conn.execute(
+    `SELECT atp_no, atp_date, bir_permit_no, bir_date, serial_nos
+     FROM invoice_footer
+     WHERE invoice_id = ?
+     LIMIT 1`,
+    [invoiceRow.id]
+  );
+
+  // Avoid volatile fields (updated_at etc.)
+  const snapshot = {
+    invoice_no: invoiceRow.invoice_no,
+    invoice_mode: invoiceRow.invoice_mode,
+    invoice_category: invoiceRow.invoice_category,
+    invoice_type: invoiceRow.invoice_type,
+    bill_to: invoiceRow.bill_to,
+    address: invoiceRow.address,
+    tin: invoiceRow.tin,
+    terms: invoiceRow.terms,
+    date: invoiceRow.date,
+    due_date: invoiceRow.due_date,
+    currency: invoiceRow.currency,
+    exchange_rate: invoiceRow.exchange_rate,
+    vat_type: invoiceRow.vat_type,
+    total_amount_due: invoiceRow.total_amount_due,
+    foreign_total: invoiceRow.foreign_total,
+    extra_columns: invoiceRow.extra_columns,
+    status: invoiceRow.status,
+    items: items || [],
+    tax_summary: tax || {},
+    footer: footer || {}
+  };
+
+  return JSON.stringify(snapshot);
+}
 
 /* =========================================================
    AUDIT SNAPSHOTS (keep small + meaningful)
@@ -35,7 +102,8 @@ function pickInvoiceSnapshot(inv) {
     vat_type: inv.vat_type,
     total_amount_due: inv.total_amount_due,
     foreign_total: inv.foreign_total,
-    terms: inv.terms
+    terms: inv.terms,
+    is_locked_after_sign: inv.is_locked_after_sign // ✅ added
   };
 }
 
@@ -57,7 +125,7 @@ async function getInvoiceAuditState(conn, invoiceNoOrId) {
 
   const [[inv]] = await conn.execute(
     `SELECT invoice_no, status, created_by, bill_to, date, due_date, currency, exchange_rate, vat_type,
-            total_amount_due, foreign_total, terms
+            total_amount_due, foreign_total, terms, is_locked_after_sign
      FROM invoices
      WHERE ${where}
      LIMIT 1`,
@@ -96,18 +164,18 @@ function normalizeTaxSummary(data) {
   return {
     subtotal: +get(['subtotal']) || 0,
     discount: (() => {
-  const sub = +get(['subtotal']) || 0;
-  let d = +get(['discount']) || 0;
+      const sub = +get(['subtotal']) || 0;
+      let d = +get(['discount']) || 0;
 
-  // If frontend accidentally sends 0.10 or 10, convert to amount
-  // - 0 < d < 1   => rate (0.10)
-  // - 1 <= d <= 100 and subtotal > 0 => percent (10)
-  if (sub > 0) {
-    if (d > 0 && d < 1) return +(sub * d).toFixed(2);
-    if (d >= 1 && d <= 100) return +(sub * (d / 100)).toFixed(2);
-  }
-  return d; // already amount
-})(),
+      // If frontend accidentally sends 0.10 or 10, convert to amount
+      // - 0 < d < 1   => rate (0.10)
+      // - 1 <= d <= 100 and subtotal > 0 => percent (10)
+      if (sub > 0) {
+        if (d > 0 && d < 1) return +(sub * d).toFixed(2);
+        if (d >= 1 && d <= 100) return +(sub * (d / 100)).toFixed(2);
+      }
+      return d; // already amount
+    })(),
     vatable_sales: +get(['vatable_sales', 'vatableSales']) || 0,
     vat_exempt_sales: +get(['vat_exempt_sales', 'vatExemptSales']) || 0,
     zero_rated_sales: +get(['zero_rated_sales', 'zeroRatedSales']) || 0,
@@ -194,8 +262,6 @@ async function getCompanyInfo(req, res) {
 
 /* =========================================================
    CREATE INVOICE (POST)
-   - Snapshots company_info into invoices.company_snapshot
-   - Recurring validation happens BEFORE transaction (no hanging tx)
 ========================================================= */
 
 async function createInvoice(req, res) {
@@ -397,9 +463,7 @@ async function createInvoice(req, res) {
 
 /* =========================================================
    UPDATE INVOICE (PUT)
-   - Does NOT modify company_snapshot (keeps original)
-   - If invoice is pending, submitter/admin can edit,
-     status stays pending, audit + notify approvers/admins
+   - Lock enforcement added
 ========================================================= */
 
 async function updateInvoice(req, res) {
@@ -426,6 +490,11 @@ async function updateInvoice(req, res) {
       beforeItemsCount = items_count;
     }
 
+    // ✅ LOCK ENFORCEMENT
+    if (Number(beforeInvRow?.is_locked_after_sign) === 1) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
     await conn.beginTransaction();
 
     const [[invoice]] = await conn.execute(
@@ -449,20 +518,20 @@ async function updateInvoice(req, res) {
     const vatType = normalizeVatType(data.vat_type);
 
     // ✅ pending rules
-const isPending = String(beforeInvRow?.status || '').toLowerCase() === 'pending';
+    const isPending = String(beforeInvRow?.status || '').toLowerCase() === 'pending';
 
-const role = String(req.session.user?.role || '').toLowerCase();
-const isSuper = role === 'super';
-const isApprover = role === 'approver';
-const isSubmitter = role === 'submitter';
+    const role = String(req.session.user?.role || '').toLowerCase();
+    const isSuper = role === 'super';
+    const isApprover = role === 'approver';
+    const isSubmitter = role === 'submitter';
 
-const isOwner = Number(beforeInvRow?.created_by) === Number(req.session.user?.id);
+    const isOwner = Number(beforeInvRow?.created_by) === Number(req.session.user?.id);
 
-// ✅ Allow edits on pending for: Owner (submitter), Approver, Super
-if (isPending && !(isOwner && isSubmitter) && !isApprover && !isSuper) {
-  await conn.rollback();
-  return res.status(403).json({ error: 'You are not allowed to edit a pending invoice' });
-}
+    // ✅ Allow edits on pending for: Owner (submitter), Approver, Super
+    if (isPending && !(isOwner && isSubmitter) && !isApprover && !isSuper) {
+      await conn.rollback();
+      return res.status(403).json({ error: 'You are not allowed to edit a pending invoice' });
+    }
 
     const nextStatus = isPending ? 'pending' : (data.status || 'draft');
 
@@ -596,7 +665,111 @@ if (isPending && !(isOwner && isSubmitter) && !isApprover && !isSuper) {
 }
 
 /* =========================================================
-   GET / LIST / DELETE / NEXT
+   ✅ SIGN INVOICE (POST)
+   - approved only
+   - saves signature fields + locks invoice + hash
+========================================================= */
+
+async function signInvoice(req, res) {
+  const invoiceNo = req.params.invoiceNo;
+  const { signatureImage, signatureName } = req.body || {};
+
+  const img = String(signatureImage || '');
+  const name = String(signatureName || '').trim();
+
+  if (!img.startsWith('data:image/png;base64,')) {
+    return res.status(400).json({ error: 'Invalid signature image (must be PNG data URL)' });
+  }
+  if (!name) {
+    return res.status(400).json({ error: 'Signer name is required' });
+  }
+
+  const conn = await getConn();
+  try {
+    const [[inv]] = await conn.execute(
+      `SELECT id, invoice_no, invoice_mode, invoice_category, invoice_type,
+              bill_to, address, tin, terms, date, due_date, currency, exchange_rate, vat_type,
+              total_amount_due, foreign_total, extra_columns, status,
+              is_locked_after_sign, signed_at, signature_image
+       FROM invoices
+       WHERE invoice_no = ?
+       LIMIT 1`,
+      [invoiceNo]
+    );
+
+    if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+
+    const status = String(inv.status || '').toLowerCase();
+    if (status !== 'approved') {
+      return res.status(400).json({ error: 'Only approved invoices can be signed' });
+    }
+
+    if (Number(inv.is_locked_after_sign) === 1 || inv.signed_at || inv.signature_image) {
+      return res.status(409).json({ error: 'Invoice already signed/locked' });
+    }
+
+    const ip = getClientIp(req);
+
+    // Build hash from current invoice snapshot
+    const snapshotStr = await buildInvoiceSnapshotForHash(conn, inv);
+    const signatureHash = sha256(snapshotStr);
+
+    await conn.beginTransaction();
+
+    await conn.execute(
+      `UPDATE invoices
+       SET signed_by_user_id = ?,
+           signed_at = NOW(),
+           signature_image = ?,
+           signature_name = ?,
+           signature_ip = ?,
+           signature_hash = ?,
+           is_locked_after_sign = 1
+       WHERE invoice_no = ?
+       LIMIT 1`,
+      [req.session.user.id, img, name, ip, signatureHash, invoiceNo]
+    );
+
+    await conn.commit();
+
+    // Audit
+    try {
+      await logAudit(pool, req, {
+        action: 'invoice.sign',
+        entity_type: 'invoice',
+        entity_id: invoiceNo,
+        summary: `Signed invoice ${invoiceNo}`,
+        success: 1,
+        meta: { signature_name: name, signature_ip: ip, signature_hash: signatureHash }
+      });
+    } catch (e) {
+      console.error('Audit log (invoice.sign) failed:', e);
+    }
+
+    return res.json({ success: true, signature_hash: signatureHash });
+  } catch (err) {
+    try { await conn.rollback(); } catch {}
+    console.error('Sign invoice error:', err);
+
+    try {
+      await logAudit(pool, req, {
+        action: 'invoice.sign',
+        entity_type: 'invoice',
+        entity_id: invoiceNo,
+        summary: `Sign invoice ${invoiceNo} failed`,
+        success: 0,
+        meta: { error: String(err?.code || err?.message || 'unknown') }
+      });
+    } catch {}
+
+    return res.status(500).json({ error: 'Failed to sign invoice' });
+  } finally {
+    conn.release();
+  }
+}
+
+/* =========================================================
+   GET / LIST / VOID / DELETE / NEXT
 ========================================================= */
 
 async function getInvoice(req, res) {
@@ -604,15 +777,35 @@ async function getInvoice(req, res) {
   const conn = await getConn();
 
   try {
+    // ✅ Join contacts to get email (matches bill_to -> business OR name)
     const [[invoice]] = await conn.execute(
-      'SELECT * FROM invoices WHERE invoice_no=? LIMIT 1',
+      `
+      SELECT 
+        i.*,
+        c.email AS customer_email
+      FROM invoices i
+      LEFT JOIN contacts c
+        ON (c.business = i.bill_to OR c.name = i.bill_to)
+      WHERE i.invoice_no = ?
+      LIMIT 1
+      `,
       [invoiceNo]
     );
+
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    const [items] = await conn.execute('SELECT * FROM invoice_items WHERE invoice_id=?', [invoice.id]);
-    const [[tax]] = await conn.execute('SELECT * FROM invoice_tax_summary WHERE invoice_id=? LIMIT 1', [invoice.id]);
-    const [[footer]] = await conn.execute('SELECT * FROM invoice_footer WHERE invoice_id=? LIMIT 1', [invoice.id]);
+    const [items] = await conn.execute(
+      'SELECT * FROM invoice_items WHERE invoice_id=?',
+      [invoice.id]
+    );
+    const [[tax]] = await conn.execute(
+      'SELECT * FROM invoice_tax_summary WHERE invoice_id=? LIMIT 1',
+      [invoice.id]
+    );
+    const [[footer]] = await conn.execute(
+      'SELECT * FROM invoice_footer WHERE invoice_id=? LIMIT 1',
+      [invoice.id]
+    );
 
     // ✅ Company info: use per-invoice snapshot first; fallback to current company_info for legacy invoices
     let company = null;
@@ -701,16 +894,20 @@ async function voidInvoice(req, res) {
     const { inv, items_count } = await getInvoiceAuditState(conn, invoiceNo);
     if (!inv) return res.status(404).json({ error: 'Invoice not found' });
 
+    // ✅ LOCK ENFORCEMENT
+    if (Number(inv?.is_locked_after_sign) === 1) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
     beforeSnap = pickInvoiceSnapshot(inv);
     beforeItemsCount = items_count;
 
     const role = String(req.session.user?.role || '').toLowerCase();
-const canVoid = (role === 'super' || role === 'approver'); 
+    const canVoid = (role === 'super' || role === 'approver');
 
-if (!canVoid) {
-  return res.status(403).json({ error: 'You are not allowed to void invoices' });
-}
-
+    if (!canVoid) {
+      return res.status(403).json({ error: 'You are not allowed to void invoices' });
+    }
 
     // Optional guard: don’t allow void paid invoices
     if (String(inv.status).toLowerCase() === 'paid') {
@@ -774,7 +971,6 @@ if (!canVoid) {
   }
 }
 
-
 async function deleteInvoice(req, res) {
   const invoiceNo = req.params.invoiceNo;
   const conn = await getConn();
@@ -786,6 +982,12 @@ async function deleteInvoice(req, res) {
   try {
     const { inv, items_count } = await getInvoiceAuditState(conn, invoiceNo);
     if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+
+    // ✅ LOCK ENFORCEMENT
+    if (Number(inv?.is_locked_after_sign) === 1) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
     beforeSnap = pickInvoiceSnapshot(inv);
     beforeItemsCount = items_count;
 
@@ -915,6 +1117,7 @@ async function insertTaxAndFooter(conn, invoiceId, data) {
 module.exports = {
   createInvoice,
   updateInvoice,
+  signInvoice,     // ✅ NEW
   getInvoice,
   listInvoices,
   deleteInvoice,

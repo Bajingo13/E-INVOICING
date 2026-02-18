@@ -2,6 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 
 const asyncHandler = require('../middleware/asynchandler');
 const { pool } = require('../helpers/db');
@@ -16,6 +17,10 @@ const { exportInvoicesExcel } = require('../controllers/invoiceExportController'
 const { getApprovers } = require('../utils/getApprovers');
 const { logAudit } = require('../helpers/audit');
 
+const { buildInvoiceEmail } = require('../services/invoiceEmailTemplate');
+const { fetchInvoicePdfBuffer } = require('../services/pdfFetch');
+const { queueEmail } = require('../services/emailOutboxService');
+
 // ---------------- HELPERS ----------------
 async function loadInvoice(invoiceNo) {
   const [[invoice]] = await pool.query(
@@ -23,6 +28,58 @@ async function loadInvoice(invoiceNo) {
     [invoiceNo]
   );
   return invoice;
+}
+
+function sha256(str) {
+  return crypto.createHash('sha256').update(str, 'utf8').digest('hex');
+}
+
+function getClientIp(req) {
+  return req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip;
+}
+
+// Build a stable signing snapshot (used for signature_hash)
+async function buildInvoiceSnapshotForHash(invoice) {
+  // NOTE: adjust columns if your invoice_items schema differs
+  const [items] = await pool.query(
+    `SELECT description, quantity, unit_price, amount
+     FROM invoice_items
+     WHERE invoice_id = ?
+     ORDER BY id ASC`,
+    [invoice.id]
+  );
+
+  const [[tax]] = await pool.query(
+    `SELECT *
+     FROM invoice_tax_summary
+     WHERE invoice_id = ?
+     LIMIT 1`,
+    [invoice.id]
+  );
+
+  // Keep snapshot stable and minimal (avoid volatile fields like updated_at)
+  const snapshot = {
+    invoice_no: invoice.invoice_no,
+    invoice_type: invoice.invoice_type,
+    invoice_category: invoice.invoice_category,
+    invoice_mode: invoice.invoice_mode,
+    bill_to: invoice.bill_to,
+    address: invoice.address,
+    tin: invoice.tin,
+    terms: invoice.terms,
+    date: invoice.date,
+    due_date: invoice.due_date,
+    currency: invoice.currency,
+    exchange_rate: invoice.exchange_rate,
+    total_amount_due: invoice.total_amount_due,
+    foreign_total: invoice.foreign_total,
+    status: invoice.status,
+    extra_columns: invoice.extra_columns,
+    items: items || [],
+    tax_summary: tax || {}
+  };
+
+  return JSON.stringify(snapshot);
 }
 
 // ---------------- GET COMPANY INFO ----------------
@@ -80,12 +137,17 @@ router.put(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-    const role = req.session.user.role;
+    const role = String(req.session.user.role || '').toLowerCase();
     const userId = req.session.user.id;
 
     const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
     const isApprover = role === 'approver';
     const isOwner = Number(invoice.created_by) === Number(userId);
+
+    // ✅ LOCK ENFORCEMENT: only admins can edit signed/locked invoices
+    if (Number(invoice.is_locked_after_sign) === 1 && !isAdmin) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
 
     if (isAdmin || isApprover) {
       return invoicesCtrl.updateInvoice(req, res);
@@ -108,12 +170,17 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
+    // ✅ prevent submit if locked
+    if (Number(invoice.is_locked_after_sign) === 1) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
     const currentStatus = String(invoice.status || '').toLowerCase();
     if (!['draft', 'returned'].includes(currentStatus)) {
       return res.status(400).json({ error: 'Only draft or returned invoices can be submitted' });
     }
 
-    const role = req.session.user.role;
+    const role = String(req.session.user.role || '').toLowerCase();
     const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
 
     if (Number(invoice.created_by) !== Number(req.session.user.id) && !isAdmin) {
@@ -164,12 +231,17 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
+    // ✅ prevent approve if locked (shouldn't happen, but safe)
+    if (Number(invoice.is_locked_after_sign) === 1) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
     const status = String(invoice.status || '').toLowerCase();
     if (status !== 'pending') {
       return res.status(400).json({ error: 'Only pending invoices can be approved' });
     }
 
-    const role = req.session.user.role;
+    const role = String(req.session.user.role || '').toLowerCase();
 
     // ✅ Allowed roles (self-approval allowed)
     const canApproveRole = ['approver', 'admin', 'super', 'super_admin'].includes(role);
@@ -206,49 +278,140 @@ router.post(
   })
 );
 
+// ---------------- ✅ E-SIGN INVOICE (APPROVED ONLY) ----------------
+router.post(
+  '/invoices/:invoiceNo/signature',
+  requireLogin,
+  // Reuse approve permission (or create PERMISSIONS.INVOICE_SIGN later)
+  requirePermission(PERMISSIONS.INVOICE_APPROVE),
+  asyncHandler(async (req, res) => {
+    const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    const status = String(invoice.status || '').toLowerCase();
+    if (status !== 'approved') {
+      return res.status(400).json({ error: 'Only approved invoices can be signed' });
+    }
+
+    if (Number(invoice.is_locked_after_sign) === 1 || invoice.signed_at || invoice.signature_image) {
+      return res.status(409).json({ error: 'Invoice already signed/locked' });
+    }
+
+    const { signatureImage, signatureName } = req.body || {};
+    const img = String(signatureImage || '');
+    const name = String(signatureName || '').trim();
+
+    if (!img.startsWith('data:image/png;base64,')) {
+      return res.status(400).json({ error: 'Invalid signature image (must be PNG data URL)' });
+    }
+    if (!name) {
+      return res.status(400).json({ error: 'Signer name is required' });
+    }
+
+    const ip = getClientIp(req);
+
+    // ✅ build hash snapshot
+    const snapshotStr = await buildInvoiceSnapshotForHash(invoice);
+    const signatureHash = sha256(snapshotStr);
+
+    await pool.query(
+      `UPDATE invoices
+       SET signed_by_user_id = ?,
+           signed_at = NOW(),
+           signature_image = ?,
+           signature_name = ?,
+           signature_ip = ?,
+           signature_hash = ?,
+           is_locked_after_sign = 1
+       WHERE invoice_no = ?`,
+      [
+        req.session.user.id,
+        img,
+        name,
+        ip,
+        signatureHash,
+        invoice.invoice_no
+      ]
+    );
+
+    await logAudit(pool, req, {
+      action: 'invoice.sign',
+      entity_type: 'invoice',
+      entity_id: invoice.invoice_no,
+      summary: `Signed invoice ${invoice.invoice_no}`,
+      success: 1,
+      before: {
+        signed_at: null,
+        is_locked_after_sign: 0
+      },
+      after: {
+        signed_at: 'NOW()',
+        is_locked_after_sign: 1
+      },
+      meta: {
+        signature_name: name,
+        signature_ip: ip,
+        signature_hash: signatureHash
+      }
+    });
+
+    res.json({ message: 'Invoice signed successfully', signature_hash: signatureHash });
+  })
+);
+
 // ---------------- EMAIL INVOICE (APPROVED OR PENDING) ----------------
 router.post(
   '/invoices/:invoiceNo/email',
   requireLogin,
-  requirePermission(PERMISSIONS.INVOICE_VIEW), // or a new PERMISSIONS.INVOICE_EMAIL if you want
+  requirePermission(PERMISSIONS.INVOICE_VIEW), // or create PERMISSIONS.INVOICE_EMAIL
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
     const { to, subject, message } = req.body || {};
     const emailTo = String(to || '').trim();
-
     if (!emailTo) return res.status(400).json({ error: 'Missing "to" email' });
 
-    // ✅ Optional: allow only approved to email
-    // const status = String(invoice.status || '').toLowerCase();
-    // if (status !== 'approved') return res.status(400).json({ error: 'Only approved invoices can be emailed' });
+    const { subject: defaultSubject, html, text } = buildInvoiceEmail({
+      invoiceNo: invoice.invoice_no,
+      billTo: invoice.bill_to,
+      companyName: 'Your Company',
+      message
+    });
 
-    /**
-     * TODO: integrate your mailer here
-     * Example:
-     * await sendInvoiceEmail({
-     *   to: emailTo,
-     *   subject: subject || `Invoice ${invoice.invoice_no}`,
-     *   message: message || '',
-     *   invoiceNo: invoice.invoice_no,
-     *   // attach PDF: fetch from your own /api/invoices/:invoiceNo/pdf route
-     * });
-     */
+    const pdfBuffer = await fetchInvoicePdfBuffer({ invoiceNo: invoice.invoice_no, req });
+
+    const attachments = [
+      {
+        filename: `Invoice-${invoice.invoice_no}.pdf`,
+        contentType: 'application/pdf',
+        dataBase64: pdfBuffer.toString('base64')
+      }
+    ];
+
+    await queueEmail({
+      type: 'invoice',
+      referenceNo: invoice.invoice_no,
+      to: emailTo,
+      subject: subject || defaultSubject,
+      html,
+      text,
+      attachments,
+      createdBy: req.session.user?.id || null
+    });
 
     await logAudit(pool, req, {
       action: 'invoice.email',
       entity_type: 'invoice',
       entity_id: invoice.invoice_no,
-      summary: `Emailed invoice ${invoice.invoice_no} to ${emailTo}`,
+      summary: `Queued invoice ${invoice.invoice_no} email to ${emailTo}`,
       success: 1,
-      meta: { to: emailTo, subject: subject || null }
+      meta: { to: emailTo, subject: subject || defaultSubject }
     });
 
-    res.json({ message: 'Email queued/sent' });
+    res.json({ message: 'Email queued (will send shortly).' });
   })
 );
-
 
 // ---------------- RETURN INVOICE ----------------
 router.post(
@@ -259,12 +422,17 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
+    // ✅ prevent return if locked
+    if (Number(invoice.is_locked_after_sign) === 1) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
     const status = String(invoice.status || '').toLowerCase();
     if (status !== 'pending') {
       return res.status(400).json({ error: 'Only pending invoices can be returned' });
     }
 
-    const role = req.session.user.role;
+    const role = String(req.session.user.role || '').toLowerCase();
     const canReturnRole = ['approver', 'admin', 'super', 'super_admin'].includes(role);
     if (!canReturnRole) {
       return res.status(403).json({ error: 'You are not allowed to return this invoice' });
@@ -294,7 +462,6 @@ router.post(
   })
 );
 
-
 // ---------------- MARK PAID ----------------
 router.post(
   '/invoices/:invoiceNo/mark-paid',
@@ -304,10 +471,15 @@ router.post(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
+    // ✅ prevent mark-paid if locked (optional rule; remove if you want)
+    if (Number(invoice.is_locked_after_sign) === 1) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
     const status = String(invoice.status || '').toLowerCase();
     if (status !== 'approved') return res.status(400).json({ error: 'Only approved invoices can be marked as paid' });
 
-    const role = req.session.user.role;
+    const role = String(req.session.user.role || '').toLowerCase();
     const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
     if (!isAdmin) return res.status(403).json({ error: 'You are not allowed to mark this invoice as paid' });
 
@@ -330,24 +502,31 @@ router.post(
   })
 );
 
-// ---------------- CANCEL INVOICE (DRAFT/RETURNED/PENDING) ----------------
+// ---------------- VOID INVOICE ----------------
 router.post(
   '/invoices/:invoiceNo/void',
   requireLogin,
-  requirePermission(PERMISSIONS.INVOICE_VOID), // ✅ rename permission
+  requirePermission(PERMISSIONS.INVOICE_VOID),
   asyncHandler(async (req, res) => {
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
     const status = String(invoice.status || '').toLowerCase();
-   if (!['draft', 'returned', 'pending', 'approved'].includes(status)) {
-  return res.status(400).json({ error: 'Only draft, returned, pending, or approved invoices can be voided' });
-}
+    if (!['draft', 'returned', 'pending', 'approved'].includes(status)) {
+      return res.status(400).json({ error: 'Only draft, returned, pending, or approved invoices can be voided' });
+    }
 
     const role = String(req.session.user?.role || '').toLowerCase();
-const canVoid = (role === 'super' || role === 'approver');
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+    const isApprover = role === 'approver';
 
-if (!canVoid) return res.status(403).json({ error: 'You are not allowed to void this invoice' });
+    // ✅ LOCK ENFORCEMENT: only admins can void signed/locked invoices
+    if (Number(invoice.is_locked_after_sign) === 1 && !isAdmin) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
+    const canVoid = (role === 'super' || isApprover || isAdmin);
+    if (!canVoid) return res.status(403).json({ error: 'You are not allowed to void this invoice' });
 
     await pool.query(
       'UPDATE invoices SET status = "void" WHERE invoice_no = ?',
@@ -367,7 +546,6 @@ if (!canVoid) return res.status(403).json({ error: 'You are not allowed to void 
     res.json({ message: 'Invoice voided successfully' });
   })
 );
-
 
 // ---------------- GET SINGLE INVOICE ----------------
 router.get(
@@ -412,20 +590,22 @@ router.delete(
     const invoice = await loadInvoice(req.params.invoiceNo);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
+    // ✅ LOCK ENFORCEMENT: deny delete if signed/locked (admins can override if you want)
+    const role = String(req.session.user.role || '').toLowerCase();
+    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
+    if (Number(invoice.is_locked_after_sign) === 1 && !isAdmin) {
+      return res.status(409).json({ error: 'Invoice is locked because it is signed.' });
+    }
+
     const status = String(invoice.status || '').toLowerCase();
     if (!['draft', 'returned'].includes(status)) {
       return res.status(400).json({ error: 'Only draft or returned invoices can be deleted' });
     }
 
-    const role = req.session.user.role;
-    const isAdmin = ['super', 'admin', 'super_admin'].includes(role);
-
     if (Number(invoice.created_by) !== Number(req.session.user.id) && !isAdmin) {
       return res.status(403).json({ error: 'You cannot delete this invoice' });
     }
 
-    // NOTE: invoicesCtrl.deleteInvoice already logs a full before-snapshot in your controller code;
-    // keep this route log lightweight (or remove it to avoid duplicate audit entries)
     await logAudit(pool, req, {
       action: 'invoice.delete.request',
       entity_type: 'invoice',
@@ -447,8 +627,6 @@ router.get(
 );
 
 // ---------------- GET EXCHANGE RATE (BAP) ----------------
-// If Node < 18, replace fetch/AbortController with your controller helper.
-// (You already have getExchangeRate() inside invoicesController; you may use that instead.)
 router.get(
   '/exchange-rate',
   requireLogin,

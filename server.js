@@ -47,6 +47,8 @@ const reportsRouter = require('./routes/reports');
 const auditLogsRoute = require('./routes/auditLogs');
 const { ensureRequestId } = require('./helpers/audit');
 const invoicePreviewPdfPuppeteerRoutes = require('./routes/invoicePreviewPdfPuppeteer.routes');
+const { startEmailOutboxJob } = require('./jobs/emailOutboxJob');
+
 
 /* =========================
    App setup
@@ -65,6 +67,8 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
 app.use(ensureRequestId);
 app.use('/partials', express.static(path.join(__dirname, 'partials')));
+app.use('/api/email', require('./routes/emailDebug'));
+
 
 /* =========================
    Session
@@ -83,6 +87,7 @@ app.use(
     }
   })
 );
+
 
 /* =========================
    Routes
@@ -157,6 +162,7 @@ app.use((err, req, res, next) => {
    ✅ Start recurring scheduler BEFORE listen
 ========================= */
 startRecurringJob();
+startEmailOutboxJob();
 
 /* =========================
    Start server

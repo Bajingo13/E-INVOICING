@@ -6,16 +6,10 @@
 <title>Invoice Preview</title>
 
 <style>
-/* ===============================
-   GLOBAL
-================================ */
 :root{
   --topbar-h: 56px;
-
-  /* keep your colors */
   --topbar-bg: #6F75E2;
   --primary: #0078d4;
-
   --text: #111;
   --muted: rgba(255,255,255,.85);
   --border: rgba(0,0,0,.15);
@@ -32,7 +26,7 @@ html, body {
   font-family: Arial, sans-serif;
   background: #2b2b2b;
   color: var(--text);
-  overflow: auto; /* single scrollbar */
+  overflow: auto;
 }
 
 /* ===============================
@@ -41,7 +35,6 @@ html, body {
 .top-bar {
   position: fixed;
   top: 0; left: 0; right: 0;
-  z-index: 2000;
   height: var(--topbar-h);
   background: var(--topbar-bg);
   color: #ffffff;
@@ -51,6 +44,9 @@ html, body {
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
   overflow: visible;
+
+  z-index: 9999;
+  isolation: isolate;
 }
 
 .top-left, .top-right {
@@ -79,6 +75,25 @@ html, body {
   outline: 2px solid rgba(255,255,255,.95);
   outline-offset: 2px;
 }
+
+/* small icon buttons on right */
+.icon-btn-small{
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.10);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items:center;
+  gap: 8px;
+  user-select: none;
+  font-weight: 700;
+  font-size: 13px;
+}
+.icon-btn-small:hover{ background: rgba(255,255,255,.16); }
+.icon-btn-small:active{ transform: translateY(1px); }
 
 .title-wrap{
   display:flex;
@@ -117,14 +132,28 @@ html, body {
 }
 
 /* ===============================
-   SPLIT BUTTON (Approve workflow only)
+   DROPDOWN + SPLIT (FIXED)
 ================================ */
+.dropdown{
+  position:relative;
+  display:inline-flex;
+  overflow: visible;
+  z-index: 10000;
+}
+
 .split{
   display: inline-flex;
   border-radius: 10px;
-  overflow: hidden;
   border: 1px solid rgba(255,255,255,.12);
+  background: transparent;
 }
+
+.split-inner{
+  display:inline-flex;
+  border-radius: 10px;
+  overflow:hidden;
+}
+
 .split .split-main,
 .split .split-caret{
   border: 0;
@@ -148,33 +177,29 @@ html, body {
 .split .split-main:active,
 .split .split-caret:active{ transform: translateY(1px); }
 
-.split [disabled]{
+.split button[disabled]{
   opacity: .55;
   cursor: not-allowed;
   transform:none !important;
 }
-.split [disabled]:hover{ filter:none; }
+.split button[disabled]:hover{ filter:none; }
 
 /* ===============================
-   MENUS
+   MENU
 ================================ */
-.dropdown{
-  position:relative;
-  display:inline-flex;
-}
 .menu{
   display:none;
   position:absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 260px;
+  min-width: 280px;
   background: var(--menu-bg);
   color: var(--menu-text);
   border-radius: 12px;
   border: 1px solid var(--menu-border);
   box-shadow: var(--menu-shadow);
   overflow: hidden;
-  z-index: 3000;
+  z-index: 10001;
 }
 .menu.show{ display:block; }
 .menu .menu-item{
@@ -265,11 +290,82 @@ iframe {
 }
 
 /* ===============================
-   PRINT CLEAN
+   EMAIL MODAL
 ================================ */
+.modal-backdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.35);
+  z-index: 5000;
+  display:none;
+}
+.modal{
+  position: fixed;
+  inset: 0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index: 5001;
+  padding: 18px;
+}
+.modal-card{
+  width: min(560px, 100%);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 22px 60px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+.modal-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eee;
+}
+.modal-body{ padding: 14px 16px; }
+.modal-foot{
+  display:flex;
+  justify-content:flex-end;
+  gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid #eee;
+}
+.form-row{ margin-bottom: 12px; }
+.form-label{ display:block; font-size: 12px; color:#333; margin-bottom:6px; }
+.input{
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+}
+.input:focus{ border-color: #b8b8ff; box-shadow: 0 0 0 3px rgba(92,96,214,0.12); }
+.btn{
+  border: 1px solid rgba(0,0,0,.15);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background:#fff;
+  cursor:pointer;
+}
+.btn:hover{ background:#f6f7fb; }
+.btn-primary{
+  background: var(--primary);
+  color:#fff;
+  border-color: rgba(255,255,255,.12);
+}
+.btn-primary:hover{ filter: brightness(1.05); }
+.btn-ghost{
+  background: transparent;
+  border: 1px solid transparent;
+  cursor:pointer;
+}
+.muted{ color:#666; font-size: 12px; }
+
 @media print {
   body { background: #fff; }
-  .top-bar, .menu, .toast-wrap { display: none !important; }
+  .top-bar, .menu, .toast-wrap, .modal, .modal-backdrop { display: none !important; }
   .page-container { box-shadow: none !important; width: 100%; height: auto; }
 }
 </style>
@@ -279,7 +375,6 @@ iframe {
 
 <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
 
-<!-- =================== TOP BAR =================== -->
 <div class="top-bar" role="banner">
   <div class="top-left">
     <button class="icon-btn" onclick="closePreview()" aria-label="Close preview">✕</button>
@@ -287,45 +382,141 @@ iframe {
     <div class="title-wrap">
       <div class="title-row">
         <span class="title">Invoice preview</span>
-        <span class="pill" id="invoicePill" title="Invoice number">—</span>
-        <span class="pill" id="statusPill" title="Invoice status">…</span>
+        <span class="pill" id="invoicePill">—</span>
+        <span class="pill" id="statusPill">…</span>
       </div>
       <div class="sub" id="subText">PDF viewer with native toolbar</div>
     </div>
   </div>
 
   <div class="top-right">
-    <!-- ✅ Approve shows ONLY when pending -->
-    <div class="dropdown split" id="approveSplit" aria-label="Approve options" style="display:none;">
-      <button class="split-main" id="btnApprove" onclick="approveOnly()">Approve</button>
-      <button class="split-caret" aria-haspopup="menu" aria-expanded="false" onclick="toggleMenu('approveMenu', this)">▾</button>
+    <!-- ✅ Email button for APPROVED invoices -->
+    <button class="icon-btn-small" id="btnEmailTop" type="button" style="display:none;" onclick="openEmailModal()">
+      ✉ Email
+    </button>
 
-      <div class="menu" id="approveMenu" role="menu">
-        <div class="menu-item" role="menuitem" onclick="approveOnly()">
-          <span class="lefttext">Approve</span>
-          <span class="k">Ctrl+Alt+A</span>
+    <!-- ✅ E-Sign button for APPROVED invoices -->
+    <button class="icon-btn-small" id="btnSignTop" type="button" style="display:none;" onclick="openSignModal()">
+      ✍ Sign
+    </button>
+
+    <!-- ✅ Approve split for PENDING invoices -->
+    <div class="dropdown" id="approveSplit" style="display:none;">
+      <div class="split">
+        <div class="split-inner">
+          <button class="split-main" type="button" id="btnPrimary">Approve</button>
+          <button class="split-caret" type="button" aria-haspopup="menu" aria-expanded="false"
+                  onclick="toggleMenu('approveMenu', this, event)">▾</button>
         </div>
-        <div class="sep"></div>
-        <div class="menu-item" role="menuitem" onclick="copyPreviewLink()">
-          <span class="lefttext">Copy preview link</span>
-          <span class="k">Ctrl+Shift+L</span>
+
+        <div class="menu" id="approveMenu" role="menu">
+          <div class="menu-item" id="miApproveEmail" role="menuitem" onclick="approveAndEmail()">
+            <span class="lefttext">Approve &amp; Email</span>
+            <span class="k">Ctrl+Alt+A</span>
+          </div>
+
+          <div class="menu-item" id="miApproveNext" role="menuitem" onclick="approveAndViewNext()">
+            <span class="lefttext">Approve &amp; View next</span>
+            <span class="k">Ctrl+Alt+N</span>
+          </div>
+
+          <div class="sep"></div>
+          <div class="menu-item" role="menuitem" onclick="copyPreviewLink()">
+            <span class="lefttext">Copy preview link</span>
+            <span class="k">Ctrl+Shift+L</span>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- =================== VIEWER =================== -->
 <div class="viewer">
   <div class="page-container">
     <iframe id="pdfFrame" title="PDF Preview"></iframe>
   </div>
 </div>
 
+<!-- EMAIL MODAL -->
+<div id="emailBackdrop" class="modal-backdrop"></div>
+
+<div id="emailModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="emailTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 id="emailTitle" style="margin:0; font-size:16px;">Email Invoice</h2>
+      <button class="btn-ghost" type="button" onclick="closeEmailModal()" aria-label="Close">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">Invoice No</label>
+        <input id="emailInvoiceNo" class="input" type="text" readonly />
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">To (Email)</label>
+        <input id="emailTo" class="input" type="email" placeholder="customer@email.com" />
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">Subject</label>
+        <input id="emailSubject" class="input" type="text" />
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">Message (optional)</label>
+        <textarea id="emailMessage" class="input" rows="4" placeholder="Hi, please see attached invoice..."></textarea>
+      </div>
+
+      <div id="emailStatus" class="muted"></div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn" type="button" onclick="closeEmailModal()">Cancel</button>
+      <button class="btn btn-primary" id="btnSendEmail" type="button" onclick="sendInvoiceEmail()">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIGN MODAL -->
+<div id="signBackdrop" class="modal-backdrop"></div>
+
+<div id="signModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="signTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 id="signTitle" style="margin:0; font-size:16px;">E-Sign Invoice</h2>
+      <button class="btn-ghost" type="button" onclick="closeSignModal()" aria-label="Close">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-row">
+        <label class="form-label">Invoice No</label>
+        <input id="signInvoiceNo" class="input" type="text" readonly />
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">Signer name (printed)</label>
+        <input id="signName" class="input" type="text" placeholder="Juan Dela Cruz" />
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">Signature</label>
+        <canvas id="signCanvas" width="520" height="180" style="border:1px solid #ddd; border-radius:12px; width:100%; height:auto; touch-action:none;"></canvas>
+        <div class="muted" style="margin-top:6px;">Draw using mouse or touch.</div>
+      </div>
+
+      <div id="signStatus" class="muted"></div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn" type="button" onclick="clearSignCanvas()">Clear</button>
+      <button class="btn" type="button" onclick="closeSignModal()">Cancel</button>
+      <button class="btn btn-primary" id="btnSaveSign" type="button" onclick="saveSignature()">Save Signature</button>
+    </div>
+  </div>
+</div>
+
 <script>
-/* =========================================================
-   STATE
-========================================================= */
 const frame = document.getElementById('pdfFrame');
 const params = new URLSearchParams(window.location.search);
 const invoiceNo = (params.get('invoice_no') || '').trim();
@@ -333,18 +524,45 @@ const invoiceNo = (params.get('invoice_no') || '').trim();
 const els = {
   invoicePill: document.getElementById('invoicePill'),
   statusPill: document.getElementById('statusPill'),
-  toastWrap: document.getElementById('toastWrap'),
   subText: document.getElementById('subText'),
-  approveSplit: document.getElementById('approveSplit')
+  toastWrap: document.getElementById('toastWrap'),
+
+  btnEmailTop: document.getElementById('btnEmailTop'),
+  btnSignTop: document.getElementById('btnSignTop'),
+
+  approveSplit: document.getElementById('approveSplit'),
+  approveMenu: document.getElementById('approveMenu'),
+  btnPrimary: document.getElementById('btnPrimary'),
+  miApproveEmail: document.getElementById('miApproveEmail'),
+  miApproveNext: document.getElementById('miApproveNext'),
+
+  emailBackdrop: document.getElementById('emailBackdrop'),
+  emailModal: document.getElementById('emailModal'),
+  emailInvoiceNo: document.getElementById('emailInvoiceNo'),
+  emailTo: document.getElementById('emailTo'),
+  emailSubject: document.getElementById('emailSubject'),
+  emailMessage: document.getElementById('emailMessage'),
+  emailStatus: document.getElementById('emailStatus'),
+  btnSendEmail: document.getElementById('btnSendEmail'),
+
+  signBackdrop: document.getElementById('signBackdrop'),
+  signModal: document.getElementById('signModal'),
+  signInvoiceNo: document.getElementById('signInvoiceNo'),
+  signName: document.getElementById('signName'),
+  signCanvas: document.getElementById('signCanvas'),
+  signStatus: document.getElementById('signStatus'),
+  btnSaveSign: document.getElementById('btnSaveSign')
 };
 
 let isBusy = false;
+let latestInvoice = null;
+let latestStatus = '';
 
-/* =========================================================
-   TOAST
-========================================================= */
+let signCtx = null;
+let signDrawing = false;
+let signLast = null;
+
 function toast(title, msg, ms = 3200){
-  const wrap = els.toastWrap;
   const node = document.createElement('div');
   node.className = 'toast';
   node.innerHTML = `
@@ -357,57 +575,44 @@ function toast(title, msg, ms = 3200){
   node.querySelector('.t-title').textContent = title || 'Notice';
   node.querySelector('.t-msg').textContent = msg || '';
   node.querySelector('.t-x').onclick = () => node.remove();
-  wrap.appendChild(node);
+  els.toastWrap.appendChild(node);
   setTimeout(() => { if (node.isConnected) node.remove(); }, ms);
 }
 
-/* =========================================================
-   MENUS
-========================================================= */
 function closeAllMenus(){
   document.querySelectorAll('.menu.show').forEach(m => m.classList.remove('show'));
   document.querySelectorAll('[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded','false'));
 }
 
-function toggleMenu(menuId, triggerBtn){
+function toggleMenu(menuId, triggerBtn, ev){
+  if (ev){ ev.preventDefault(); ev.stopPropagation(); }
+
   const menu = document.getElementById(menuId);
   if (!menu) return;
 
   const isOpen = menu.classList.contains('show');
   closeAllMenus();
-
   if (!isOpen){
     menu.classList.add('show');
-    if (triggerBtn && triggerBtn.setAttribute) triggerBtn.setAttribute('aria-expanded','true');
+    triggerBtn.setAttribute('aria-expanded','true');
   }
 }
 
 window.addEventListener('click', (e) => {
-  const inside = e.target.closest('.dropdown') || e.target.closest('.menu');
-  if (!inside) closeAllMenus();
+  if (!e.target.closest('.dropdown')) closeAllMenus();
 });
+els.approveMenu.addEventListener('click', (e) => e.stopPropagation());
 
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeAllMenus();
-});
-
-/* =========================================================
-   HELPERS
-========================================================= */
 function setBusy(on){
   isBusy = !!on;
-  document.querySelectorAll('#approveSplit button').forEach(b => b.disabled = isBusy);
 }
 
-function closePreview() {
+function closePreview(){
   if (window.opener) window.close();
   else if (document.referrer) window.history.back();
   else window.location.href = '/invoice-list.html';
 }
 
-/* =========================================================
-   PDF LOAD (native toolbar handles print/download)
-========================================================= */
 function buildPdfUrl(){
   if (!invoiceNo) return '';
   const encoded = encodeURIComponent(invoiceNo);
@@ -427,95 +632,100 @@ function loadPdf(){
   frame.src = buildPdfUrl();
 }
 
-/* =========================================================
-   SHOW APPROVE ONLY WHEN PENDING
-========================================================= */
-function setApproveVisible(isPending){
-  // show only on pending
-  els.approveSplit.style.display = isPending ? 'inline-flex' : 'none';
+function setActions(status){
+  const pending = status === 'pending';
+  const approved = status === 'approved';
 
-  // update shortcut hint
-  els.subText.textContent = isPending
-    ? 'Shortcut: Ctrl+Alt+A approve'
-    : 'PDF viewer with native toolbar';
+  // default hide all actions
+  els.approveSplit.style.display = 'none';
+  els.btnEmailTop.style.display = 'none';
+  els.btnSignTop.style.display = 'none';
+
+  // ✅ pending => show approve split
+  if (pending){
+    els.approveSplit.style.display = invoiceNo ? 'inline-flex' : 'none';
+    els.btnPrimary.textContent = 'Approve';
+    els.btnPrimary.onclick = approveOnly;
+
+    els.miApproveEmail.style.display = 'flex';
+    els.miApproveNext.style.display  = 'flex';
+
+    els.subText.textContent = 'Shortcuts: Ctrl+Alt+A approve & email • Ctrl+Alt+N approve & view next';
+    return;
+  }
+
+  // ✅ approved => show email + sign (hide sign if already signed)
+  if (approved){
+    els.btnEmailTop.style.display = 'inline-flex';
+    els.btnSignTop.style.display = 'inline-flex';
+
+    const alreadySigned = !!(latestInvoice && (latestInvoice.signed_at || latestInvoice.signature_image));
+    if (alreadySigned){
+      els.btnSignTop.style.display = 'none';
+      els.subText.textContent = 'Signed invoice • Shortcut: Ctrl+Alt+E email';
+    } else {
+      els.subText.textContent = 'Shortcuts: Ctrl+Alt+E email • Ctrl+Alt+S sign';
+    }
+    return;
+  }
+
+  // others
+  els.subText.textContent = 'PDF viewer with native toolbar';
 }
 
-/* =========================================================
-   FETCH STATUS (pill + approve visibility)
-========================================================= */
-async function fetchInvoiceStatus() {
-  if (!invoiceNo) return null;
-  try {
+async function fetchInvoiceStatus(){
+  if (!invoiceNo) return;
+  try{
     const r = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`, { credentials: 'include' });
-    if (!r.ok) return null;
-
+    if (!r.ok) throw new Error('status fetch failed');
     const inv = await r.json();
-    const status = String(inv?.status || '').toLowerCase();
+    latestInvoice = inv;
+    latestStatus = String(inv?.status || '').toLowerCase();
 
-    els.statusPill.textContent = status ? status.toUpperCase() : '—';
-    setApproveVisible(status === 'pending');
-
-    return { inv, status };
-  } catch {
+    els.statusPill.textContent = latestStatus ? latestStatus.toUpperCase() : '—';
+    setActions(latestStatus);
+  }catch{
     els.statusPill.textContent = '—';
-    setApproveVisible(false);
-    return null;
+    setActions('');
   }
 }
 
-/* =========================================================
-   APPROVE WORKFLOW (matches your backend)
-   POST /api/invoices/:invoiceNo/approve (only pending allowed)
-========================================================= */
-async function readError(res) {
+async function readError(res){
   const ct = (res.headers.get('content-type') || '').toLowerCase();
-  try {
+  try{
     if (ct.includes('application/json')) {
       const j = await res.json();
       return j?.error || j?.message || JSON.stringify(j);
     }
-    const t = await res.text();
-    return t || `${res.status} ${res.statusText}`;
-  } catch {
+    return (await res.text()) || `${res.status} ${res.statusText}`;
+  }catch{
     return `${res.status} ${res.statusText}`;
   }
 }
 
-async function apiApprove() {
-  if (!invoiceNo) throw new Error('Invoice number missing');
-
-  // always re-check status right before approve
-  const snap = await fetchInvoiceStatus();
-  const status = snap?.status || null;
-
-  if (status !== 'pending') {
-    throw new Error('Only pending invoices can be approved');
-  }
-
-  const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/approve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include'
-  });
-
-  if (!res.ok) throw new Error(await readError(res));
-
-  let data = null;
-  try { data = await res.json(); } catch(e){}
-  return data || { ok: true };
-}
-
+/* ===============================
+   APPROVE (primary)
+================================ */
 async function approveOnly(){
   closeAllMenus();
   if (isBusy) return;
 
   try{
     setBusy(true);
-    await apiApprove();
 
+    await fetchInvoiceStatus();
+    if (latestStatus !== 'pending') throw new Error('Only pending invoices can be approved');
+
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
+    });
+    if (!res.ok) throw new Error(await readError(res));
+
+    latestStatus = 'approved';
     els.statusPill.textContent = 'APPROVED';
-    setApproveVisible(false); // ✅ hide after approving
-
+    setActions(latestStatus);
     toast('Approved', `Invoice ${invoiceNo} approved.`);
   }catch(err){
     toast('Approve failed', err?.message || 'Please try again.');
@@ -524,9 +734,294 @@ async function approveOnly(){
   }
 }
 
-/* =========================================================
-   COPY LINK (optional)
-========================================================= */
+/* ===============================
+   DROPDOWN ACTIONS
+================================ */
+async function approveAndEmail(){
+  closeAllMenus();
+  if (isBusy) return;
+
+  try{
+    setBusy(true);
+
+    await fetchInvoiceStatus();
+    if (latestStatus !== 'pending') throw new Error('Only pending invoices can be approved');
+
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
+    });
+    if (!res.ok) throw new Error(await readError(res));
+
+    latestStatus = 'approved';
+    els.statusPill.textContent = 'APPROVED';
+    setActions(latestStatus);
+    toast('Approved', `Invoice ${invoiceNo} approved.`);
+
+    openEmailModal();
+  }catch(err){
+    toast('Approve failed', err?.message || 'Please try again.');
+  }finally{
+    setBusy(false);
+  }
+}
+
+async function approveAndViewNext(){
+  closeAllMenus();
+  if (isBusy) return;
+
+  try{
+    setBusy(true);
+
+    await fetchInvoiceStatus();
+    if (latestStatus !== 'pending') throw new Error('Only pending invoices can be approved');
+
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include'
+    });
+    if (!res.ok) throw new Error(await readError(res));
+
+    latestStatus = 'approved';
+    els.statusPill.textContent = 'APPROVED';
+    setActions(latestStatus);
+    toast('Approved', `Invoice ${invoiceNo} approved.`);
+
+    window.location.href = '/invoice-list.html?status=pending';
+  }catch(err){
+    toast('Approve failed', err?.message || 'Please try again.');
+  }finally{
+    setBusy(false);
+  }
+}
+
+/* ===============================
+   EMAIL MODAL
+================================ */
+function openEmailModal(){
+  closeAllMenus();
+  if (!invoiceNo) return toast('Missing invoice', 'Invoice number missing.');
+
+  els.emailInvoiceNo.value = invoiceNo;
+  els.emailSubject.value = `Invoice ${invoiceNo}`;
+  els.emailMessage.value = '';
+  els.emailStatus.textContent = '';
+
+  const guess = (latestInvoice && (latestInvoice.email || latestInvoice.customer_email || latestInvoice.bill_to_email)) || '';
+  if (!els.emailTo.value) els.emailTo.value = guess;
+
+  els.emailBackdrop.style.display = 'block';
+  els.emailModal.style.display = 'flex';
+  setTimeout(() => els.emailTo.focus(), 50);
+}
+
+function closeEmailModal(){
+  els.emailBackdrop.style.display = 'none';
+  els.emailModal.style.display = 'none';
+}
+els.emailBackdrop.addEventListener('click', closeEmailModal);
+
+async function sendInvoiceEmail(){
+  if (isBusy) return;
+
+  const to = String(els.emailTo.value || '').trim();
+  if (!to) { els.emailStatus.textContent = '❌ Please enter recipient email.'; return; }
+
+  const payload = {
+    to,
+    subject: String(els.emailSubject.value || '').trim(),
+    message: String(els.emailMessage.value || '').trim()
+  };
+
+  try{
+    setBusy(true);
+    els.emailStatus.textContent = '⏳ Queueing email...';
+
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      els.emailStatus.textContent = `❌ ${await readError(res)}`;
+      return;
+    }
+
+    els.emailStatus.textContent = '✅ Email queued.';
+    toast('Queued', `Invoice ${invoiceNo} email queued to ${to}.`);
+    setTimeout(closeEmailModal, 700);
+  }catch{
+    els.emailStatus.textContent = '❌ Network error. Please try again.';
+  }finally{
+    setBusy(false);
+  }
+}
+
+/* ===============================
+   SIGN MODAL + SIGN PAD
+================================ */
+function openSignModal(){
+  closeAllMenus();
+  if (!invoiceNo) return toast('Missing invoice', 'Invoice number missing.');
+
+  // allow sign only if approved
+  if (latestStatus !== 'approved') {
+    return toast('Not allowed', 'Signing is available for approved invoices only.');
+  }
+
+  const alreadySigned = !!(latestInvoice && (latestInvoice.signed_at || latestInvoice.signature_image));
+  if (alreadySigned){
+    return toast('Already signed', 'This invoice already has a signature.');
+  }
+
+  els.signInvoiceNo.value = invoiceNo;
+  els.signName.value = '';
+  els.signStatus.textContent = '';
+
+  els.signBackdrop.style.display = 'block';
+  els.signModal.style.display = 'flex';
+
+  initSignCanvas();
+  setTimeout(() => els.signName.focus(), 50);
+}
+
+function closeSignModal(){
+  els.signBackdrop.style.display = 'none';
+  els.signModal.style.display = 'none';
+}
+els.signBackdrop.addEventListener('click', closeSignModal);
+
+function initSignCanvas(){
+  const c = els.signCanvas;
+  if (!c) return;
+
+  signCtx = c.getContext('2d');
+
+  // reset canvas
+  signCtx.clearRect(0, 0, c.width, c.height);
+  signCtx.lineWidth = 2.2;
+  signCtx.lineCap = 'round';
+  signCtx.strokeStyle = '#111';
+
+  // avoid duplicate listeners
+  if (c.__SIGN_BOUND__) return;
+  c.__SIGN_BOUND__ = true;
+
+  const getPos = (e) => {
+    const r = c.getBoundingClientRect();
+    const isTouch = !!e.touches;
+    const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+    const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - r.left, y: clientY - r.top };
+  };
+
+  const start = (e) => {
+    signDrawing = true;
+    signLast = getPos(e);
+    e.preventDefault();
+  };
+
+  const move = (e) => {
+    if (!signDrawing) return;
+    const p = getPos(e);
+
+    // Scale drawing to canvas resolution (canvas styled responsive)
+    const r = c.getBoundingClientRect();
+    const sx = c.width / r.width;
+    const sy = c.height / r.height;
+
+    signCtx.beginPath();
+    signCtx.moveTo(signLast.x * sx, signLast.y * sy);
+    signCtx.lineTo(p.x * sx, p.y * sy);
+    signCtx.stroke();
+
+    signLast = p;
+    e.preventDefault();
+  };
+
+  const end = () => {
+    signDrawing = false;
+    signLast = null;
+  };
+
+  c.addEventListener('mousedown', start);
+  c.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+
+  c.addEventListener('touchstart', start, { passive:false });
+  c.addEventListener('touchmove', move, { passive:false });
+  c.addEventListener('touchend', end);
+}
+
+function clearSignCanvas(){
+  const c = els.signCanvas;
+  if (!c || !signCtx) return;
+  signCtx.clearRect(0, 0, c.width, c.height);
+  els.signStatus.textContent = '';
+}
+
+function isCanvasBlank(canvas){
+  const ctx = canvas.getContext('2d');
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  for (let i = 3; i < pixels.length; i += 4){
+    if (pixels[i] !== 0) return false;
+  }
+  return true;
+}
+
+async function saveSignature(){
+  if (isBusy) return;
+
+  const name = String(els.signName.value || '').trim();
+  if (!name) {
+    els.signStatus.textContent = '❌ Please enter signer name.';
+    return;
+  }
+
+  const c = els.signCanvas;
+  if (!c || isCanvasBlank(c)) {
+    els.signStatus.textContent = '❌ Please sign in the box.';
+    return;
+  }
+
+  try{
+    setBusy(true);
+    els.signStatus.textContent = '⏳ Saving signature...';
+
+    const signatureImage = c.toDataURL('image/png');
+
+    const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/signature`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ signatureImage, signatureName: name })
+    });
+
+    if (!res.ok){
+      els.signStatus.textContent = `❌ ${await readError(res)}`;
+      return;
+    }
+
+    els.signStatus.textContent = '✅ Signed.';
+    toast('Signed', `Invoice ${invoiceNo} signed.`);
+    closeSignModal();
+
+    await fetchInvoiceStatus();
+    loadPdf();
+  }catch{
+    els.signStatus.textContent = '❌ Network error. Please try again.';
+  }finally{
+    setBusy(false);
+  }
+}
+
+/* ===============================
+   OTHER
+================================ */
 function copyPreviewLink(){
   closeAllMenus();
   const link = `${window.location.origin}${window.location.pathname}?invoice_no=${encodeURIComponent(invoiceNo)}`;
@@ -535,28 +1030,43 @@ function copyPreviewLink(){
     .catch(()=> toast('Copy failed', 'Clipboard not available.'));
 }
 
-/* =========================================================
-   SHORTCUTS (only when approve is visible/pending)
-========================================================= */
 window.addEventListener('keydown', async (e) => {
   const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
   const typing = (tag === 'input' || tag === 'textarea' || e.target.isContentEditable);
 
-  // Ctrl+Alt+A approve (works only when pending)
+  // Ctrl+Alt+A => Approve & Email (pending only)
   if (!typing && e.ctrlKey && e.altKey && e.key.toLowerCase() === 'a'){
     e.preventDefault();
-
-    // ensure pending; fetchInvoiceStatus also updates visibility
-    const snap = await fetchInvoiceStatus();
-    if (snap?.status !== 'pending') {
-      toast('Not allowed', 'Approve is only available for pending invoices.');
-      return;
-    }
-
-    approveOnly();
+    await fetchInvoiceStatus();
+    if (latestStatus !== 'pending') return toast('Not allowed', 'Approve is only available for pending invoices.');
+    approveAndEmail();
   }
 
-  // Ctrl+Shift+L copy link
+  // Ctrl+Alt+N => Approve & View Next (pending only)
+  if (!typing && e.ctrlKey && e.altKey && e.key.toLowerCase() === 'n'){
+    e.preventDefault();
+    await fetchInvoiceStatus();
+    if (latestStatus !== 'pending') return toast('Not allowed', 'Approve is only available for pending invoices.');
+    approveAndViewNext();
+  }
+
+  // Ctrl+Alt+E => Email (approved only)
+  if (!typing && e.ctrlKey && e.altKey && e.key.toLowerCase() === 'e'){
+    e.preventDefault();
+    await fetchInvoiceStatus();
+    if (latestStatus !== 'approved') return toast('Not allowed', 'Email button is available for approved invoices.');
+    openEmailModal();
+  }
+
+  // Ctrl+Alt+S => Sign (approved only)
+  if (!typing && e.ctrlKey && e.altKey && e.key.toLowerCase() === 's'){
+    e.preventDefault();
+    await fetchInvoiceStatus();
+    if (latestStatus !== 'approved') return toast('Not allowed', 'Signing is available for approved invoices only.');
+    openSignModal();
+  }
+
+  // Ctrl+Shift+L => Copy link
   if (!typing && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l'){
     e.preventDefault();
     copyPreviewLink();
@@ -565,9 +1075,6 @@ window.addEventListener('keydown', async (e) => {
   if (e.key === 'Escape') closeAllMenus();
 });
 
-/* =========================================================
-   INIT
-========================================================= */
 loadPdf();
 fetchInvoiceStatus();
 </script>

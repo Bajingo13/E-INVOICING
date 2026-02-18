@@ -446,7 +446,10 @@ importFileInput?.addEventListener("change", async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  const type = prompt("Import as Customer or Supplier? (C/S)").toUpperCase();
+  const typeRaw = prompt("Import as Customer or Supplier? (C/S)");
+if (!typeRaw) return;
+const type = typeRaw.trim().toUpperCase();
+
   if (!["C","S"].includes(type)) {
     alert("Invalid type. Enter C or S.");
     return;

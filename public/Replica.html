@@ -4,13 +4,9 @@
   <meta charset="UTF-8" />
   <title>Service Invoice</title>
 
-  <!-- MAIN PRINT STYLES -->
   <link rel="stylesheet" href="Replica.css" />
 
   <style>
-    /* =============================
-       DOCUMENT WRAPPER
-    ============================= */
     body {
       margin: 0;
       background: #fff;
@@ -27,124 +23,170 @@
       box-sizing: border-box;
     }
 
-    /* =============================
-       PRINT
-    ============================= */
     @page {
       size: letter;
       margin: 0.5in;
     }
 
     @media print {
-      body {
-        background: #fff;
-      }
+      body { background: #fff; }
+    }
+
+    /* =============================
+       SIGNATURE BLOCK (PDF SAFE)
+    ============================= */
+    .sign-wrap{
+      margin-top: 16px;
+      width: 100%;
+      display:flex;
+      justify-content:center;
+    }
+    .sign-card{
+      width: 360px;
+      text-align:center;
+    }
+    .sign-img{
+      width: 320px;
+      height: 110px;
+      object-fit: contain;
+      display:none;
+      margin: 0 auto 6px auto;
+    }
+    .sign-line{
+      border-top: 1px solid #000;
+      width: 320px;
+      margin: 6px auto 6px auto;
+      display:none;
+    }
+    .sign-name{
+      font-weight: 700;
+      font-size: 13px;
+      display:none;
+    }
+    .sign-meta{
+      font-size: 11px;
+      color: #222;
+      margin-top: 2px;
+      display:none;
+    }
+    .sign-fallback{
+      font-size: 12px;
+      font-weight: 700;
+      text-align:center;
+      display:block;
     }
   </style>
 </head>
 
 <body>
 <div id="invoiceContent">
-<div class="invoice-page">
-<div id="wm" class="watermark" aria-hidden="true"></div>
-  <!-- ===================== HEADER ===================== -->
-  <div class="header">
-    <div class="logo">
-      <img id="invoice-logo" src="" alt="Company Logo" />
+  <div class="invoice-page">
+    <div id="wm" class="watermark" aria-hidden="true"></div>
+
+    <!-- ===================== HEADER ===================== -->
+    <div class="header">
+      <div class="logo">
+        <img id="invoice-logo" src="" alt="Company Logo" />
+      </div>
+
+      <div class="company-info">
+        <strong id="company-name"></strong><br>
+        <span id="company-address"></span><br>
+        Tel. No.: <span id="company-tel"></span><br>
+        VAT Reg. TIN: <span id="company-tin"></span>
+      </div>
+
+      <div class="invoice-box">
+        <div id="invoiceStatus" class="invoice-status"></div>
+        <div class="invoice-title">SERVICE INVOICE</div>
+        <div><strong>Invoice No.:</strong> <span id="invoice_no"></span></div>
+        <div><strong>Date:</strong> <span id="invoice_date"></span></div>
+      </div>
     </div>
 
-    <div class="company-info">
-      <strong id="company-name"></strong><br>
-      <span id="company-address"></span><br>
-      Tel. No.: <span id="company-tel"></span><br>
-      VAT Reg. TIN: <span id="company-tin"></span>
+    <!-- ===================== BILLING INFO ===================== -->
+    <table class="info-table">
+      <tr>
+        <td style="width:65%; vertical-align: top;">
+          <strong>SOLD TO:</strong> <span id="billTo"></span><br>
+          <strong>ADDRESS:</strong> <span id="address"></span><br>
+          <strong>VAT Reg. TIN:</strong> <span id="tin"></span>
+        </td>
+
+        <td style="width:50%; vertical-align: top;">
+          <div style="padding-left: 120px;">
+            <strong>TERMS:</strong> <span id="terms_table"></span><br>
+            <strong>RATE:</strong> <span id="exchange_rate"></span>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- ===================== ITEMS TABLE ===================== -->
+    <table class="invoice-table">
+      <colgroup id="invoice-colgroup"></colgroup>
+      <thead>
+        <tr id="replica-thead-row"></tr>
+      </thead>
+      <tbody id="itemRows"></tbody>
+    </table>
+
+    <!-- ===================== TAX SUMMARY ===================== -->
+    <table class="payment-table">
+      <thead>
+        <tr><th colspan="2"></th></tr>
+      </thead>
+      <tbody>
+        <tr><td>VATable Sales</td><td id="vatableSales"></td></tr>
+        <tr><td>Add: VAT Amount</td><td id="vatAmount"></td></tr>
+        <tr><td>VAT Exempt Sales</td><td id="vatExemptSales"></td></tr>
+        <tr><td>VAT Zero Rated Sales</td><td id="zeroRatedSales"></td></tr>
+        <tr><td>Subtotal</td><td id="subtotal"></td></tr>
+        <tr><td>Less: Discount</td><td id="discount"></td></tr>
+        <tr><td>Less: Withholding Tax</td><td id="withholdingTax"></td></tr>
+        <tr><td><strong>Total Amount Due</strong></td><td id="totalPayable"></td></tr>
+      </tbody>
+    </table>
+
+    <!-- ===================== SIGNATURE (dynamic) ===================== -->
+    <div class="sign-wrap">
+      <div class="sign-card">
+        <img id="sigImg" class="sign-img" alt="Signature" />
+        <div id="sigLine" class="sign-line"></div>
+        <div id="sigName" class="sign-name"></div>
+        <div id="sigMeta" class="sign-meta"></div>
+
+        <!-- default message (when not signed OR credit/debit hides it) -->
+        <div id="signature" class="print-signature sign-fallback">
+          THIS IS SYSTEM GENERATED. NO SIGNATURE REQUIRED.
+        </div>
+      </div>
     </div>
 
-    <div class="invoice-box">
-      <div id="invoiceStatus" class="invoice-status"></div>
-      <div class="invoice-title">SERVICE INVOICE</div>
-      <div><strong>Invoice No.:</strong> <span id="invoice_no"></span></div>
-      <div><strong>Date:</strong> <span id="invoice_date"></span></div>
+    <div id="inputTaxNotice"
+         style="margin-top:20px; font-weight:bold; text-align:center; width:100%; display:none;">
+      THIS DOCUMENT IS NOT VALID FOR INPUT TAX
+    </div>
+
+    <br><br>
+
+    <!-- ===================== FOOTER ===================== -->
+    <footer class="footer-info">
+      <div class="left-footer">
+        BIR Permit No.: <span id="footer-bir-permit"></span><br>
+        Date Issued: <span id="footer-bir-date"></span><br>
+        Approved Serial Nos.: <span id="footer-serial-nos"></span>
+        <div>E-Invoicing System v1.0.0 (Development)</div>
+      </div>
+    </footer>
+
+    <div class="print-footer-meta">
+      <span class="print-timestamp"></span>
+      <span class="print-page"></span>
     </div>
   </div>
-
-  <!-- ===================== BILLING INFO ===================== -->
-  <table class="info-table">
-  <tr>
-    <!-- LEFT COLUMN -->
-    <td style="width:65%; vertical-align: top;">
-      <strong>SOLD TO:</strong> <span id="billTo"></span><br>
-      <strong>ADDRESS:</strong> <span id="address"></span><br>
-      <strong>VAT Reg. TIN:</strong> <span id="tin"></span>
-    </td>
-
-    <!-- RIGHT COLUMN -->
-    <td style="width:50%; vertical-align: top;">
-      <div style="padding-left: 120px;">
-      <strong>TERMS:</strong> <span id="terms_table"></span><br>
-      <strong>RATE:</strong> <span id="exchange_rate"></span>
-      </div>
-    </td>
-  </tr>
-</table>
-
-
-  <!-- ===================== ITEMS TABLE ===================== -->
-  <table class="invoice-table">
-    <colgroup id="invoice-colgroup"></colgroup>
-    <thead>
-      <tr id="replica-thead-row"></tr>
-    </thead>
-    <tbody id="itemRows"></tbody>
-  </table>
-
-  <!-- ===================== TAX SUMMARY ===================== -->
-  <table class="payment-table">
-    <thead>
-      <tr>
-        <th colspan="2"></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td>VATable Sales</td><td id="vatableSales"></td></tr>
-      <tr><td>Add: VAT Amount</td><td id="vatAmount"></td></tr>
-      <tr><td>VAT Exempt Sales</td><td id="vatExemptSales"></td></tr>
-      <tr><td>VAT Zero Rated Sales</td><td id="zeroRatedSales"></td></tr>
-      <tr><td>Subtotal</td><td id="subtotal"></td></tr>
-      <tr><td>Less: Discount</td><td id="discount"></td></tr>
-      <tr><td>Less: Withholding Tax</td><td id="withholdingTax"></td></tr>
-      <tr><td><strong>Total Amount Due</strong></td><td id="totalPayable"></td></tr>
-    </tbody>
-  </table>
-<div id="signature" class="print-signature">
-  THIS IS SYSTEM GENERATED. NO SIGNATURE REQUIRED.
 </div>
- <div id="inputTaxNotice" 
-     style="margin-top:20px; font-weight:bold; text-align:center; width:100%; display:none;">
-  THIS DOCUMENT IS NOT VALID FOR INPUT TAX
-</div>
-<br><br>
-  <!-- ===================== FOOTER ===================== -->
-  <footer class="footer-info">
-    <div class="left-footer">
-      BIR Permit No.: <span id="footer-bir-permit"></span><br>
-      Date Issued: <span id="footer-bir-date"></span><br>
-      Approved Serial Nos.: <span id="footer-serial-nos"></span>
-      <div>E-Invoicing System v1.0.0 (Development)</div>
-    </div>
-  
-  </footer>
-  <div class="print-footer-meta">
-  <span class="print-timestamp"></span>
-  <span class="print-page"></span>
-</div>
-</div>
-</div>
-</div>
-
-<!-- ===================== SCRIPT ===================== -->
 
 <script src="Replica.js"></script>
-
 </body>
 </html>
