@@ -206,6 +206,50 @@ router.post(
   })
 );
 
+// ---------------- EMAIL INVOICE (APPROVED OR PENDING) ----------------
+router.post(
+  '/invoices/:invoiceNo/email',
+  requireLogin,
+  requirePermission(PERMISSIONS.INVOICE_VIEW), // or a new PERMISSIONS.INVOICE_EMAIL if you want
+  asyncHandler(async (req, res) => {
+    const invoice = await loadInvoice(req.params.invoiceNo);
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+
+    const { to, subject, message } = req.body || {};
+    const emailTo = String(to || '').trim();
+
+    if (!emailTo) return res.status(400).json({ error: 'Missing "to" email' });
+
+    // ✅ Optional: allow only approved to email
+    // const status = String(invoice.status || '').toLowerCase();
+    // if (status !== 'approved') return res.status(400).json({ error: 'Only approved invoices can be emailed' });
+
+    /**
+     * TODO: integrate your mailer here
+     * Example:
+     * await sendInvoiceEmail({
+     *   to: emailTo,
+     *   subject: subject || `Invoice ${invoice.invoice_no}`,
+     *   message: message || '',
+     *   invoiceNo: invoice.invoice_no,
+     *   // attach PDF: fetch from your own /api/invoices/:invoiceNo/pdf route
+     * });
+     */
+
+    await logAudit(pool, req, {
+      action: 'invoice.email',
+      entity_type: 'invoice',
+      entity_id: invoice.invoice_no,
+      summary: `Emailed invoice ${invoice.invoice_no} to ${emailTo}`,
+      success: 1,
+      meta: { to: emailTo, subject: subject || null }
+    });
+
+    res.json({ message: 'Email queued/sent' });
+  })
+);
+
+
 // ---------------- RETURN INVOICE ----------------
 router.post(
   '/invoices/:invoiceNo/return',

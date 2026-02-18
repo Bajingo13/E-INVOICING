@@ -9,129 +9,217 @@
 /* ===============================
    GLOBAL
 ================================ */
+:root{
+  --topbar-h: 56px;
+
+  /* keep your colors */
+  --topbar-bg: #6F75E2;
+  --primary: #0078d4;
+
+  --text: #111;
+  --muted: rgba(255,255,255,.85);
+  --border: rgba(0,0,0,.15);
+
+  --menu-bg: #fff;
+  --menu-text: #111;
+  --menu-border: rgba(0,0,0,.12);
+  --menu-shadow: 0 10px 28px rgba(0,0,0,.26);
+}
+
 html, body {
   height: 100%;
   margin: 0;
   font-family: Arial, sans-serif;
   background: #2b2b2b;
-  color: #111;
+  color: var(--text);
   overflow: auto; /* single scrollbar */
 }
 
 /* ===============================
    TOP BAR
-   (keep your colors; you said no need for color change)
 ================================ */
 .top-bar {
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 2000;
-  height: 56px;
-  background: #6F75E2;
+  height: var(--topbar-h);
+  background: var(--topbar-bg);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid rgba(0,0,0,0.15);
-  overflow: visible; /* allow dropdown */
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  overflow: visible;
 }
 
-.top-bar .left, .top-bar .right {
+.top-left, .top-right {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
-.top-bar .title {
-  font-weight: 700;
-  font-size: 16px;
-}
-
-.top-bar button {
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 14px;
-  color: inherit;
-}
-
-.btn-primary {
-  background: #0078d4;
+.icon-btn{
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
   color: #fff;
-  padding: 6px 12px;
-  border-radius: 4px;
   cursor: pointer;
-  border: none;
+  display: inline-flex;
+  align-items:center;
+  justify-content:center;
+  user-select: none;
+}
+.icon-btn:hover{ background: rgba(255,255,255,.14); }
+.icon-btn:active{ transform: translateY(1px); }
+.icon-btn:focus-visible{
+  outline: 2px solid rgba(255,255,255,.95);
+  outline-offset: 2px;
 }
 
-/* ===============================
-   EXPORT DROPDOWN
-================================ */
-.export-dropdown {
-  position: relative;
-  display: inline-block;
+.title-wrap{
+  display:flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 0;
 }
-
-.export-toggle {
-  background: #0078d4;
-  color: #fff;
-  padding: 6px 14px;
-  border-radius: 4px;
-  border: none;
-  font-size: 14px;
-  cursor: pointer;
+.title-row{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  min-width: 0;
 }
-
-.export-menu {
-  display: none;
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  background: #ffffff;
-  color: #000;
-  min-width: 180px;
-  border-radius: 6px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
-  z-index: 3000;
+.title{
+  font-weight: 800;
+  font-size: 15px;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-.export-menu div {
-  padding: 10px 14px;
-  cursor: pointer;
-  font-size: 14px;
+.sub{
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pill{
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.20);
+  background: rgba(255,255,255,.10);
+  color: #fff;
   white-space: nowrap;
 }
 
-.export-menu div:hover {
-  background: #f1f1f1;
+/* ===============================
+   SPLIT BUTTON (Approve workflow only)
+================================ */
+.split{
+  display: inline-flex;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
 }
+.split .split-main,
+.split .split-caret{
+  border: 0;
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+.split .split-main{ padding-right: 14px; }
+.split .split-caret{
+  width: 38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-left: 1px solid rgba(255,255,255,.22);
+}
+.split .split-main:hover,
+.split .split-caret:hover{ filter: brightness(1.05); }
+.split .split-main:active,
+.split .split-caret:active{ transform: translateY(1px); }
 
-.export-menu.show {
-  display: block;
+.split [disabled]{
+  opacity: .55;
+  cursor: not-allowed;
+  transform:none !important;
+}
+.split [disabled]:hover{ filter:none; }
+
+/* ===============================
+   MENUS
+================================ */
+.dropdown{
+  position:relative;
+  display:inline-flex;
+}
+.menu{
+  display:none;
+  position:absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 260px;
+  background: var(--menu-bg);
+  color: var(--menu-text);
+  border-radius: 12px;
+  border: 1px solid var(--menu-border);
+  box-shadow: var(--menu-shadow);
+  overflow: hidden;
+  z-index: 3000;
+}
+.menu.show{ display:block; }
+.menu .menu-item{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  cursor:pointer;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.menu .menu-item:hover{ background: #f2f3f7; }
+.menu .lefttext{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  min-width: 0;
+}
+.menu .k{
+  font-size: 12px;
+  color: #6b7280;
+}
+.sep{
+  height: 1px;
+  background: #eef0f4;
+  margin: 6px 0;
 }
 
 /* ===============================
-   VIEWER (PDF in iframe)
-   ✅ We remove the custom toolbar + transforms
-   ✅ Chrome PDF Viewer toolbar will appear automatically
+   VIEWER
 ================================ */
 .viewer {
   display: flex;
   justify-content: center;
-  padding: 72px 0 16px 0; /* top bar only */
+  padding: calc(var(--topbar-h) + 16px) 0 16px 0;
 }
-
 .page-container {
   width: min(1100px, calc(100vw - 24px));
-  height: calc(100vh - 56px - 32px);
+  height: calc(100vh - var(--topbar-h) - 32px);
   background: transparent;
   box-shadow: 0 0 18px rgba(0,0,0,.55);
   border-radius: 2px;
-  overflow: hidden; /* keeps the embedded PDF viewer clean */
+  overflow: hidden;
 }
-
 iframe {
   width: 100%;
   height: 100%;
@@ -140,13 +228,48 @@ iframe {
 }
 
 /* ===============================
+   TOASTS
+================================ */
+.toast-wrap{
+  position: fixed;
+  top: calc(var(--topbar-h) + 12px);
+  right: 12px;
+  z-index: 4000;
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events:none;
+}
+.toast{
+  pointer-events:auto;
+  background: rgba(17,24,39,.92);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  max-width: 360px;
+  display:flex;
+  align-items:flex-start;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,.12);
+}
+.toast .t-title{ font-weight: 800; font-size: 13px; margin-bottom: 2px; }
+.toast .t-msg{ font-size: 13px; opacity: .95; }
+.toast .t-x{
+  margin-left:auto;
+  background: transparent;
+  border: 0;
+  color: rgba(255,255,255,.9);
+  cursor:pointer;
+  font-size: 16px;
+}
+
+/* ===============================
    PRINT CLEAN
-   (printing an iframe PDF uses browser PDF print anyway,
-    but we keep your rule for safety)
 ================================ */
 @media print {
   body { background: #fff; }
-  .top-bar, .export-menu, .btn-primary { display: none !important; }
+  .top-bar, .menu, .toast-wrap { display: none !important; }
   .page-container { box-shadow: none !important; width: 100%; height: auto; }
 }
 </style>
@@ -154,29 +277,41 @@ iframe {
 
 <body>
 
+<div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+
 <!-- =================== TOP BAR =================== -->
-<div class="top-bar">
-  <div class="left">
-    <button onclick="closePreview()" aria-label="Close">✕</button>
-    <span class="title">Invoice preview</span>
+<div class="top-bar" role="banner">
+  <div class="top-left">
+    <button class="icon-btn" onclick="closePreview()" aria-label="Close preview">✕</button>
+
+    <div class="title-wrap">
+      <div class="title-row">
+        <span class="title">Invoice preview</span>
+        <span class="pill" id="invoicePill" title="Invoice number">—</span>
+        <span class="pill" id="statusPill" title="Invoice status">…</span>
+      </div>
+      <div class="sub" id="subText">PDF viewer with native toolbar</div>
+    </div>
   </div>
 
-  <div class="right">
-    <button onclick="openSettings()">Invoice settings</button>
+  <div class="top-right">
+    <!-- ✅ Approve shows ONLY when pending -->
+    <div class="dropdown split" id="approveSplit" aria-label="Approve options" style="display:none;">
+      <button class="split-main" id="btnApprove" onclick="approveOnly()">Approve</button>
+      <button class="split-caret" aria-haspopup="menu" aria-expanded="false" onclick="toggleMenu('approveMenu', this)">▾</button>
 
-    <div class="export-dropdown">
-      <button class="btn-primary export-toggle" onclick="toggleExportMenu()">
-        Export ▾
-      </button>
-
-      <div class="export-menu" id="exportMenu">
-        <div onclick="downloadPDF()">Download PDF</div>
-        <div onclick="printPDF()">Print</div>
-        <div onclick="exportExcel()">Export to Excel (.xlsx)</div>
+      <div class="menu" id="approveMenu" role="menu">
+        <div class="menu-item" role="menuitem" onclick="approveOnly()">
+          <span class="lefttext">Approve</span>
+          <span class="k">Ctrl+Alt+A</span>
+        </div>
+        <div class="sep"></div>
+        <div class="menu-item" role="menuitem" onclick="copyPreviewLink()">
+          <span class="lefttext">Copy preview link</span>
+          <span class="k">Ctrl+Shift+L</span>
+        </div>
       </div>
     </div>
-
-    <button class="more-btn" aria-label="More">⋮</button>
   </div>
 </div>
 
@@ -187,13 +322,82 @@ iframe {
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
-
 <script>
-/* ===============================
-   HELPERS
-================================ */
+/* =========================================================
+   STATE
+========================================================= */
 const frame = document.getElementById('pdfFrame');
+const params = new URLSearchParams(window.location.search);
+const invoiceNo = (params.get('invoice_no') || '').trim();
+
+const els = {
+  invoicePill: document.getElementById('invoicePill'),
+  statusPill: document.getElementById('statusPill'),
+  toastWrap: document.getElementById('toastWrap'),
+  subText: document.getElementById('subText'),
+  approveSplit: document.getElementById('approveSplit')
+};
+
+let isBusy = false;
+
+/* =========================================================
+   TOAST
+========================================================= */
+function toast(title, msg, ms = 3200){
+  const wrap = els.toastWrap;
+  const node = document.createElement('div');
+  node.className = 'toast';
+  node.innerHTML = `
+    <div>
+      <div class="t-title"></div>
+      <div class="t-msg"></div>
+    </div>
+    <button class="t-x" aria-label="Dismiss">✕</button>
+  `;
+  node.querySelector('.t-title').textContent = title || 'Notice';
+  node.querySelector('.t-msg').textContent = msg || '';
+  node.querySelector('.t-x').onclick = () => node.remove();
+  wrap.appendChild(node);
+  setTimeout(() => { if (node.isConnected) node.remove(); }, ms);
+}
+
+/* =========================================================
+   MENUS
+========================================================= */
+function closeAllMenus(){
+  document.querySelectorAll('.menu.show').forEach(m => m.classList.remove('show'));
+  document.querySelectorAll('[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded','false'));
+}
+
+function toggleMenu(menuId, triggerBtn){
+  const menu = document.getElementById(menuId);
+  if (!menu) return;
+
+  const isOpen = menu.classList.contains('show');
+  closeAllMenus();
+
+  if (!isOpen){
+    menu.classList.add('show');
+    if (triggerBtn && triggerBtn.setAttribute) triggerBtn.setAttribute('aria-expanded','true');
+  }
+}
+
+window.addEventListener('click', (e) => {
+  const inside = e.target.closest('.dropdown') || e.target.closest('.menu');
+  if (!inside) closeAllMenus();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeAllMenus();
+});
+
+/* =========================================================
+   HELPERS
+========================================================= */
+function setBusy(on){
+  isBusy = !!on;
+  document.querySelectorAll('#approveSplit button').forEach(b => b.disabled = isBusy);
+}
 
 function closePreview() {
   if (window.opener) window.close();
@@ -201,200 +405,171 @@ function closePreview() {
   else window.location.href = '/invoice-list.html';
 }
 
-function openSettings() { alert('Invoice settings (future)'); }
-
-/* ===============================
-   EXPORT DROPDOWN TOGGLE
-================================ */
-function toggleExportMenu() {
-  document.getElementById('exportMenu')?.classList.toggle('show');
+/* =========================================================
+   PDF LOAD (native toolbar handles print/download)
+========================================================= */
+function buildPdfUrl(){
+  if (!invoiceNo) return '';
+  const encoded = encodeURIComponent(invoiceNo);
+  const fname = encodeURIComponent(`Invoice-${invoiceNo}.pdf`);
+  return `/api/invoices/${encoded}/pdf?disposition=inline&filename=${fname}`;
 }
 
-window.addEventListener('click', function (e) {
-  const dropdown = document.querySelector('.export-dropdown');
-  if (dropdown && !dropdown.contains(e.target)) {
-    document.getElementById('exportMenu')?.classList.remove('show');
+function loadPdf(){
+  if (!invoiceNo) {
+    els.invoicePill.textContent = 'No invoice';
+    els.statusPill.textContent = '—';
+    toast('Missing invoice', 'No invoice number provided in the URL (?invoice_no=...).');
+    frame.src = '';
+    return;
   }
+  els.invoicePill.textContent = invoiceNo;
+  frame.src = buildPdfUrl();
+}
+
+/* =========================================================
+   SHOW APPROVE ONLY WHEN PENDING
+========================================================= */
+function setApproveVisible(isPending){
+  // show only on pending
+  els.approveSplit.style.display = isPending ? 'inline-flex' : 'none';
+
+  // update shortcut hint
+  els.subText.textContent = isPending
+    ? 'Shortcut: Ctrl+Alt+A approve'
+    : 'PDF viewer with native toolbar';
+}
+
+/* =========================================================
+   FETCH STATUS (pill + approve visibility)
+========================================================= */
+async function fetchInvoiceStatus() {
+  if (!invoiceNo) return null;
+  try {
+    const r = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`, { credentials: 'include' });
+    if (!r.ok) return null;
+
+    const inv = await r.json();
+    const status = String(inv?.status || '').toLowerCase();
+
+    els.statusPill.textContent = status ? status.toUpperCase() : '—';
+    setApproveVisible(status === 'pending');
+
+    return { inv, status };
+  } catch {
+    els.statusPill.textContent = '—';
+    setApproveVisible(false);
+    return null;
+  }
+}
+
+/* =========================================================
+   APPROVE WORKFLOW (matches your backend)
+   POST /api/invoices/:invoiceNo/approve (only pending allowed)
+========================================================= */
+async function readError(res) {
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  try {
+    if (ct.includes('application/json')) {
+      const j = await res.json();
+      return j?.error || j?.message || JSON.stringify(j);
+    }
+    const t = await res.text();
+    return t || `${res.status} ${res.statusText}`;
+  } catch {
+    return `${res.status} ${res.statusText}`;
+  }
+}
+
+async function apiApprove() {
+  if (!invoiceNo) throw new Error('Invoice number missing');
+
+  // always re-check status right before approve
+  const snap = await fetchInvoiceStatus();
+  const status = snap?.status || null;
+
+  if (status !== 'pending') {
+    throw new Error('Only pending invoices can be approved');
+  }
+
+  const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include'
+  });
+
+  if (!res.ok) throw new Error(await readError(res));
+
+  let data = null;
+  try { data = await res.json(); } catch(e){}
+  return data || { ok: true };
+}
+
+async function approveOnly(){
+  closeAllMenus();
+  if (isBusy) return;
+
+  try{
+    setBusy(true);
+    await apiApprove();
+
+    els.statusPill.textContent = 'APPROVED';
+    setApproveVisible(false); // ✅ hide after approving
+
+    toast('Approved', `Invoice ${invoiceNo} approved.`);
+  }catch(err){
+    toast('Approve failed', err?.message || 'Please try again.');
+  }finally{
+    setBusy(false);
+  }
+}
+
+/* =========================================================
+   COPY LINK (optional)
+========================================================= */
+function copyPreviewLink(){
+  closeAllMenus();
+  const link = `${window.location.origin}${window.location.pathname}?invoice_no=${encodeURIComponent(invoiceNo)}`;
+  navigator.clipboard.writeText(link)
+    .then(()=> toast('Copied', 'Preview link copied.'))
+    .catch(()=> toast('Copy failed', 'Clipboard not available.'));
+}
+
+/* =========================================================
+   SHORTCUTS (only when approve is visible/pending)
+========================================================= */
+window.addEventListener('keydown', async (e) => {
+  const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+  const typing = (tag === 'input' || tag === 'textarea' || e.target.isContentEditable);
+
+  // Ctrl+Alt+A approve (works only when pending)
+  if (!typing && e.ctrlKey && e.altKey && e.key.toLowerCase() === 'a'){
+    e.preventDefault();
+
+    // ensure pending; fetchInvoiceStatus also updates visibility
+    const snap = await fetchInvoiceStatus();
+    if (snap?.status !== 'pending') {
+      toast('Not allowed', 'Approve is only available for pending invoices.');
+      return;
+    }
+
+    approveOnly();
+  }
+
+  // Ctrl+Shift+L copy link
+  if (!typing && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l'){
+    e.preventDefault();
+    copyPreviewLink();
+  }
+
+  if (e.key === 'Escape') closeAllMenus();
 });
 
-/* ===============================
-   LOAD PDF IN IFRAME (PUPPETEER GENERATED)
-   ✅ This is what gives you the Chrome PDF viewer toolbar like your screenshot.
-   Requires your backend route:
-     GET /api/invoices/:invoiceNo/pdf
-================================ */
-const params = new URLSearchParams(window.location.search);
-const invoiceNo = params.get('invoice_no');
-
-if (!invoiceNo) {
-  alert('No invoice number provided in the URL.');
-  frame.src = '';
-} else {
-  const encodedInvoice = encodeURIComponent(invoiceNo.trim());
-  // inline so iframe shows native viewer controls
-  frame.src = `/api/invoices/${encodedInvoice}/pdf?disposition=inline&filename=${encodeURIComponent(`Invoice-${invoiceNo}.pdf`)}`;
-}
-
-/* ===============================
-   ACTIONS (PDF)
-================================ */
-function printPDF() {
-  // Works in most browsers; if cross-origin blocks, user can click print in the PDF toolbar
-  try {
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
-  } catch (e) {
-    alert('Use the Print button inside the PDF toolbar.');
-  }
-}
-
-function downloadPDF() {
-  if (!invoiceNo) return alert('Invoice number missing');
-  const encodedInvoice = encodeURIComponent(invoiceNo.trim());
-  // force download
-  const url = `/api/invoices/${encodedInvoice}/pdf?disposition=attachment&filename=${encodeURIComponent(`Invoice-${invoiceNo}.pdf`)}`;
-  window.open(url, '_blank');
-}
-
-/* ===============================
-   EXPORT EXCEL (UNCHANGED)
-================================ */
-async function exportExcel() {
-  if (!invoiceNo) {
-    alert('Invoice number missing');
-    return;
-  }
-
-  const res = await fetch(`/api/invoices/${encodeURIComponent(invoiceNo)}`);
-  if (!res.ok) {
-    alert('Invoice not found');
-    return;
-  }
-  const inv = await res.json();
-
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Invoice');
-
-  ws.pageSetup = {
-    paperSize: 9, // A4
-    orientation: 'portrait',
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 1,
-    margins: { left: 0.5, right: 0.5, top: 0.75, bottom: 0.75 }
-  };
-
-  ws.columns = [
-    { width: 4 },   // A
-    { width: 14 },  // B
-    { width: 18 },  // C
-    { width: 10 },  // D
-    { width: 10 },  // E
-    { width: 10 },  // F
-    { width: 10 },  // G
-    { width: 10 },  // H
-    { width: 12 },  // I
-    { width: 14 }   // J
-  ];
-
-  let r = 1;
-
-  ws.mergeCells(`A${r}:J${r}`);
-  ws.getCell(`A${r}`).value = inv.company_name || '';
-  ws.getCell(`A${r}`).font = { size: 16, bold: true };
-  ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
-  r++;
-
-  ws.mergeCells(`A${r}:J${r}`);
-  ws.getCell(`A${r}`).value = inv.company_address || '';
-  ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
-  r++;
-
-  ws.mergeCells(`A${r}:J${r}`);
-  ws.getCell(`A${r}`).value = `TIN: ${inv.company_tin || ''}`;
-  ws.getCell(`A${r}`).alignment = { horizontal: 'center' };
-  r += 2;
-
-  ws.mergeCells(`A${r}:E${r}`);
-  ws.mergeCells(`F${r}:J${r}`);
-  ws.getCell(`A${r}`).value = 'BILL TO';
-  ws.getCell(`F${r}`).value = 'SOLD TO';
-  ws.getCell(`A${r}`).font = ws.getCell(`F${r}`).font = { bold: true };
-  r++;
-
-  ws.mergeCells(`A${r}:E${r}`);
-  ws.mergeCells(`F${r}:J${r}`);
-  ws.getCell(`A${r}`).value = inv.bill_to_name || '';
-  ws.getCell(`F${r}`).value = inv.sold_to_name || '';
-  r++;
-
-  ws.mergeCells(`A${r}:E${r}`);
-  ws.mergeCells(`F${r}:J${r}`);
-  ws.getCell(`A${r}`).value = inv.bill_to_address || '';
-  ws.getCell(`F${r}`).value = inv.sold_to_address || '';
-  r += 2;
-
-  const headerRow = ws.addRow(['#', 'Description', '', '', 'Qty', 'Unit', 'Price', '', 'Amount', '']);
-  ws.mergeCells(`B${r}:D${r}`);
-  ws.mergeCells(`H${r}:I${r}`);
-
-  headerRow.eachCell(cell => {
-    cell.font = { bold: true };
-    cell.alignment = { horizontal: 'center' };
-    cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' } };
-  });
-  r++;
-
-  (inv.items || []).forEach((item, i) => {
-    const row = ws.addRow([
-      i + 1,
-      item.description || '', '', '',
-      item.qty || '',
-      item.unit || '',
-      item.price || '',
-      '',
-      item.total || '',
-      ''
-    ]);
-
-    ws.mergeCells(`B${r}:D${r}`);
-    ws.mergeCells(`H${r}:I${r}`);
-
-    row.eachCell(cell => {
-      cell.border = { bottom: { style: 'hair' } };
-    });
-
-    r++;
-  });
-
-  r++;
-  ws.mergeCells(`A${r}:H${r}`);
-  ws.getCell(`A${r}`).value = 'TOTAL';
-  ws.getCell(`A${r}`).alignment = { horizontal: 'right' };
-  ws.getCell(`A${r}`).font = { bold: true };
-
-  ws.mergeCells(`I${r}:J${r}`);
-  ws.getCell(`I${r}`).value = inv.total_amount || inv.total_amount_due || '';
-  ws.getCell(`I${r}`).font = { bold: true };
-  ws.getCell(`I${r}`).alignment = { horizontal: 'right' };
-
-  ws.getRow(r).eachCell(cell => {
-    cell.border = { top: { style: 'thin' } };
-  });
-
-  ws.printTitlesRow = '1:1';
-  ws.printArea = `A1:J${r + 2}`;
-
-  const buffer = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
-
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `Invoice-${invoiceNo}.xlsx`;
-  link.click();
-}
+/* =========================================================
+   INIT
+========================================================= */
+loadPdf();
+fetchInvoiceStatus();
 </script>
 
 </body>

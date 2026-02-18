@@ -193,8 +193,8 @@ window.initNavbar = async function initNavbar() {
   const isInvoiceListPage =
     p.includes('/invoice-list') || p.endsWith('/invoice-list.html');
 
-  // STRICT create invoice matching (exclude invoice-list)
-  const isCreateInvoicePage =
+  // STRICT invoice page matching (exclude invoice-list)
+  const isInvoicePage =
     (p === '/invoice' || p === '/invoice/' || p.endsWith('/invoice.html') || p.startsWith('/invoice/'))
     && !isInvoiceListPage;
 
@@ -206,12 +206,96 @@ window.initNavbar = async function initNavbar() {
     p.includes('invoicesettings') ||
     p.includes('ewtlib');
 
+  // Determine edit vs create by invoice_no in URL (query OR /invoice/:invoiceNo)
+  function getInvoiceNoFromUrl() {
+    const qs = new URLSearchParams(window.location.search || '');
+
+    // query-based
+    const q =
+      (qs.get('invoice_no') || qs.get('invoiceNo') || qs.get('no') || '').trim();
+    if (q) return q;
+
+    // path-based: /invoice/INV-1001
+    const parts = (window.location.pathname || '').split('/').filter(Boolean);
+    const idx = parts.findIndex(x => x.toLowerCase() === 'invoice');
+    if (idx >= 0 && parts[idx + 1]) return decodeURIComponent(parts[idx + 1]);
+
+    return '';
+  }
+
+  const invoiceNoInUrl = getInvoiceNoFromUrl();
+  const isEditInvoicePage = isInvoicePage && !!invoiceNoInUrl;
+  const isCreateInvoicePage = isInvoicePage && !isEditInvoicePage;
+
   // Apply states
-  setNavDisabled(createInvoiceBtn, invoiceMenu, isCreateInvoicePage);
+  setNavDisabled(createInvoiceBtn, invoiceMenu, isCreateInvoicePage || isEditInvoicePage);
   setNavDisabled(invoiceListBtn, null, isInvoiceListPage);
   setNavDisabled(accountingBtn, accountingMenu, isAccountingPage);
   setNavDisabled(reportsBtn, reportsMenu, isReportsPage);
   setNavDisabled(systemBtn, systemMenu, isSystemConfigPage);
+
+  // =========================================================
+  // ✅ BREADCRUMB (works with your markup)
+  // <nav id="breadcrumbWrap" class="breadcrumb" style="display:none;">
+  //   <span id="breadcrumb"></span>
+  // </nav>
+  // =========================================================
+  function esc(s){
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function setBreadcrumb(items){
+    const wrap = document.getElementById('breadcrumbWrap');
+    const span = document.getElementById('breadcrumb');
+    if (!wrap || !span) return;
+
+    // Show only if we set something meaningful
+    wrap.style.display = items && items.length ? '' : 'none';
+
+    const html = (items || []).map((it, i) => {
+      const isLast = i === items.length - 1;
+      const label = esc(it.label);
+      const href = it.href ? String(it.href) : '';
+
+      if (!href || isLast) {
+        return `<span class="bc-item bc-current" aria-current="page">${label}</span>`;
+      }
+      return `<a class="bc-item" href="${href}">${label}</a>`;
+    }).join(` <span class="bc-sep">/</span> `);
+
+    span.innerHTML = html;
+  }
+
+  function updateBreadcrumb(){
+    // Default: hide
+    setBreadcrumb([]);
+
+    // If you want breadcrumbs only on invoice pages, keep this guard:
+    if (!isInvoiceListPage && !isInvoicePage) return;
+
+    const crumbs = [
+      { label: 'Dashboard', href: '/dashboard' },
+      { label: 'Invoices', href: '/invoice-list.html' }
+    ];
+
+    if (isInvoiceListPage) {
+      crumbs.push({ label: 'Invoice List' });
+      setBreadcrumb(crumbs);
+      return;
+    }
+
+    if (isInvoicePage) {
+      if (isEditInvoicePage) crumbs.push({ label: `Edit Invoice (${invoiceNoInUrl})` });
+      else crumbs.push({ label: 'Create Invoice' });
+      setBreadcrumb(crumbs);
+      return;
+    }
+  }
+
+  updateBreadcrumb();
 
   // =========================================================
   // DROPDOWNS (single outside click listener, no duplicates)
