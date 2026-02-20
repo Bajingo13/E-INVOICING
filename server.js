@@ -108,6 +108,7 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/invoices/import', require('./routes/invoiceImport'));
 app.use('/api/audit-logs', auditLogsRoute);
 app.use('/api/invoices', invoicePreviewPdfPuppeteerRoutes);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 /* ✅ Recurring invoices runner endpoint */
 app.use('/api/recurring-invoices', require('./routes/recurringInvoices'));

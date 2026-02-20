@@ -171,13 +171,16 @@ function renderInvoice(data) {
   fillById("company-tin", company.vat_tin || "");
 
   if (company.logo_path) {
-    const logoEl = document.getElementById("invoice-logo");
-    if (logoEl) {
-      logoEl.src = company.logo_path;
-      logoEl.style.display = "block";
-    }
-  }
+  const logoEl = document.getElementById("invoice-logo");
+  if (logoEl) {
+    let p = String(company.logo_path || '').trim();
+    if (p && !p.startsWith('http') && !p.startsWith('/')) p = `/uploads/${p}`;
+    if (p.startsWith('uploads/')) p = '/' + p;
 
+    logoEl.src = p;
+    logoEl.style.display = "block";
+  }
+}
   // HEADER
   fillById("invoice_no", invoice.invoice_no || "");
   fillById("invoice_date", invoice.date ? formatDate(invoice.date) : "");
