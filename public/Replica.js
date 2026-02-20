@@ -1,5 +1,5 @@
 // ===============================
-// REPLICA.js — Invoice Renderer & Exporter
+// REPLICA.js — Invoice Renderer & Exporter (₱ FIX READY)
 // ===============================
 
 console.log("✅ REPLICA.js loaded");
@@ -18,8 +18,6 @@ function applyWatermark(statusRaw) {
 
   wm.className = 'watermark';
   wm.textContent = '';
-  wm.style.display = '';
-  wm.style.opacity = '';
 
   if (status === 'draft') {
     wm.textContent = 'DRAFT';
@@ -36,10 +34,6 @@ function applyWatermark(statusRaw) {
 
 /* ============================
    SIGNATURE RENDERER
-   Requires fields in invoice JSON:
-   - signature_image (data URL)
-   - signature_name
-   - signed_at
 ============================ */
 function renderSignature(invoice) {
   const img = document.getElementById('sigImg');
@@ -50,7 +44,7 @@ function renderSignature(invoice) {
 
   const signed = !!(invoice && (invoice.signature_image || invoice.signed_at));
 
-  // If credit/debit invoice type: keep your rule (no signature area)
+  // If credit/debit invoice type: hide signature area
   const invoiceType = String(invoice?.invoice_type || '').toUpperCase();
   const isCreditDebit = invoiceType.includes('CREDIT') || invoiceType.includes('DEBIT');
   if (isCreditDebit) {
@@ -74,7 +68,7 @@ function renderSignature(invoice) {
     return;
   }
 
-  // signed => show signature image + printed name + date
+  // signed => show signature image + name + date
   if (fallback) fallback.style.display = 'none';
 
   if (img) {
@@ -97,8 +91,7 @@ function renderSignature(invoice) {
 }
 
 /* ============================
-   STATUS LABEL (optional)
-   Shows SIGNED if invoice is signed
+   STATUS LABEL
 ============================ */
 function renderStatusLabel(invoice) {
   const el = document.getElementById('invoiceStatus');
@@ -107,7 +100,6 @@ function renderStatusLabel(invoice) {
   const status = String(invoice?.status || '').trim().toUpperCase();
   const signed = !!(invoice && (invoice.signature_image || invoice.signed_at));
 
-  // Example: "APPROVED • SIGNED"
   if (!status && !signed) {
     el.textContent = '';
     return;
@@ -118,30 +110,58 @@ function renderStatusLabel(invoice) {
   else el.textContent = status;
 }
 
-// ============================
-// Main Invoice Renderer
-// ============================
+/* ============================
+   HELPERS
+============================ */
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  return isNaN(date) ? dateStr : date.toLocaleDateString("en-PH");
+}
+
+function fillById(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value || "";
+}
+
+/**
+ * ✅ Multi-currency formatter
+ * - Uses Intl currency formatting
+ * - Works for USD/EUR/PHP etc.
+ * - ₱ will render properly online because CSS forces DejaVuSans on money cells
+ */
+function formatCurrency(value, currency = "PHP") {
+  const num = Number(value);
+  if (!isFinite(num)) return "";
+  try {
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(num);
+  } catch {
+    // Fallback (rare)
+    return `${num.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+}
+
+/**
+ * PHP-only display (if you prefer explicit ₱)
+ */
+function showPHP(val) {
+  const num = Number(val);
+  const n = isFinite(num) ? num : 0;
+  return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/* ============================
+   MAIN RENDER
+============================ */
 function renderInvoice(data) {
   const invoice = data || {};
 
   applyWatermark(invoice.status);
-
-  const formatCurrency = (value, currency = "PHP") => {
-    const num = parseFloat(value);
-    if (isNaN(num)) return "0.00";
-    return num.toLocaleString("en-PH", { style: "currency", currency });
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return isNaN(date) ? dateStr : date.toLocaleDateString("en-PH");
-  };
-
-  const fillById = (id, value) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = value || "";
-  };
 
   // COMPANY
   const company = invoice.company || {};
@@ -169,20 +189,24 @@ function renderInvoice(data) {
   const termsEl = document.getElementById("terms_table");
   if (termsEl) termsEl.innerHTML = invoice.terms || "";
 
-  // EXCHANGE RATE
+  // EXCHANGE RATE (contains ₱)
   const exchangeRateEl = document.getElementById("exchange_rate");
-  const exchangeRate = parseFloat(invoice.exchange_rate || 1);
+  const exchangeRate = Number(invoice.exchange_rate || 1);
 
   if (exchangeRateEl) {
-    if (invoice.currency === "PHP") {
+    // ✅ ensure glyph font via CSS (#exchange_rate uses DejaVuSans)
+    if (invoice.currency === "PHP" || !invoice.currency) {
       exchangeRateEl.textContent = "₱1.00";
     } else {
+      const ex = isFinite(exchangeRate) ? exchangeRate : 1;
       exchangeRateEl.textContent =
-        `1 ${invoice.currency} = ₱${exchangeRate.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+        `1 ${invoice.currency} = ₱${ex.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
   }
 
+  // ============================
   // ITEMS TABLE
+  // ============================
   const buildTable = (items, extraColumns = []) => {
     const theadRow = document.getElementById("replica-thead-row");
     const colgroup = document.getElementById("invoice-colgroup");
@@ -202,12 +226,14 @@ function renderInvoice(data) {
 
     const extraFields = Array.isArray(extraColumns) ? extraColumns : [];
 
+    // Header
     [...MAIN_COLUMNS, ...extraFields.map(f => ({ key: f, label: f }))].forEach(col => {
       const th = document.createElement("th");
       th.textContent = String(col.label).replace(/_/g, " ").toUpperCase();
       theadRow.appendChild(th);
     });
 
+    // Col widths
     MAIN_COLUMNS.forEach(col => {
       const c = document.createElement("col");
       c.style.width = col.width + "%";
@@ -224,6 +250,7 @@ function renderInvoice(data) {
       });
     }
 
+    // Rows
     (items || []).forEach(item => {
       const tr = document.createElement("tr");
 
@@ -231,17 +258,20 @@ function renderInvoice(data) {
         const td = document.createElement("td");
         if (col.key === "description") td.classList.add("desc");
 
-        let val = item?.[col.key];
+        const val = item?.[col.key];
 
-        if (!val) {
+        if (val === null || val === undefined || val === "") {
           td.innerHTML = "&nbsp;";
         } else if (col.key === "unit_price") {
-          td.innerHTML = formatCurrency(val, invoice.currency);
+          td.classList.add("money"); // ✅ forces DejaVuSans for currency glyphs
+          td.textContent = formatCurrency(val, invoice.currency || "PHP");
         } else if (col.key === "amount") {
-          const num = parseFloat(val);
-          td.innerHTML = num ? formatCurrency(num, invoice.currency) : "&nbsp;";
+          td.classList.add("money"); // ✅ forces DejaVuSans
+          const num = Number(val);
+          td.textContent = isFinite(num) ? formatCurrency(num, invoice.currency || "PHP") : "";
+          if (!td.textContent) td.innerHTML = "&nbsp;";
         } else {
-          td.textContent = val;
+          td.textContent = String(val);
         }
 
         tr.appendChild(td);
@@ -249,7 +279,8 @@ function renderInvoice(data) {
 
       extraFields.forEach(f => {
         const td = document.createElement("td");
-        td.innerHTML = (item?.[f] ?? "&nbsp;");
+        const v = item?.[f];
+        td.innerHTML = (v === null || v === undefined || v === "") ? "&nbsp;" : String(v);
         tr.appendChild(td);
       });
 
@@ -260,10 +291,12 @@ function renderInvoice(data) {
   };
 
   const extraFields = buildTable(invoice.items || [], invoice.extra_columns || []);
+  window._extraFields = extraFields;
 
-  // PAYMENT SUMMARY
+  // ============================
+  // PAYMENT SUMMARY (PHP display)
+  // ============================
   const payment = invoice.tax_summary || {};
-  const showPHP = (val) => "₱" + ((parseFloat(val) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 }));
 
   fillById("vatableSales", showPHP(payment.vatable_sales));
   fillById("vatAmount", showPHP(payment.vat_amount));
@@ -292,19 +325,16 @@ function renderInvoice(data) {
     if (signatureNotice) signatureNotice.style.display = "none";
   } else {
     if (inputTaxNotice) inputTaxNotice.style.display = "none";
-    // signatureNotice display is managed by renderSignature()
   }
 
-  // NEW: signature + status label
+  // Signature + status
   renderSignature(invoice);
   renderStatusLabel(invoice);
-
-  window._extraFields = extraFields;
 }
 
-// ============================
-// FETCH INVOICE FROM BACKEND
-// ============================
+/* ============================
+   FETCH INVOICE
+============================ */
 window.onload = async function () {
   const params = new URLSearchParams(window.location.search);
   const invoiceNo = params.get("invoice_no");
@@ -325,6 +355,7 @@ window.onload = async function () {
 
     renderInvoice(data);
 
+    // ✅ let layout + fonts settle (helps Puppeteer too)
     requestAnimationFrame(() => {
       window.__REPLICA_READY = true;
     });
@@ -336,7 +367,9 @@ window.onload = async function () {
   }
 };
 
-// -------------------- FOOTER UPDATE --------------------
+/* ============================
+   FOOTER UPDATE
+============================ */
 function updateOnScreenFooter() {
   const now = new Date();
   document.querySelectorAll('.print-timestamp')

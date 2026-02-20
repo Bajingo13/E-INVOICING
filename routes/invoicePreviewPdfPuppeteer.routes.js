@@ -11,10 +11,7 @@
 
 const express = require('express');
 const router = express.Router();
-
-// Use puppeteer or puppeteer-core depending on your setup
-// If you're using puppeteer-core, ensure executablePath is configured elsewhere
-const puppeteer = require('puppeteer'); // or require('puppeteer-core')
+const puppeteer = require('puppeteer');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -31,8 +28,6 @@ function getBaseUrl(req) {
 }
 
 async function launchBrowser() {
-  // ✅ Stable args for both local Windows dev and Railway Linux
-  // NOTE: DO NOT use --single-process on Windows; it commonly crashes.
   return puppeteer.launch({
     headless: 'new',
     args: [
@@ -64,7 +59,7 @@ router.get('/:invoiceNo/pdf', async (req, res) => {
   let browser;
 
   const invoiceNo = String(req.params.invoiceNo || '').trim();
-  const disposition = (req.query.disposition || 'inline').toString(); // inline | attachment
+  const disposition = (req.query.disposition || 'inline').toString();
   const filename = (req.query.filename || `Invoice-${invoiceNo}.pdf`).toString();
 
   if (!invoiceNo) {
@@ -86,16 +81,14 @@ router.get('/:invoiceNo/pdf', async (req, res) => {
       await page.setExtraHTTPHeaders({ cookie: req.headers.cookie });
     }
 
-    // ✅ Prevent the page from closing itself (common when print=1 triggers window.print/close)
+    // ✅ Prevent print/close from killing the page
     await page.evaluateOnNewDocument(() => {
-      // block print/close so Puppeteer target doesn't close
       window.print = () => {};
       window.close = () => {};
-      // some apps use self.close()
       if (window.self) window.self.close = () => {};
     });
 
-    // ✅ Dismiss any dialogs just in case
+    // ✅ Auto-dismiss dialogs
     page.on('dialog', async (d) => {
       try { await d.dismiss(); } catch (_) {}
     });
@@ -116,24 +109,33 @@ router.get('/:invoiceNo/pdf', async (req, res) => {
     // Navigate
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
 
-    // Wait until your Replica signals ready
+    // Wait until Replica.js signals ready
     const ready = await waitForReplicaReady(page, 45000);
     if (!ready) {
       const currentUrl = page.url();
       console.error('❌ Replica did not become ready in time.');
-      console.error('📌 Current URL:', currentUrl);
       return res.status(500).json({
-        error: 'Replica did not signal ready (window.__REPLICA_READY). Check Replica.js fetch/API + auth/cookies.',
+        error: 'Replica did not signal ready (window.__REPLICA_READY)',
         currentUrl,
       });
     }
 
-    // Optional: give the browser a beat to finish layout/fonts
-    await sleep(300);
+    /* =====================================================
+       🔥 CRITICAL FIX FOR ₱ / CURRENCY SYMBOLS
+       Wait for all web fonts (DejaVuSans) to be fully loaded
+    ===================================================== */
+    await page.evaluate(async () => {
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+    });
 
-    // Print PDF
+    // Small buffer for layout stability
+    await sleep(200);
+
+    // Generate PDF
     const pdfBuffer = await page.pdf({
-      format: 'letter',          // change to 'A4' if you want
+      format: 'letter', // or 'A4'
       printBackground: true,
       preferCSSPageSize: true,
       margin: { top: '0', right: '0', bottom: '0', left: '0' },
@@ -144,6 +146,7 @@ router.get('/:invoiceNo/pdf', async (req, res) => {
       'Content-Disposition',
       `${disposition}; filename="${String(filename).replace(/"/g, '')}"`
     );
+
     return res.status(200).send(pdfBuffer);
   } catch (err) {
     console.error('❌ Invoice PDF GET error:', err);
