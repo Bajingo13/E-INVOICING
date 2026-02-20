@@ -1,5 +1,5 @@
 // ===============================
-// REPLICA.js — Invoice Renderer & Exporter (₱ FIX READY)
+// REPLICA.js — Invoice Renderer & Exporter (LOGO + ₱ FIX READY)
 // ===============================
 
 console.log("✅ REPLICA.js loaded");
@@ -125,34 +125,97 @@ function fillById(id, value) {
 }
 
 /**
- * ✅ Multi-currency formatter
- * - Uses Intl currency formatting
- * - Works for USD/EUR/PHP etc.
- * - ₱ will render properly online because CSS forces DejaVuSans on money cells
+ * ✅ Robust multi-currency formatter
+ * - For PHP: use ₱ codepoint to avoid missing glyph in Linux PDFs
+ * - For others: use Intl
  */
 function formatCurrency(value, currency = "PHP") {
   const num = Number(value);
   if (!isFinite(num)) return "";
+
+  const cur = String(currency || "PHP").toUpperCase();
+  const formatted = num.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+
+  if (cur === "PHP") {
+    const PHP = String.fromCharCode(8369); // ₱
+    return `${PHP}${formatted}`;
+  }
+
   try {
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
-      currency,
+      currency: cur,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(num);
   } catch {
-    // Fallback (rare)
-    return `${num.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `${cur} ${formatted}`;
   }
 }
 
-/**
- * PHP-only display (if you prefer explicit ₱)
- */
 function showPHP(val) {
   const num = Number(val);
   const n = isFinite(num) ? num : 0;
-  return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const PHP = String.fromCharCode(8369); // ₱
+  return `${PHP}${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/* ============================
+   LOGO LOADER (ROBUST)
+============================ */
+function setCompanyLogo(company) {
+  const logoEl = document.getElementById("invoice-logo");
+  if (!logoEl) return;
+
+  let p = (company?.logo_path || "").toString().trim();
+
+  // hide by default
+  logoEl.style.display = "none";
+  logoEl.removeAttribute("src");
+
+  if (!p) return;
+
+  // normalize slashes
+  p = p.replace(/\\/g, "/");
+
+  // if DB stored disk path, keep only filename
+  if (p.includes(":/") || p.startsWith("file:")) {
+    p = p.split("/").pop();
+  }
+
+  // full URL ok
+  if (/^https?:\/\//i.test(p)) {
+    // ok
+  } else {
+    // normalize common prefixes
+    if (p.startsWith("/uploads/")) {
+      // ok
+    } else if (p.startsWith("uploads/")) {
+      p = "/" + p;
+    } else if (p.startsWith("/")) {
+      // could be /assets/logo.png etc.
+    } else {
+      // filename only => assume uploads
+      p = "/uploads/" + p.replace(/^\/+/, "");
+    }
+  }
+
+  // cache bust (prevents caching a 404 while debugging)
+  const cacheBust = `cb=${Date.now()}`;
+  const srcFinal = p.includes("?") ? `${p}&${cacheBust}` : `${p}?${cacheBust}`;
+
+  logoEl.onerror = () => {
+    console.error("❌ Logo failed to load:", p);
+    logoEl.style.display = "none";
+  };
+  logoEl.onload = () => {
+    logoEl.style.display = "block";
+  };
+
+  logoEl.src = srcFinal;
 }
 
 /* ============================
@@ -170,17 +233,9 @@ function renderInvoice(data) {
   fillById("company-tel", company.tel_no || "");
   fillById("company-tin", company.vat_tin || "");
 
-  if (company.logo_path) {
-  const logoEl = document.getElementById("invoice-logo");
-  if (logoEl) {
-    let p = String(company.logo_path || '').trim();
-    if (p && !p.startsWith('http') && !p.startsWith('/')) p = `/uploads/${p}`;
-    if (p.startsWith('uploads/')) p = '/' + p;
+  // ✅ logo robust
+  setCompanyLogo(company);
 
-    logoEl.src = p;
-    logoEl.style.display = "block";
-  }
-}
   // HEADER
   fillById("invoice_no", invoice.invoice_no || "");
   fillById("invoice_date", invoice.date ? formatDate(invoice.date) : "");
@@ -192,18 +247,18 @@ function renderInvoice(data) {
   const termsEl = document.getElementById("terms_table");
   if (termsEl) termsEl.innerHTML = invoice.terms || "";
 
-  // EXCHANGE RATE (contains ₱)
+  // EXCHANGE RATE
   const exchangeRateEl = document.getElementById("exchange_rate");
   const exchangeRate = Number(invoice.exchange_rate || 1);
+  const PHP = String.fromCharCode(8369);
 
   if (exchangeRateEl) {
-    // ✅ ensure glyph font via CSS (#exchange_rate uses DejaVuSans)
     if (invoice.currency === "PHP" || !invoice.currency) {
-      exchangeRateEl.textContent = "₱1.00";
+      exchangeRateEl.textContent = `${PHP}1.00`;
     } else {
       const ex = isFinite(exchangeRate) ? exchangeRate : 1;
       exchangeRateEl.textContent =
-        `1 ${invoice.currency} = ₱${ex.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        `1 ${invoice.currency} = ${PHP}${ex.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
   }
 
@@ -266,10 +321,10 @@ function renderInvoice(data) {
         if (val === null || val === undefined || val === "") {
           td.innerHTML = "&nbsp;";
         } else if (col.key === "unit_price") {
-          td.classList.add("money"); // ✅ forces DejaVuSans for currency glyphs
+          td.classList.add("money");
           td.textContent = formatCurrency(val, invoice.currency || "PHP");
         } else if (col.key === "amount") {
-          td.classList.add("money"); // ✅ forces DejaVuSans
+          td.classList.add("money");
           const num = Number(val);
           td.textContent = isFinite(num) ? formatCurrency(num, invoice.currency || "PHP") : "";
           if (!td.textContent) td.innerHTML = "&nbsp;";
@@ -358,7 +413,7 @@ window.onload = async function () {
 
     renderInvoice(data);
 
-    // ✅ let layout + fonts settle (helps Puppeteer too)
+    // ✅ Let layout settle
     requestAnimationFrame(() => {
       window.__REPLICA_READY = true;
     });

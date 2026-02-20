@@ -1,36 +1,16 @@
+// server.js / app.js (your main file) — ensure uploads is served
 'use strict';
 
-/* =========================
-   Load environment FIRST
-========================= */
 require('dotenv').config();
 
-/* =========================
-   Safe env logging
-========================= */
-console.log(
-  'DATABASE_URL:',
-  process.env.DATABASE_URL
-    ? process.env.DATABASE_URL.slice(0, 20) + '...'
-    : 'undefined (LOCAL)'
-);
-
-console.log('PORT env:', process.env.PORT);
-
-/* =========================
-   Imports
-========================= */
 const express = require('express');
 const path = require('path');
 const morgan = require('morgan');
 const session = require('express-session');
 
-/* ✅ Recurring job scheduler */
 const { startRecurringJob } = require('./jobs/recurringJob');
+const { startEmailOutboxJob } = require('./jobs/emailOutboxJob');
 
-/* =========================
-   Route modules
-========================= */
 const invoicesRoutes = require('./routes/invoices');
 const companyRoutes = require('./routes/company');
 const filesRoutes = require('./routes/files');
@@ -47,32 +27,26 @@ const reportsRouter = require('./routes/reports');
 const auditLogsRoute = require('./routes/auditLogs');
 const { ensureRequestId } = require('./helpers/audit');
 const invoicePreviewPdfPuppeteerRoutes = require('./routes/invoicePreviewPdfPuppeteer.routes');
-const { startEmailOutboxJob } = require('./jobs/emailOutboxJob');
 
-
-/* =========================
-   App setup
-========================= */
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 app.set('trust proxy', 1);
+
+// ✅ serve public
 app.use(express.static(path.join(__dirname, 'public')));
 
-/* =========================
-   Middleware
-========================= */
+// ✅ serve uploads (logos/signatures)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(morgan('dev'));
 app.use(ensureRequestId);
+
 app.use('/partials', express.static(path.join(__dirname, 'partials')));
 app.use('/api/email', require('./routes/emailDebug'));
 
-
-/* =========================
-   Session
-========================= */
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'dev-secret',
@@ -88,10 +62,6 @@ app.use(
   })
 );
 
-
-/* =========================
-   Routes
-========================= */
 app.use('/api', invoicesRoutes);
 app.use('/api/company-info', companyRoutes);
 app.use('/', filesRoutes);
@@ -108,43 +78,21 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/invoices/import', require('./routes/invoiceImport'));
 app.use('/api/audit-logs', auditLogsRoute);
 app.use('/api/invoices', invoicePreviewPdfPuppeteerRoutes);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-/* ✅ Recurring invoices runner endpoint */
 app.use('/api/recurring-invoices', require('./routes/recurringInvoices'));
 
-/* =========================
-   Static pages
-========================= */
-app.get('/', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'Login.html'))
-);
-
-app.get('/dashboard', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'Dashboard.html'))
-);
-
-app.get('/invoice', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'invoice.html'))
-);
-
-app.get('/company-setup', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'company_info.html'))
-);
-
-app.get('/invoice-list', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'invoice-list.html'))
-);
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Login.html')));
+app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Dashboard.html')));
+app.get('/invoice', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice.html')));
+app.get('/company-setup', (req, res) => res.sendFile(path.join(__dirname, 'public', 'company_info.html')));
+app.get('/invoice-list', (req, res) => res.sendFile(path.join(__dirname, 'public', 'invoice-list.html')));
 
 app.get('/activate', (req, res) => {
   const token = req.query.token ? `?token=${encodeURIComponent(req.query.token)}` : '';
   res.redirect(`/invite.html${token}`);
 });
-/* =========================
-   App version endpoint
-========================= */
-const pkg = require('./package.json');
 
+const pkg = require('./package.json');
 app.get('/api/version', (req, res) => {
   res.json({
     name: pkg.name,
@@ -153,9 +101,6 @@ app.get('/api/version', (req, res) => {
   });
 });
 
-/* =========================
-   Global error handler
-========================= */
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err);
   res.status(err.status || 500).json({
@@ -163,15 +108,9 @@ app.use((err, req, res, next) => {
   });
 });
 
-/* =========================
-   ✅ Start recurring scheduler BEFORE listen
-========================= */
 startRecurringJob();
 startEmailOutboxJob();
 
-/* =========================
-   Start server
-========================= */
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

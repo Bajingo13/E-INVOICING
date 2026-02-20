@@ -122,13 +122,19 @@ router.get('/:invoiceNo/pdf', async (req, res) => {
 
     /* =====================================================
        🔥 CRITICAL FIX FOR ₱ / CURRENCY SYMBOLS
-       Wait for all web fonts (DejaVuSans) to be fully loaded
+       Wait for all web fonts to be fully loaded
     ===================================================== */
     await page.evaluate(async () => {
       if (document.fonts && document.fonts.ready) {
         await document.fonts.ready;
       }
     });
+
+    // ✅ Wait for images (logo/signature/etc.) to fully load before printing
+    await page.waitForFunction(() => {
+      const imgs = Array.from(document.images || []);
+      return imgs.length === 0 || imgs.every(img => img.complete);
+    }, { timeout: 15000 }).catch(() => {});
 
     // Small buffer for layout stability
     await sleep(200);
